@@ -1,6 +1,6 @@
 {
   "name": "belegbox",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",
+    "@napi-rs/canvas": "^0.1.97",
     "@prisma/client": "^6.0.0",
     "@react-pdf/renderer": "^4.2.0",
     "bcryptjs": "^3.0.2",

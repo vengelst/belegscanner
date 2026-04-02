@@ -273,21 +273,28 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
 
   async function runOcr(file: File) {
     setOcrRunning(true);
+    setError(null);
 
     const formData = new FormData();
     formData.append("file", file);
 
     try {
       const response = await fetch("/api/ocr/analyze", { method: "POST", body: formData });
-      const data = await response.json();
+      const responseText = await response.text();
+      const data = responseText ? JSON.parse(responseText) : null;
       if (!response.ok) {
-        throw new Error(data.error ?? "OCR konnte nicht ausgefuehrt werden.");
+        throw new Error((data && typeof data === "object" && "error" in data ? String(data.error) : null)
+          ?? "OCR konnte nicht ausgefuehrt werden.");
       }
-      if (data.rawText !== undefined) {
+      if (data && typeof data === "object" && "rawText" in data) {
         setOcrResult(data as OcrResult);
       }
     } catch (requestError: unknown) {
-      const message = requestError instanceof Error ? requestError.message : "OCR konnte nicht ausgefuehrt werden.";
+      const message = requestError instanceof SyntaxError
+        ? "OCR lieferte keine gueltige Antwort. Bitte Datei oder Serverprotokoll pruefen."
+        : requestError instanceof Error
+          ? requestError.message
+          : "OCR konnte nicht ausgefuehrt werden.";
       setError(message);
     } finally {
       setOcrRunning(false);

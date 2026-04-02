@@ -1,4 +1,4 @@
-﻿/**
+/**
  * OCR service for receipt documents.
  *
  * Images are analyzed directly with Tesseract.js.
@@ -250,10 +250,21 @@ export async function analyzeDocument(buffer: Buffer, mimeType: string): Promise
 }
 
 async function analyzePdf(buffer: Buffer): Promise<OcrResult> {
-  const { PDFParse } = await import("pdf-parse");
-  const parser = new PDFParse({ data: new Uint8Array(buffer) });
+  let parser: {
+    destroy(): Promise<void>;
+    getText(options: { pageJoiner: string; lineEnforce: boolean }): Promise<{ text: string; total: number }>;
+    getScreenshot(options: {
+      first: number;
+      desiredWidth: number;
+      imageDataUrl: boolean;
+      imageBuffer: boolean;
+    }): Promise<{ pages: Array<{ data: Uint8Array | Buffer }>; total: number }>;
+  } | null = null;
 
   try {
+    const { PDFParse } = await import("pdf-parse");
+    parser = new PDFParse({ data: new Uint8Array(buffer) });
+
     const textResult = await parser.getText({
       pageJoiner: "\n\n",
       lineEnforce: true,
@@ -313,7 +324,7 @@ async function analyzePdf(buffer: Buffer): Promise<OcrResult> {
       message: "PDF konnte nicht gelesen oder analysiert werden. Datei bleibt gespeichert; bitte Felder manuell erfassen.",
     };
   } finally {
-    await parser.destroy().catch(() => undefined);
+    await parser?.destroy().catch(() => undefined);
   }
 }
 
