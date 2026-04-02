@@ -1,0 +1,199 @@
+import { z } from "zod";
+
+export const loginSchema = z.object({
+  email: z.string().email("Bitte eine gültige E-Mail-Adresse eingeben."),
+  password: z
+    .string()
+    .min(8, "Das Passwort muss mindestens 8 Zeichen haben."),
+});
+
+export const pinLoginSchema = z.object({
+  pin: z
+    .string()
+    .regex(/^\d{4}$/, "Die PIN muss aus genau 4 Ziffern bestehen."),
+});
+
+// ============================================================
+// User schemas
+// ============================================================
+
+export const createUserSchema = z.object({
+  email: z.string().email("Bitte eine gueltige E-Mail-Adresse eingeben."),
+  name: z.string().min(1, "Name ist erforderlich.").max(200),
+  password: z.string().min(8, "Das Passwort muss mindestens 8 Zeichen haben."),
+  role: z.enum(["ADMIN", "USER"]).default("USER"),
+});
+
+export const updateUserSchema = z.object({
+  email: z.string().email("Bitte eine gueltige E-Mail-Adresse eingeben.").optional(),
+  name: z.string().min(1).max(200).optional(),
+  role: z.enum(["ADMIN", "USER"]).optional(),
+  active: z.boolean().optional(),
+});
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, "Aktuelles Passwort ist erforderlich."),
+  newPassword: z.string().min(8, "Das neue Passwort muss mindestens 8 Zeichen haben."),
+});
+
+export const setPinSchema = z.object({
+  pin: z.string().regex(/^\d{4}$/, "Die PIN muss aus genau 4 Ziffern bestehen."),
+});
+
+export const changePinSchema = z.object({
+  currentPassword: z.string().min(1, "Passwort ist zur PIN-Aenderung erforderlich."),
+  pin: z.string().regex(/^\d{4}$/, "Die PIN muss aus genau 4 Ziffern bestehen."),
+});
+
+export const adminSetPasswordSchema = z.object({
+  password: z.string().min(8, "Das Passwort muss mindestens 8 Zeichen haben."),
+});
+
+export const userReceiptDefaultsSchema = z.object({
+  defaultCountryId: z.string().min(1).nullable().optional(),
+  defaultVehicleId: z.string().min(1).nullable().optional(),
+  defaultPurposeId: z.string().min(1).nullable().optional(),
+  defaultCategoryId: z.string().min(1).nullable().optional(),
+});
+
+// ============================================================
+// Master data schemas
+// ============================================================
+
+export const countrySchema = z.object({
+  name: z.string().min(1, "Name ist erforderlich.").max(100),
+  code: z.string().max(2).nullable().optional(),
+  currencyCode: z.string().length(3).nullable().optional(),
+  active: z.boolean().optional(),
+  sortOrder: z.coerce.number().int().min(0).optional(),
+});
+
+export const vehicleSchema = z.object({
+  plate: z.string().min(1, "Kennzeichen ist erforderlich.").max(20),
+  description: z.string().max(200).nullable().optional(),
+  active: z.boolean().optional(),
+  sortOrder: z.coerce.number().int().min(0).optional(),
+});
+
+export const purposeSchema = z.object({
+  name: z.string().min(1, "Name ist erforderlich.").max(100),
+  isHospitality: z.boolean().optional(),
+  active: z.boolean().optional(),
+  sortOrder: z.coerce.number().int().min(0).optional(),
+});
+
+export const categorySchema = z.object({
+  name: z.string().min(1, "Name ist erforderlich.").max(100),
+  active: z.boolean().optional(),
+  sortOrder: z.coerce.number().int().min(0).optional(),
+});
+
+// ============================================================
+// SMTP schema
+// ============================================================
+
+export const smtpConfigSchema = z.object({
+  host: z.string().min(1, "Host ist erforderlich."),
+  port: z.coerce.number().int().min(1).max(65535).default(587),
+  secure: z.boolean().default(true),
+  username: z.string().min(1, "Benutzername ist erforderlich."),
+  password: z.string().min(1, "Passwort ist erforderlich.").optional(),
+  fromAddress: z.string().email("Gueltige Absenderadresse erforderlich."),
+  replyToAddress: z.string().email().nullable().optional(),
+});
+
+// ============================================================
+// DATEV profile schema
+// ============================================================
+
+export const datevProfileSchema = z.object({
+  name: z.string().min(1, "Profilname ist erforderlich.").max(100),
+  datevAddress: z.string().email("Gueltige DATEV-Adresse erforderlich."),
+  senderAddress: z.string().email("Gueltige Absenderadresse erforderlich."),
+  subjectTemplate: z.string().max(500).nullable().optional(),
+  bodyTemplate: z.string().max(5000).nullable().optional(),
+  isDefault: z.boolean().optional(),
+  active: z.boolean().optional(),
+});
+
+// ============================================================
+// Receipt schemas
+// ============================================================
+
+const hospitalitySchema = z.object({
+  occasion: z.string().min(1, "Anlass ist fuer Bewirtung erforderlich."),
+  guests: z
+    .string()
+    .min(1, "Gaeste/Teilnehmer sind fuer Bewirtung erforderlich."),
+  location: z.string().min(1, "Ort ist fuer Bewirtung erforderlich."),
+});
+
+const receiptSchemaBase = z.object({
+  date: z.string().date(),
+  supplier: z.string().max(255).nullable().optional(),
+  amount: z.coerce.number().positive("Betrag muss groesser als 0 sein."),
+  currency: z
+    .string()
+    .length(3, "ISO-4217-Waehrungscode mit 3 Zeichen.")
+    .default("EUR"),
+  exchangeRate: z.coerce.number().positive().nullable().optional(),
+  exchangeRateDate: z.string().date().nullable().optional(),
+  amountEur: z.coerce.number().nonnegative().nullable().optional(),
+  countryId: z.string().min(1).nullable().optional(),
+  vehicleId: z.string().min(1).nullable().optional(),
+  purposeId: z.string().min(1),
+  categoryId: z.string().min(1),
+  remark: z.string().max(2000).nullable().optional(),
+  ocrRawText: z.string().nullable().optional(),
+  hospitality: hospitalitySchema.nullable().optional(),
+});
+
+const currencyRefinement = (
+  value: { currency?: string; exchangeRate?: number | null; exchangeRateDate?: string | null },
+  ctx: z.RefinementCtx,
+) => {
+  if (!value.currency || value.currency === "EUR") {
+    return;
+  }
+
+  if (!value.exchangeRate) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Wechselkurs ist bei Fremdwaehrung erforderlich.",
+      path: ["exchangeRate"],
+    });
+  }
+
+  if (!value.exchangeRateDate) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Kursdatum ist bei Fremdwaehrung erforderlich.",
+      path: ["exchangeRateDate"],
+    });
+  }
+};
+
+export const receiptSchema = receiptSchemaBase.superRefine(currencyRefinement);
+
+export const receiptUpdateSchema = receiptSchemaBase.partial().superRefine(currencyRefinement);
+
+export const sendReadySchema = z
+  .object({
+    date: z.string().date(),
+    supplier: z.string().max(255).nullable().optional(),
+    amount: z.coerce.number().positive("Betrag muss größer als 0 sein."),
+    currency: z
+      .string()
+      .length(3, "ISO-4217-Währungscode mit 3 Zeichen.")
+      .default("EUR"),
+    exchangeRate: z.coerce.number().positive().nullable().optional(),
+    exchangeRateDate: z.string().date().nullable().optional(),
+    amountEur: z.coerce.number().nonnegative().nullable().optional(),
+    countryId: z.string().min(1, "Land ist für den Versand erforderlich."),
+    vehicleId: z.string().min(1).nullable().optional(),
+    purposeId: z.string().min(1),
+    categoryId: z.string().min(1),
+    remark: z.string().max(2000).nullable().optional(),
+    hospitality: hospitalitySchema.nullable().optional(),
+  })
+  .superRefine(currencyRefinement);

@@ -1,0 +1,319 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// Enums
+// ============================================================
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum SendStatus {
+  OPEN
+  READY
+  SENT
+  FAILED
+  RETRY
+}
+
+enum ReviewStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  DEFERRED
+  COMPLETED
+}
+
+enum FileType {
+  ORIGINAL
+  PRINT_PDF
+}
+
+// ============================================================
+// Stammdaten
+// ============================================================
+
+model Vehicle {
+  id                   String    @id @default(cuid())
+  plate                String    @unique
+  description          String?
+  active               Boolean   @default(true)
+  sortOrder            Int       @default(0)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  receipts             Receipt[]
+  usersWithDefault     User[]    @relation("userDefaultVehicle")
+
+  @@index([active, sortOrder])
+}
+
+model Purpose {
+  id                 String    @id @default(cuid())
+  name               String    @unique
+  isHospitality      Boolean   @default(false)
+  active             Boolean   @default(true)
+  sortOrder          Int       @default(0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  receipts           Receipt[]
+  usersWithDefault   User[]    @relation("userDefaultPurpose")
+
+  @@index([active, sortOrder])
+}
+
+model Category {
+  id                 String    @id @default(cuid())
+  name               String    @unique
+  active             Boolean   @default(true)
+  sortOrder          Int       @default(0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  receipts           Receipt[]
+  usersWithDefault   User[]    @relation("userDefaultCategory")
+
+  @@index([active, sortOrder])
+}
+
+model Country {
+  id                   String    @id @default(cuid())
+  code                 String?   @unique
+  name                 String
+  currencyCode         String?   @db.VarChar(3)
+  active               Boolean   @default(true)
+  sortOrder            Int       @default(0)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  receipts             Receipt[]
+  usersWithDefault     User[]    @relation("userDefaultCountry")
+
+  @@index([active, sortOrder])
+}
+
+// ============================================================
+// Benutzerverwaltung (Systemdaten)
+// ============================================================
+
+model User {
+  id                String     @id @default(cuid())
+  email             String     @unique
+  name              String
+  passwordHash      String
+  pinHash           String?
+  role              Role       @default(USER)
+  active            Boolean    @default(true)
+  failedPinAttempts Int        @default(0)
+  pinLockedUntil    DateTime?
+  lastLoginAt       DateTime?
+  defaultCountryId  String?
+  defaultCountry    Country?   @relation("userDefaultCountry", fields: [defaultCountryId], references: [id], onDelete: SetNull)
+  defaultVehicleId  String?
+  defaultVehicle    Vehicle?   @relation("userDefaultVehicle", fields: [defaultVehicleId], references: [id], onDelete: SetNull)
+  defaultPurposeId  String?
+  defaultPurpose    Purpose?   @relation("userDefaultPurpose", fields: [defaultPurposeId], references: [id], onDelete: SetNull)
+  defaultCategoryId String?
+  defaultCategory   Category?  @relation("userDefaultCategory", fields: [defaultCategoryId], references: [id], onDelete: SetNull)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  receipts          Receipt[]
+  reviewedReceipts  Receipt[]        @relation("reviewer")
+  comments          ReceiptComment[]
+  auditLogs         AuditLog[]
+
+  @@index([email])
+  @@index([active])
+  @@index([defaultCountryId])
+  @@index([defaultVehicleId])
+  @@index([defaultPurposeId])
+  @@index([defaultCategoryId])
+}
+
+// ============================================================
+// Bewegungsdaten
+// ============================================================
+
+model Receipt {
+  id                  String     @id @default(cuid())
+
+  // Benutzer
+  userId              String
+  user                User       @relation(fields: [userId], references: [id])
+
+  // Belegdaten
+  date                DateTime   @db.Date
+  supplier            String?
+
+  // Betrag und Waehrung
+  amount              Decimal    @db.Decimal(12, 2)
+  currency            String     @default("EUR") @db.VarChar(3)
+  exchangeRate        Decimal?   @db.Decimal(18, 8)
+  exchangeRateDate    DateTime?  @db.Date
+  amountEur           Decimal    @db.Decimal(12, 2)
+
+  // Zuordnungen (Stammdaten-Referenzen)
+  countryId           String?
+  country             Country?   @relation(fields: [countryId], references: [id])
+  vehicleId           String?
+  vehicle             Vehicle?   @relation(fields: [vehicleId], references: [id])
+  purposeId           String
+  purpose             Purpose    @relation(fields: [purposeId], references: [id])
+  categoryId          String
+  category            Category   @relation(fields: [categoryId], references: [id])
+
+  // DATEV-Profil
+  datevProfileId      String?
+  datevProfile        DatevProfile? @relation(fields: [datevProfileId], references: [id])
+
+  // Versandstatus (technisch: SMTP-Ergebnis)
+  sendStatus          SendStatus @default(OPEN)
+  sendStatusUpdatedAt DateTime?
+
+  // Pruef-/Freigabestatus (fachlich: Buchhaltungs-Workflow)
+  reviewStatus        ReviewStatus @default(DRAFT)
+  reviewedById        String?
+  reviewedBy          User?        @relation("reviewer", fields: [reviewedById], references: [id])
+  reviewedAt          DateTime?
+
+  // Freitext
+  remark              String?    @db.Text
+
+  // OCR-Rohdaten
+  ocrRawText          String?    @db.Text
+
+  // Relationen
+  hospitality         Hospitality?
+  files               ReceiptFile[]
+  sendLogs            SendLog[]
+  comments            ReceiptComment[]
+
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  @@index([userId])
+  @@index([sendStatus])
+  @@index([reviewStatus])
+  @@index([date])
+  @@index([purposeId])
+  @@index([categoryId])
+  @@index([countryId])
+  @@index([datevProfileId])
+  @@index([createdAt])
+}
+
+// Bewirtungsdetails (1:1-Erweiterung, nur bei Zweck = Bewirtung)
+model Hospitality {
+  id        String   @id @default(cuid())
+  receiptId String   @unique
+  receipt   Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  occasion  String
+  guests    String   @db.Text
+  location  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Interne Kommentare / Pruefnotizen am Beleg
+model ReceiptComment {
+  id        String   @id @default(cuid())
+  receiptId String
+  receipt   Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  text      String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([receiptId, createdAt])
+}
+
+// ============================================================
+// Dateien
+// ============================================================
+
+model ReceiptFile {
+  id          String   @id @default(cuid())
+  receiptId   String
+  receipt     Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  type        FileType
+  mimeType    String
+  filename    String
+  storagePath String
+  sizeBytes   Int
+  createdAt   DateTime @default(now())
+
+  @@index([receiptId, type])
+}
+
+// ============================================================
+// Systemdaten
+// ============================================================
+
+// SMTP-Konfiguration (Singleton-Zeile)
+model SmtpConfig {
+  id                String   @id @default("default")
+  host              String
+  port              Int      @default(587)
+  secure            Boolean  @default(true)
+  username          String
+  passwordEncrypted String
+  fromAddress       String
+  replyToAddress    String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// DATEV-Versandprofil
+model DatevProfile {
+  id              String    @id @default(cuid())
+  name            String    @unique
+  datevAddress    String
+  senderAddress   String
+  subjectTemplate String?
+  bodyTemplate    String?   @db.Text
+  isDefault       Boolean   @default(false)
+  active          Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  receipts        Receipt[]
+
+  @@index([active, isDefault])
+}
+
+// Versandprotokoll
+model SendLog {
+  id           String   @id @default(cuid())
+  receiptId    String
+  receipt      Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  sentAt       DateTime @default(now())
+  toAddress    String
+  success      Boolean
+  errorMessage String?  @db.Text
+  messageId    String?
+  createdAt    DateTime @default(now())
+
+  @@index([receiptId])
+  @@index([success])
+  @@index([createdAt])
+}
+
+// Audit-Log
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  details   Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+}

@@ -1,0 +1,13 @@
+node_modules
+.next
+dist
+coverage
+.env
+.env.local
+.env.production
+prisma/dev.db
+storage/*
+!storage/.gitkeep
+*.log
+.dockerignore
+

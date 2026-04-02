@@ -1,0 +1,52 @@
+# BelegBox - Docker Compose
+# Startet PostgreSQL + BelegBox App
+#
+# Nutzung:
+#   docker compose up -d
+#   docker compose exec app npx prisma migrate deploy
+#   docker compose exec app npx tsx prisma/seed.ts
+#
+# Dann: http://localhost:3000
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: belegbox
+      POSTGRES_PASSWORD: belegbox
+      POSTGRES_DB: belegbox
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U belegbox"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    volumes:
+      - storage:/app/storage
+    environment:
+      DATABASE_URL: "postgresql://belegbox:belegbox@db:5432/belegbox"
+      AUTH_SECRET: "${AUTH_SECRET:-change-me-generate-with-openssl-rand-base64-48}"
+      AUTH_URL: "http://localhost:3000"
+      STORAGE_PATH: "/app/storage"
+      OCR_LANGUAGE: "deu+eng"
+      SMTP_ENCRYPTION_KEY: "${SMTP_ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}"
+      ADMIN_EMAIL: "${ADMIN_EMAIL:-admin@belegbox.local}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-admin1234}"
+      ADMIN_NAME: "${ADMIN_NAME:-Administrator}"
+
+volumes:
+  pgdata:
+  storage:
