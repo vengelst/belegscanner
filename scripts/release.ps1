@@ -194,6 +194,7 @@ function Invoke-Deploy {
     $remoteSteps = @()
     $remoteSteps += "set -e"
     $remoteSteps += "cd '$ServerPath'"
+    $remoteSteps += 'if [ -n "$(git status --porcelain)" ]; then echo SERVER_GIT_DIRTY; git status --short; exit 20; fi'
     $remoteSteps += "git fetch --tags $RemoteName"
     $remoteSteps += "git checkout $Branch"
     $remoteSteps += "git pull --ff-only $RemoteName $Branch"
@@ -217,7 +218,17 @@ function Invoke-Deploy {
     $sshTarget = $ServerUser + "@" + $ServerHost
     $sshCommand = 'ssh ' + $sshTarget + ' "' + $remoteCommand + '"'
 
-    Run-Command -Label "Deploye auf $sshTarget" -Command $sshCommand
+    try {
+        Run-Command -Label "Deploye auf $sshTarget" -Command $sshCommand
+    }
+    catch {
+        if ($_.Exception.Message -like "*SERVER_GIT_DIRTY*") {
+            throw "Deploy abgebrochen: Das Repo auf dem Server enthaelt lokale Aenderungen. Bitte dort zuerst git status pruefen und die Aenderungen bereinigen."
+        }
+
+        throw
+    }
+
     Write-Info "Deployment abgeschlossen. Pruefe jetzt $AppUrl"
 }
 
