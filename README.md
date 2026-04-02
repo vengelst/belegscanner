@@ -6,9 +6,10 @@ BelegBox ist eine webbasierte Beleg-App auf Basis von Next.js, TypeScript, Tailw
 
 - Login mit E-Mail/Passwort und PIN
 - Benutzer- und Stammdatenverwaltung
-- Belegerfassung mit Originaldatei, OCR-Vorbelegung fuer Bilder und PDFs, Benutzer-Defaults und Folgeerfassung
+- Belegerfassung mit Originaldatei, OCR-Vorbelegung fuer Bilder und PDFs, Benutzer-Defaults, Folgeerfassung und mobiler Kameraaufnahme
 - Review-, Versand- und Druck/PDF-Pfade
 - PDF-OCR: Text-PDFs direkt, Scan-PDFs ueber Seitenbild-OCR (erste Seiten)
+- Smart Capture Phase 4: strukturierte OCR-Feldzuordnung mit Laendererkennung, robusterer Zahlungsart-/Kartenmuster-Erkennung und leichtgewichtigem Feldstatusmodell fuer Review und manuelle Bestaetigung
 - Reporting, CSV-Export und Admin-Bereiche
 - Komfortfunktionen: letzte Werte merken, Standard-Zuordnungen pro Benutzer, "Speichern & naechsten Beleg erfassen"
 

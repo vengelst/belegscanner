@@ -58,15 +58,27 @@ Voraussetzung: PostgreSQL laeuft, `prisma migrate dev` und `prisma db seed` wurd
 ## 7. Beleg erfassen
 
 - [ ] /receipts/new oeffnen
+- [ ] Auf Mobilgeraet: "Kamera in App oeffnen" sichtbar, wenn HTTPS oder localhost genutzt wird
 - [ ] Bild hochladen (JPG/PNG) -> Vorschau wird angezeigt
+- [ ] Kamera oeffnen -> Dokumentstatus sichtbar (erkannt / unsicher / nicht erkannt)
+- [ ] Kamera oeffnen -> Auto-Capture loest nur bei stabilem, scharfem, ausreichend hellem Dokument aus
+- [ ] Kamera oeffnen -> Foto aufnehmen -> pruefen -> uebernehmen
 - [ ] OCR laeuft automatisch, Ergebnisse erscheinen
+- [ ] Bei Foto-Belegen Hinweis sichtbar: Original bleibt unveraendert, OCR nutzt Arbeitskopie
+- [ ] Bei Auto-Capture: Quelle als Kamera (Auto-Capture) gekennzeichnet
+- [ ] Bei Kamerafoto: OCR-Arbeitskopie zeigt Crop/Ausrichtung in den Hinweisen an
 - [ ] OCR-Werte werden als Vorbelegung in Formularfelder uebernommen
+- [ ] OCR zeigt strukturierte Vorschlaege fuer Uhrzeit, Ort, Land, Zahlungsart und Kartenendziffern, wenn erkennbar
+- [ ] OCR markiert unsichere Werte sichtbar als Vorschlag / unsicher
+- [ ] Land wird nur bei hoher Plausibilitaet automatisch gesetzt, sonst als Vorschlag angeboten
+- [ ] Kartenziffern zeigen nur 2 bis 4 Endziffern und niemals volle Kartennummern
 - [ ] Vorbelegungshinweis zeigt letzte Werte oder Benutzer-Standards an, wenn vorhanden
 - [ ] Textbasiertes PDF hochladen -> OCR-Vorschlaege erscheinen
 - [ ] Gescanntes PDF hochladen -> OCR versucht Seitenbild-Analyse, manuelle Eingaben bleiben vorrangig
 - [ ] PDF ohne brauchbaren Text -> klare Hinweis-Meldung, manuelle Erfassung bleibt moeglich
 - [ ] Zu grosse Datei (>20 MB) wird abgelehnt
 - [ ] Ungueltiger Dateityp wird abgelehnt
+- [ ] Kameraberechtigung verweigern -> klare Fehlermeldung, Upload bleibt weiter nutzbar
 - [ ] Pflichtfelder: Datum, Betrag, Zweck, Kategorie
 - [ ] "Speichern" -> Weiterleitung zur Detailseite
 - [ ] "Speichern & naechsten Beleg erfassen" -> neue leere Dateiauswahl, letzte Zuordnungen bleiben vorbelegt
@@ -80,6 +92,7 @@ Voraussetzung: PostgreSQL laeuft, `prisma migrate dev` und `prisma db seed` wurd
 - [ ] Pflichtfelder: Anlass, Gaeste, Ort
 - [ ] Speichern ohne Bewirtungsangaben -> Fehlermeldung (server)
 - [ ] Bewirtungsdaten in Detailansicht sichtbar
+- [ ] Bei als Bewirtung erkannten Belegen erscheinen Bewirtungshinweise und Positionen als OCR-Vorschlaege, ohne Anlass/Gaeste automatisch zu erfinden
 - [ ] Bewirtungsdaten in Druckansicht sichtbar
 - [ ] Bewirtungsdaten bearbeitbar in Edit-Form
 - [ ] Zweck wechseln weg von Bewirtung -> Felder verschwinden
@@ -128,6 +141,8 @@ Voraussetzung: PostgreSQL laeuft, `prisma migrate dev` und `prisma db seed` wurd
 - [ ] Versandstatus-Badge sichtbar
 - [ ] Versandhistorie sichtbar
 - [ ] OCR-Rohtext sichtbar (falls vorhanden)
+- [ ] Smart-Capture-Vorschlaege in Detailansicht sichtbar (Belegtyp, Land, Zahlungsart, Kartenendziffern, Tank-/Bewirtungshinweise)
+- [ ] Feldstatus in Detailansicht nachvollziehbar (OCR sicher / unsicher / manuell bestaetigt / manuell gesetzt)
 - [ ] Bewirtungsblock nur bei Bewirtungsbelegen
 - [ ] Waehrungsblock nur bei Fremdwaehrung
 - [ ] "Bearbeiten", "Druckansicht", "PDF" Buttons vorhanden

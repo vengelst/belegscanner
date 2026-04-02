@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { ChangePasswordForm } from "@/components/settings/change-password-form";
 import { ChangePinForm } from "@/components/settings/change-pin-form";
+import { NavigationDisplayForm } from "@/components/settings/navigation-display-form";
 import { UserReceiptDefaultsForm } from "@/components/settings/user-receipt-defaults-form";
 import { SettingsModeSwitch } from "@/components/settings/settings-mode-switch";
 import { connection } from "next/server";
@@ -52,6 +53,7 @@ export default async function UserSettingsPage() {
           {user.name} &middot; {user.email} &middot; {user.role}
         </p>
       </div>
+      <NavigationDisplayForm />
       <UserReceiptDefaultsForm
         initialDefaults={{
           defaultCountryId: user.defaultCountryId,

@@ -11,8 +11,8 @@ BelegBox ist eine webbasierte Beleg-App fuer mobile Erfassung, Verwaltung im Bro
 
 - Login mit E-Mail/Passwort und 4-stelliger PIN (Kiosk)
 - Benutzerverwaltung mit Rollen ADMIN und USER
-- Belegaufnahme per Upload (JPG, PNG, PDF, max 20 MB)
-- OCR-Verarbeitung zur Vorbelegung fuer Bild- und PDF-Belege (Tesseract.js, Deutsch + Englisch)
+- Belegaufnahme per Upload oder mobiler Kameraaufnahme (JPG, PNG, PDF, max 20 MB)
+- OCR-Verarbeitung zur Vorbelegung fuer Bild-, Kamera- und PDF-Belege (Tesseract.js, Deutsch + Englisch) mit strukturierter Feldzuordnung und heuristischer Belegtyp-Erkennung
 - Formular zur Ergaenzung und Korrektur der Belegdaten
 - Komfortfunktionen fuer wiederkehrende Erfassungen (Benutzer-Standards, letzte Werte, Folgeerfassung)
 - Stammdatenverwaltung: Laender, Kfz, Zwecke, Kategorien
@@ -33,10 +33,14 @@ Ein Beleg enthaelt:
 - Versandstatus (systemgefuehrt)
 - Bemerkung (Freitext)
 - Originaldatei (unveraendert gespeichert)
-- OCR-Rohtext (bei Bilddateien, Text-PDFs oder Scan-PDF-OCR)
+- OCR-Rohtext (bei Bilddateien, Kameraaufnahmen, Text-PDFs oder Scan-PDF-OCR)
+- Strukturierte OCR-Vorschlaege fuer Datum, Uhrzeit, Lieferant, Ort, Land, Betrag, Waehrung, Zahlungsart, Kartenendziffern sowie Tank-/Bewirtungshinweise
 
 Regeln:
 - Originalbeleg wird unveraendert gespeichert
+- Bei Foto-Belegen darf fuer Vorschau/OCR eine getrennte Arbeitskopie mit Crop- und Rotationskorrektur erzeugt werden; gespeichert wird weiterhin nur das Original
+- OCR-Belegtyp, Laenderkennung und Spezialfelder sind Vorschlaege und duerfen manuelle Eingaben niemals still ueberschreiben
+- Fuer wichtige OCR-Felder wird ein leichtgewichtiges Feldstatusmodell gefuehrt: sicher erkannt, unsicher erkannt, nicht erkannt, manuell bestaetigt, manuell gesetzt
 - Vorbelegung folgt der Prioritaet: aktuelle manuelle Eingabe -> letzte Werte aus Folgeerfassung -> Benutzer-Standards -> System-Defaults
 - Druckansicht und Originaldatei sind getrennte Artefakte
 - Versandstatus wird systemgefuehrt behandelt (nicht frei editierbar)

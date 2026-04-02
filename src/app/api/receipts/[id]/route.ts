@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { receiptUpdateSchema } from "@/lib/validation";
+import { Prisma } from "@prisma/client";
 
 export async function GET(
   _request: NextRequest,
@@ -87,6 +88,8 @@ export async function PUT(
   if (input.categoryId !== undefined) data.categoryId = input.categoryId;
   if (input.remark !== undefined) data.remark = input.remark ?? null;
   if (input.ocrRawText !== undefined) data.ocrRawText = input.ocrRawText ?? null;
+  if (input.detectedDocumentType !== undefined) data.detectedDocumentType = input.detectedDocumentType ?? null;
+  if (input.ocrStructuredData !== undefined) data.ocrStructuredData = input.ocrStructuredData === null ? Prisma.JsonNull : input.ocrStructuredData;
 
   const amount = input.amount ?? Number(existing.amount);
   const currency = input.currency ?? existing.currency;

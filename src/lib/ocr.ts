@@ -1,4 +1,4 @@
-/**
+﻿/**
  * OCR service for receipt documents.
  *
  * Images are analyzed directly with Tesseract.js.
@@ -6,44 +6,232 @@
  * the first pages are rendered to images and passed through the same OCR flow.
  */
 
+import {
+  type OcrConfidenceLevel,
+  type OcrDocumentType,
+  type OcrPaymentMethod,
+} from "@/lib/ocr-suggestions";
+
 export type OcrSourceType = "image" | "pdf-text" | "pdf-scan" | "pdf-empty";
 
-type OcrFieldConfidenceLevel = "high" | "medium" | "low" | "none";
+export type OcrLineItem = {
+  label: string;
+  amount: number | null;
+};
 
 export type OcrResult = {
   sourceType: OcrSourceType;
   rawText: string;
   extracted: {
     date: string | null;
+    time: string | null;
     amount: number | null;
     currency: string | null;
     supplier: string | null;
+    location: string | null;
+    paymentMethod: OcrPaymentMethod | null;
+    cardLastDigits: string | null;
+    countryCode: string | null;
+    countryName: string | null;
+    documentType: OcrDocumentType | null;
+  };
+  special: {
+    fuel: {
+      liters: number | null;
+      pricePerLiter: number | null;
+      fuelType: string | null;
+    } | null;
+    hospitality: {
+      location: string | null;
+      subtotal: number | null;
+      tip: number | null;
+      lineItems: OcrLineItem[];
+    } | null;
+    lodging: {
+      location: string | null;
+      nights: number | null;
+      subtotal: number | null;
+      tax: number | null;
+      fees: number | null;
+      lineItems: OcrLineItem[];
+    } | null;
+    parking: {
+      location: string | null;
+      durationText: string | null;
+      entryTime: string | null;
+      exitTime: string | null;
+    } | null;
+    toll: {
+      station: string | null;
+      routeHint: string | null;
+      vehicleClass: string | null;
+    } | null;
   };
   confidence: number;
   fieldConfidence: {
-    date: OcrFieldConfidenceLevel;
-    amount: OcrFieldConfidenceLevel;
-    currency: OcrFieldConfidenceLevel;
-    supplier: OcrFieldConfidenceLevel;
+    date: OcrConfidenceLevel;
+    time: OcrConfidenceLevel;
+    amount: OcrConfidenceLevel;
+    currency: OcrConfidenceLevel;
+    supplier: OcrConfidenceLevel;
+    location: OcrConfidenceLevel;
+    paymentMethod: OcrConfidenceLevel;
+    cardLastDigits: OcrConfidenceLevel;
+    country: OcrConfidenceLevel;
+    documentType: OcrConfidenceLevel;
+  };
+  specialConfidence: {
+    fuel: {
+      liters: OcrConfidenceLevel;
+      pricePerLiter: OcrConfidenceLevel;
+      fuelType: OcrConfidenceLevel;
+    } | null;
+    hospitality: {
+      location: OcrConfidenceLevel;
+      subtotal: OcrConfidenceLevel;
+      tip: OcrConfidenceLevel;
+      lineItems: OcrConfidenceLevel;
+    } | null;
+    lodging: {
+      location: OcrConfidenceLevel;
+      nights: OcrConfidenceLevel;
+      subtotal: OcrConfidenceLevel;
+      tax: OcrConfidenceLevel;
+      fees: OcrConfidenceLevel;
+      lineItems: OcrConfidenceLevel;
+    } | null;
+    parking: {
+      location: OcrConfidenceLevel;
+      durationText: OcrConfidenceLevel;
+      entryTime: OcrConfidenceLevel;
+      exitTime: OcrConfidenceLevel;
+    } | null;
+    toll: {
+      station: OcrConfidenceLevel;
+      routeHint: OcrConfidenceLevel;
+      vehicleClass: OcrConfidenceLevel;
+    } | null;
   };
   message: string | null;
+};
+
+type FieldResult<T> = { value: T | null; confidence: OcrConfidenceLevel };
+type CountryResult = { code: string | null; name: string | null; confidence: OcrConfidenceLevel };
+
+type FuelDetails = {
+  liters: FieldResult<number>;
+  pricePerLiter: FieldResult<number>;
+  fuelType: FieldResult<string>;
+  totalAmount: FieldResult<number>;
+};
+
+type HospitalityDetails = {
+  location: FieldResult<string>;
+  subtotal: FieldResult<number>;
+  tip: FieldResult<number>;
+  lineItems: OcrLineItem[];
+};
+
+type LodgingDetails = {
+  location: FieldResult<string>;
+  nights: FieldResult<number>;
+  subtotal: FieldResult<number>;
+  tax: FieldResult<number>;
+  fees: FieldResult<number>;
+  lineItems: OcrLineItem[];
+};
+
+type ParkingDetails = {
+  location: FieldResult<string>;
+  durationText: FieldResult<string>;
+  entryTime: FieldResult<string>;
+  exitTime: FieldResult<string>;
+};
+
+type TollDetails = {
+  station: FieldResult<string>;
+  routeHint: FieldResult<string>;
+  vehicleClass: FieldResult<string>;
+};
+
+type ParsedReceiptText = {
+  date: FieldResult<string>;
+  time: FieldResult<string>;
+  amount: FieldResult<number>;
+  currency: FieldResult<string>;
+  supplier: FieldResult<string>;
+  location: FieldResult<string>;
+  paymentMethod: FieldResult<OcrPaymentMethod>;
+  cardLastDigits: FieldResult<string>;
+  country: CountryResult;
+  documentType: FieldResult<OcrDocumentType>;
+  special: {
+    fuel: FuelDetails | null;
+    hospitality: HospitalityDetails | null;
+    lodging: LodgingDetails | null;
+    parking: ParkingDetails | null;
+    toll: TollDetails | null;
+  };
 };
 
 const EMPTY_RESULT: OcrResult = {
   sourceType: "pdf-empty",
   rawText: "",
-  extracted: { date: null, amount: null, currency: null, supplier: null },
+  extracted: {
+    date: null,
+    time: null,
+    amount: null,
+    currency: null,
+    supplier: null,
+    location: null,
+    paymentMethod: null,
+    cardLastDigits: null,
+    countryCode: null,
+    countryName: null,
+    documentType: null,
+  },
+  special: { fuel: null, hospitality: null, lodging: null, parking: null, toll: null },
   confidence: 0,
-  fieldConfidence: { date: "none", amount: "none", currency: "none", supplier: "none" },
+  fieldConfidence: {
+    date: "none",
+    time: "none",
+    amount: "none",
+    currency: "none",
+    supplier: "none",
+    location: "none",
+    paymentMethod: "none",
+    cardLastDigits: "none",
+    country: "none",
+    documentType: "none",
+  },
+  specialConfidence: {
+    fuel: { liters: "none", pricePerLiter: "none", fuelType: "none" },
+    hospitality: { location: "none", subtotal: "none", tip: "none", lineItems: "none" },
+    lodging: { location: "none", nights: "none", subtotal: "none", tax: "none", fees: "none", lineItems: "none" },
+    parking: { location: "none", durationText: "none", entryTime: "none", exitTime: "none" },
+    toll: { station: "none", routeHint: "none", vehicleClass: "none" },
+  },
   message: null,
 };
 
 const MAX_PDF_SCAN_PAGES = 3;
+const SUPPORTED_CURRENCIES = ["EUR", "CHF", "RSD", "MKD", "USD", "GBP", "CZK", "HRK", "PLN", "HUF", "RON", "BGN", "SEK", "NOK", "DKK"] as const;
+const FUEL_KEYWORDS = [/tankstelle/i, /kraftstoff/i, /diesel/i, /super\s*e?1?0?/i, /benzin/i, /fuel/i, /lit(?:er|ers|re|res)?\b/i, /\be10\b/i, /\be5\b/i, /autogas/i, /lpg/i];
+const HOSPITALITY_KEYWORDS = [/restaurant/i, /cafe/i, /bistro/i, /gaststaette/i, /pizzeria/i, /bar\b/i, /speise/i, /getraenk/i, /trinkgeld/i, /table\s*\d+/i, /tisch\s*\d+/i];
+const LODGING_KEYWORDS = [/hotel/i, /unterkunft/i, /uebernacht/i, /overnight/i, /zimmer/i, /room\b/i, /check-?in/i, /check-?out/i, /reservation/i, /booking/i, /nacht\b/i];
+const PARKING_KEYWORDS = [/parken/i, /parkhaus/i, /parkticket/i, /parking/i, /garage/i, /ticket\s*nr/i, /einfahrt/i, /ausfahrt/i];
+const TOLL_KEYWORDS = [/maut/i, /toll/i, /peage/i, /putarina/i, /enc\b/i, /naplatna/i, /autocesta/i, /autobahn/i, /station\b/i];
+const COUNTRY_RULES = [
+  { code: "DE", name: "Deutschland", keywords: [/deutschland/i, /germany/i, /berlin/i, /muenchen/i, /hamburg/i, /koeln/i], vat: /\bDE\d{9}\b/, phone: /\+49|0049/, postal: /\b\d{5}\s+[A-Za-z]/ },
+  { code: "AT", name: "Oesterreich", keywords: [/oesterreich/i, /austria/i, /wien/i, /salzburg/i, /graz/i], vat: /\bATU\d{8}\b/, phone: /\+43|0043/, postal: /\bA-?\d{4}\b/ },
+  { code: "HR", name: "Kroatien", keywords: [/kroatien/i, /croatia/i, /zagreb/i, /split/i, /rijeka/i], vat: /\bHR\d{11}\b/, phone: /\+385|00385/, postal: /\bHR-?\d{5}\b/ },
+  { code: "RS", name: "Serbien", keywords: [/serbien/i, /srbija/i, /serbia/i, /beograd/i, /novi\s*sad/i], vat: /\bRS\d{9}\b/, phone: /\+381|00381/, postal: /\b11\d{3}\b/ },
+  { code: "MK", name: "Nordmazedonien", keywords: [/nordmazedonien/i, /north\s*macedonia/i, /macedonia/i, /skopje/i], vat: /\bMK\d{13}\b/, phone: /\+389|00389/, postal: /\b1\d{3}\b/ },
+] as const;
+const LOCATION_NOISE = /^(tel|fax|mail|e-mail|www|http|ust|steuer|mwst|iban|bic|kasse|bon|beleg|datum|table|tisch|rechnung|summe|gesamt|brutto|netto|zahlungsart|entry|exit|einfahrt|ausfahrt)\b/i;
+const LINE_ITEM_SKIP = /(?:summe|gesamt|subtotal|zwischensumme|trinkgeld|tip|karte|zahlung|zahlungsart|mwst|steuer|netto|brutto|beleg|rechnung|amount due|zu zahlen)/i;
 
-export async function analyzeDocument(
-  buffer: Buffer,
-  mimeType: string,
-): Promise<OcrResult> {
+export async function analyzeDocument(buffer: Buffer, mimeType: string): Promise<OcrResult> {
   if (mimeType === "application/pdf") {
     return analyzePdf(buffer);
   }
@@ -140,11 +328,7 @@ async function recognizeImageText(buffer: Buffer): Promise<{ rawText: string; co
   };
 }
 
-function buildResult(
-  rawText: string,
-  confidence: number,
-  sourceType: OcrSourceType,
-): OcrResult {
+function buildResult(rawText: string, confidence: number, sourceType: OcrSourceType): OcrResult {
   const parsed = parseReceiptText(rawText);
 
   return {
@@ -152,26 +336,97 @@ function buildResult(
     rawText,
     extracted: {
       date: parsed.date.value,
+      time: parsed.time.value,
       amount: parsed.amount.value,
       currency: parsed.currency.value,
       supplier: parsed.supplier.value,
+      location: parsed.location.value,
+      paymentMethod: parsed.paymentMethod.value,
+      cardLastDigits: parsed.cardLastDigits.value,
+      countryCode: parsed.country.code,
+      countryName: parsed.country.name,
+      documentType: parsed.documentType.value,
+    },
+    special: {
+      fuel: parsed.special.fuel ? {
+        liters: parsed.special.fuel.liters.value,
+        pricePerLiter: parsed.special.fuel.pricePerLiter.value,
+        fuelType: parsed.special.fuel.fuelType.value,
+      } : null,
+      hospitality: parsed.special.hospitality ? {
+        location: parsed.special.hospitality.location.value,
+        subtotal: parsed.special.hospitality.subtotal.value,
+        tip: parsed.special.hospitality.tip.value,
+        lineItems: parsed.special.hospitality.lineItems,
+      } : null,
+      lodging: parsed.special.lodging ? {
+        location: parsed.special.lodging.location.value,
+        nights: parsed.special.lodging.nights.value,
+        subtotal: parsed.special.lodging.subtotal.value,
+        tax: parsed.special.lodging.tax.value,
+        fees: parsed.special.lodging.fees.value,
+        lineItems: parsed.special.lodging.lineItems,
+      } : null,
+      parking: parsed.special.parking ? {
+        location: parsed.special.parking.location.value,
+        durationText: parsed.special.parking.durationText.value,
+        entryTime: parsed.special.parking.entryTime.value,
+        exitTime: parsed.special.parking.exitTime.value,
+      } : null,
+      toll: parsed.special.toll ? {
+        station: parsed.special.toll.station.value,
+        routeHint: parsed.special.toll.routeHint.value,
+        vehicleClass: parsed.special.toll.vehicleClass.value,
+      } : null,
     },
     confidence,
     fieldConfidence: {
       date: parsed.date.confidence,
+      time: parsed.time.confidence,
       amount: parsed.amount.confidence,
       currency: parsed.currency.confidence,
       supplier: parsed.supplier.confidence,
+      location: parsed.location.confidence,
+      paymentMethod: parsed.paymentMethod.confidence,
+      cardLastDigits: parsed.cardLastDigits.confidence,
+      country: parsed.country.confidence,
+      documentType: parsed.documentType.confidence,
+    },
+    specialConfidence: {
+      fuel: parsed.special.fuel ? {
+        liters: parsed.special.fuel.liters.confidence,
+        pricePerLiter: parsed.special.fuel.pricePerLiter.confidence,
+        fuelType: parsed.special.fuel.fuelType.confidence,
+      } : null,
+      hospitality: parsed.special.hospitality ? {
+        location: parsed.special.hospitality.location.confidence,
+        subtotal: parsed.special.hospitality.subtotal.confidence,
+        tip: parsed.special.hospitality.tip.confidence,
+        lineItems: parsed.special.hospitality.lineItems.length > 0 ? "medium" : "none",
+      } : null,
+      lodging: parsed.special.lodging ? {
+        location: parsed.special.lodging.location.confidence,
+        nights: parsed.special.lodging.nights.confidence,
+        subtotal: parsed.special.lodging.subtotal.confidence,
+        tax: parsed.special.lodging.tax.confidence,
+        fees: parsed.special.lodging.fees.confidence,
+        lineItems: parsed.special.lodging.lineItems.length > 0 ? "medium" : "none",
+      } : null,
+      parking: parsed.special.parking ? {
+        location: parsed.special.parking.location.confidence,
+        durationText: parsed.special.parking.durationText.confidence,
+        entryTime: parsed.special.parking.entryTime.confidence,
+        exitTime: parsed.special.parking.exitTime.confidence,
+      } : null,
+      toll: parsed.special.toll ? {
+        station: parsed.special.toll.station.confidence,
+        routeHint: parsed.special.toll.routeHint.confidence,
+        vehicleClass: parsed.special.toll.vehicleClass.confidence,
+      } : null,
     },
     message: null,
   };
 }
-
-// ============================================================
-// Internal types and parsing
-// ============================================================
-
-type FieldResult<T> = { value: T | null; confidence: OcrFieldConfidenceLevel };
 
 function normalizeText(text: string): string {
   return text
@@ -188,20 +443,56 @@ function hasMeaningfulText(text: string): boolean {
   return /[A-Za-z0-9]/.test(compact);
 }
 
-function parseReceiptText(text: string) {
+function parseReceiptText(text: string): ParsedReceiptText {
+  const lines = toLines(text);
+  const date = extractDate(text);
+  const time = extractTime(text);
+  const amount = extractAmount(text);
+  const currency = extractCurrency(text);
+  const supplier = extractSupplier(lines);
+  const location = extractLocation(lines);
+  const paymentMethod = extractPaymentMethod(text);
+  const cardLastDigits = extractCardLastDigits(text, paymentMethod);
+  const fuel = extractFuelDetails(text, amount);
+  const hospitality = extractHospitalityDetails(lines, location);
+  const lodging = extractLodgingDetails(lines, location);
+  const parking = extractParkingDetails(lines, location, time);
+  const toll = extractTollDetails(lines, location);
+  const country = extractCountry(text, currency, location, supplier);
+  const documentType = detectDocumentType(text, fuel, hospitality, lodging, parking, toll);
+
   return {
-    date: extractDate(text),
-    amount: extractAmount(text),
-    currency: extractCurrency(text),
-    supplier: extractSupplier(text),
+    date,
+    time,
+    amount,
+    currency,
+    supplier,
+    location,
+    paymentMethod,
+    cardLastDigits,
+    country,
+    documentType,
+    special: {
+      fuel: documentType.value === "fuel" || hasFuelSignals(fuel) ? fuel : null,
+      hospitality: documentType.value === "hospitality" || hasHospitalitySignals(hospitality) ? hospitality : null,
+      lodging: documentType.value === "lodging" || hasLodgingSignals(lodging) ? lodging : null,
+      parking: documentType.value === "parking" || hasParkingSignals(parking) ? parking : null,
+      toll: documentType.value === "toll" || hasTollSignals(toll) ? toll : null,
+    },
   };
 }
 
+function toLines(text: string) {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 function extractDate(text: string): FieldResult<string> {
-  const kw = /(?:datum|date|rechnungsdatum|belegdatum)[:\s]*(\d{1,2})[./](\d{1,2})[./](20\d{2})/i;
-  const kwMatch = text.match(kw);
-  if (kwMatch) {
-    const [, day, month, year] = kwMatch;
+  const keywordMatch = text.match(/(?:datum|date|rechnungsdatum|belegdatum|invoice date|stay date)[:\s]*(\d{1,2})[./](\d{1,2})[./](20\d{2})/i);
+  if (keywordMatch) {
+    const [, day, month, year] = keywordMatch;
     return { value: `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`, confidence: "high" };
   }
 
@@ -220,9 +511,18 @@ function extractDate(text: string): FieldResult<string> {
   return { value: null, confidence: "none" };
 }
 
+function extractTime(text: string): FieldResult<string> {
+  const keywordMatch = text.match(/(?:uhr|zeit|time|entry|exit|check-?in|check-?out)[:\s]*(\d{1,2}:\d{2})/i);
+  if (keywordMatch) return { value: normalizeTime(keywordMatch[1]), confidence: "high" };
+
+  const generic = text.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
+  if (generic) return { value: `${generic[1].padStart(2, "0")}:${generic[2]}`, confidence: "medium" };
+  return { value: null, confidence: "none" };
+}
+
 function extractAmount(text: string): FieldResult<number> {
   const lines = text.split("\n");
-  const totalKw = /(?:summe|gesamt|total|brutto|zu\s*zahlen|betrag|endbetrag|rechnungsbetrag)/i;
+  const totalKw = /(?:summe|gesamt|total|brutto|zu\s*zahlen|betrag|endbetrag|rechnungsbetrag|amount due|grand total|total due)/i;
 
   for (const line of lines) {
     if (totalKw.test(line)) {
@@ -243,16 +543,16 @@ function extractAmount(text: string): FieldResult<number> {
 }
 
 function parseAmountFromLine(line: string): number | null {
-  const eu = line.match(/(\d{1,3}(?:\.\d{3})*,\d{2})/);
+  const eu = line.match(/(\d{1,3}(?:\.\d{3})*,\d{2,3})/);
   if (eu) return parseFloat(eu[1].replace(/\./g, "").replace(",", "."));
-  const us = line.match(/(\d+\.\d{2})/);
+  const us = line.match(/(\d+\.\d{2,3})/);
   if (us) return parseFloat(us[1]);
   return null;
 }
 
 function extractAllAmounts(text: string): number[] {
   const amounts: number[] = [];
-  const euRegex = /(\d{1,3}(?:\.\d{3})*,\d{2})\b/g;
+  const euRegex = /(\d{1,3}(?:\.\d{3})*,\d{2,3})\b/g;
   let match: RegExpExecArray | null;
   while ((match = euRegex.exec(text)) !== null) {
     const value = parseFloat(match[1].replace(/\./g, "").replace(",", "."));
@@ -260,7 +560,7 @@ function extractAllAmounts(text: string): number[] {
   }
 
   if (amounts.length === 0) {
-    const usRegex = /(\d+\.\d{2})\b/g;
+    const usRegex = /(\d+\.\d{2,3})\b/g;
     while ((match = usRegex.exec(text)) !== null) {
       const value = parseFloat(match[1]);
       if (!isNaN(value) && value > 0) amounts.push(value);
@@ -272,33 +572,366 @@ function extractAllAmounts(text: string): number[] {
 
 function extractCurrency(text: string): FieldResult<string> {
   const upper = text.toUpperCase();
-  const explicit = text.match(/\d[,.]?\d{2}\s*(EUR|CHF|RSD|MKD|USD|GBP|CZK|HRK|PLN|HUF|RON|BGN|SEK|NOK|DKK)\b/i);
+  const explicit = text.match(new RegExp(`\\d[,.]?\\d{2}\\s*(${SUPPORTED_CURRENCIES.join("|")})\\b`, "i"));
   if (explicit) return { value: explicit[1].toUpperCase(), confidence: "high" };
-  if (upper.includes("EUR") || text.includes("?")) return { value: "EUR", confidence: "high" };
+  if (upper.includes("EUR") || text.includes("€")) return { value: "EUR", confidence: "high" };
   if (upper.includes("CHF")) return { value: "CHF", confidence: "high" };
   if (upper.includes("RSD")) return { value: "RSD", confidence: "medium" };
   if (upper.includes("MKD")) return { value: "MKD", confidence: "medium" };
   if (upper.includes("USD") || text.includes("$")) return { value: "USD", confidence: "medium" };
-  if (upper.includes("GBP") || text.includes("?")) return { value: "GBP", confidence: "medium" };
+  if (upper.includes("GBP") || text.includes("£")) return { value: "GBP", confidence: "medium" };
   return { value: null, confidence: "none" };
 }
 
-function extractSupplier(text: string): FieldResult<string> {
-  const lines = text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const noise = /^(tel|fax|mail|www|http|ust|steuer|mwst|netto|brutto|summe|datum|nr|kasse|bon|beleg)/i;
-
-  for (const line of lines.slice(0, 7)) {
-    if (noise.test(line)) continue;
+function extractSupplier(lines: string[]): FieldResult<string> {
+  for (const line of lines.slice(0, 8)) {
+    if (LOCATION_NOISE.test(line)) continue;
     if (line.length < 3) continue;
-    const alphaRatio = line.replace(/[^a-zA-Z???????]/g, "").length / line.length;
+    const alphaCount = line.replace(/[^A-Za-z]/g, "").length;
+    const alphaRatio = alphaCount / Math.max(line.length, 1);
     if (alphaRatio < 0.3) continue;
     const clean = line.slice(0, 255);
-    const hasUpper = /[A-Z???]{2,}/.test(clean);
+    const hasUpper = /[A-Z]{2,}/.test(clean);
     return { value: clean, confidence: hasUpper ? "high" : "medium" };
   }
 
   return { value: null, confidence: "none" };
+}
+
+function extractLocation(lines: string[]): FieldResult<string> {
+  for (const line of lines.slice(0, 15)) {
+    if (LOCATION_NOISE.test(line)) continue;
+    if (/\b\d{4,5}\s+[A-Za-z]/.test(line) || /\b[A-Z][a-z]+\s*,\s*[A-Z][a-z]+/.test(line)) {
+      return { value: line.slice(0, 255), confidence: "medium" };
+    }
+  }
+  return { value: null, confidence: "none" };
+}
+
+function extractPaymentMethod(text: string): FieldResult<OcrPaymentMethod> {
+  const normalized = text.toLowerCase();
+  const hasCash = /\bbar\b|cash|cash payment/.test(normalized);
+  const hasCredit = /visa|master\s*card|mastercard|amex|american express|credit/.test(normalized);
+  const hasDebit = /debit|ec\s*-?karte|girocard|maestro/.test(normalized);
+  const hasCardGeneric = /karte|card|kontaktlos|apple pay|google pay|terminal|zahlung mit karte/.test(normalized);
+
+  if (hasCash && !hasCredit && !hasDebit && !hasCardGeneric) {
+    return { value: "cash", confidence: "high" };
+  }
+  if (hasCredit) {
+    return { value: "credit_card", confidence: /visa|master\s*card|mastercard|amex/.test(normalized) ? "high" : "medium" };
+  }
+  if (hasDebit) {
+    return { value: "debit_card", confidence: /girocard|ec\s*-?karte|maestro/.test(normalized) ? "high" : "medium" };
+  }
+  if (hasCardGeneric) {
+    return { value: "unknown", confidence: "low" };
+  }
+  return { value: null, confidence: "none" };
+}
+
+function extractCardLastDigits(text: string, paymentMethod: FieldResult<OcrPaymentMethod>): FieldResult<string> {
+  if (paymentMethod.value === "cash" || paymentMethod.value === null) {
+    return { value: null, confidence: "none" };
+  }
+
+  const patterns = [
+    /(?:a[.-]?id|last\s*digits|endziffern?|karte|card|visa|master\s*card|mastercard|girocard|ec)[^\d]{0,20}(?:\*{2,}|x{2,}|#{2,}|ending in\s*)?(\d{2,4})\b/i,
+    /(?:\*{2,}|x{2,}|#{2,})\s*(\d{2,4})\b/i,
+    /\b(?:card|karte)\s*(\d{2,4})\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match) continue;
+    const digits = match[1];
+    if (digits.length < 2 || digits.length > 4) continue;
+    return { value: digits, confidence: digits.length === 4 ? "medium" : "low" };
+  }
+
+  return { value: null, confidence: "none" };
+}
+
+function extractFuelDetails(text: string, amount: FieldResult<number>): FuelDetails | null {
+  const liters = extractFuelLiters(text);
+  const pricePerLiter = extractPricePerLiter(text);
+  const fuelType = extractFuelType(text);
+
+  if ([liters.confidence, pricePerLiter.confidence, fuelType.confidence].every((level) => level === "none")) {
+    return null;
+  }
+
+  return {
+    liters,
+    pricePerLiter,
+    fuelType,
+    totalAmount: amount,
+  };
+}
+
+function extractFuelLiters(text: string): FieldResult<number> {
+  const match = text.match(/(\d{1,3}[,.]\d{2,3})\s*(?:l|lt|ltr|liter)\b/i);
+  if (!match) return { value: null, confidence: "none" };
+  return { value: parseLocaleNumber(match[1]), confidence: /liter|ltr/i.test(match[0]) ? "high" : "medium" };
+}
+
+function extractPricePerLiter(text: string): FieldResult<number> {
+  const match = text.match(/(\d{1,2}[,.]\d{3})\s*(?:eur\/?l|€\/?l|\/l|pro\s*l|je\s*l)/i)
+    ?? text.match(/(?:eur\/?l|€\/?l|\/l|pro\s*l|je\s*l)\s*(\d{1,2}[,.]\d{3})/i);
+  if (!match) return { value: null, confidence: "none" };
+  return { value: parseLocaleNumber(match[1]), confidence: "medium" };
+}
+
+function extractFuelType(text: string): FieldResult<string> {
+  const fuelTypes = ["Diesel", "Super", "Super E10", "Super E5", "Benzin", "LPG", "AdBlue"] as const;
+  for (const fuelType of fuelTypes) {
+    if (new RegExp(fuelType.replace(/\s+/g, "\\s*"), "i").test(text)) {
+      return { value: fuelType, confidence: fuelType === "Diesel" || fuelType === "Benzin" ? "high" : "medium" };
+    }
+  }
+  return { value: null, confidence: "none" };
+}
+
+function extractHospitalityDetails(lines: string[], baseLocation: FieldResult<string>): HospitalityDetails {
+  const location = baseLocation.value ? baseLocation : extractLocation(lines);
+  const subtotal = extractLabeledAmount(lines, [/(zwischensumme|subtotal|netto)/i]);
+  const tip = extractLabeledAmount(lines, [/(trinkgeld|tip)/i]);
+  const lineItems = extractLineItems(lines);
+
+  return { location, subtotal, tip, lineItems };
+}
+
+function extractLodgingDetails(lines: string[], baseLocation: FieldResult<string>): LodgingDetails {
+  const location = baseLocation.value ? baseLocation : extractLocation(lines);
+  const nights = extractNights(lines.join("\n"));
+  const subtotal = extractLabeledAmount(lines, [/(room\s*rate|zimmer|uebernacht|overnight|subtotal|zwischensumme)/i]);
+  const tax = extractLabeledAmount(lines, [/(city\s*tax|tourism\s*tax|kurtaxe|tax\b|vat\b)/i]);
+  const fees = extractLabeledAmount(lines, [/(service\s*fee|fee\b|gebuehr|service)/i]);
+  const lineItems = extractTypedLineItems(lines, /(room|zimmer|night|nacht|breakfast|city\s*tax|tourism|fee|service)/i, 6);
+
+  return { location, nights, subtotal, tax, fees, lineItems };
+}
+
+function extractParkingDetails(lines: string[], baseLocation: FieldResult<string>, baseTime: FieldResult<string>): ParkingDetails {
+  const location = findMatchingLine(lines, /(parkhaus|parking|parken|garage|parkplatz|car park)/i, 255) ?? baseLocation.value;
+  const durationText = extractParkingDuration(lines.join("\n"));
+  const { entryTime, exitTime } = extractEntryExitTimes(lines, baseTime);
+
+  return {
+    location: toFieldResult(location, location ? "medium" : "none"),
+    durationText,
+    entryTime,
+    exitTime,
+  };
+}
+
+function extractTollDetails(lines: string[], baseLocation: FieldResult<string>): TollDetails {
+  const station = findMatchingLine(lines, /(maut|toll|peage|putarina|station|naplatna|plaza)/i, 255) ?? baseLocation.value;
+  const routeHint = findMatchingLine(lines, /(autobahn|autocesta|route|relacija|section|dionica|strecke|abschnitt)/i, 255);
+  const vehicleClass = extractVehicleClass(lines.join("\n"));
+
+  return {
+    station: toFieldResult(station, station ? "medium" : "none"),
+    routeHint: toFieldResult(routeHint, routeHint ? "low" : "none"),
+    vehicleClass,
+  };
+}
+
+function extractLabeledAmount(lines: string[], patterns: RegExp[]): FieldResult<number> {
+  for (const line of lines) {
+    if (!patterns.some((pattern) => pattern.test(line))) continue;
+    const amount = parseAmountFromLine(line);
+    if (amount !== null) return { value: amount, confidence: "medium" };
+  }
+  return { value: null, confidence: "none" };
+}
+
+function extractNights(text: string): FieldResult<number> {
+  const match = text.match(/(\d{1,2})\s*(?:nacht|naechte|night|nights)\b/i);
+  if (!match) return { value: null, confidence: "none" };
+  return { value: parseInt(match[1], 10), confidence: "medium" };
+}
+
+function extractParkingDuration(text: string): FieldResult<string> {
+  const interval = text.match(/\b([01]?\d|2[0-3]):([0-5]\d)\s*(?:-|bis|to)\s*([01]?\d|2[0-3]):([0-5]\d)\b/i);
+  if (interval) {
+    return { value: `${interval[1].padStart(2, "0")}:${interval[2]} - ${interval[3].padStart(2, "0")}:${interval[4]}`, confidence: "medium" };
+  }
+  const duration = text.match(/\b(\d+\s*(?:h|min|std|stunden|minuten))\b/i);
+  if (duration) {
+    return { value: duration[1], confidence: "low" };
+  }
+  return { value: null, confidence: "none" };
+}
+
+function extractEntryExitTimes(lines: string[], baseTime: FieldResult<string>) {
+  const entryLine = lines.find((line) => /(entry|einfahrt|check-?in)/i.test(line));
+  const exitLine = lines.find((line) => /(exit|ausfahrt|check-?out)/i.test(line));
+  const entry = entryLine ? extractTime(entryLine) : { value: null, confidence: "none" as OcrConfidenceLevel };
+  const exit = exitLine ? extractTime(exitLine) : { value: null, confidence: "none" as OcrConfidenceLevel };
+
+  return {
+    entryTime: entry.value ? entry : { value: null, confidence: "none" as OcrConfidenceLevel },
+    exitTime: exit.value ? exit : (entry.value || !baseTime.value ? { value: null, confidence: "none" as OcrConfidenceLevel } : baseTime),
+  };
+}
+
+function extractVehicleClass(text: string): FieldResult<string> {
+  const match = text.match(/(?:class|klasse|kategorie|category|kat\.?)[^A-Za-z0-9]{0,8}([A-Za-z0-9 -]{1,20})/i);
+  if (!match) return { value: null, confidence: "none" };
+  return { value: match[1].trim(), confidence: "low" };
+}
+
+function extractLineItems(lines: string[]): OcrLineItem[] {
+  return extractTypedLineItems(lines, /.*/, 5);
+}
+
+function extractTypedLineItems(lines: string[], includePattern: RegExp, limit: number): OcrLineItem[] {
+  const items: OcrLineItem[] = [];
+  for (const line of lines) {
+    if (items.length >= limit) break;
+    if (LINE_ITEM_SKIP.test(line)) continue;
+    if (!includePattern.test(line)) continue;
+    if (line.length < 4) continue;
+    const amount = parseAmountFromLine(line);
+    if (amount === null) continue;
+
+    const label = line
+      .replace(/(\d{1,3}(?:\.\d{3})*,\d{2,3}|\d+\.\d{2,3})/g, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+
+    if (label.length < 2 || /^\d+$/.test(label)) continue;
+    items.push({ label: label.slice(0, 120), amount });
+  }
+  return items;
+}
+
+function extractCountry(text: string, currency: FieldResult<string>, location: FieldResult<string>, supplier: FieldResult<string>): CountryResult {
+  const haystack = `${text}\n${location.value ?? ""}\n${supplier.value ?? ""}`;
+  const scores = COUNTRY_RULES.map((rule) => {
+    let score = 0;
+    if (rule.keywords.some((pattern) => pattern.test(haystack))) score += 2;
+    if (rule.vat.test(haystack)) score += 3;
+    if (rule.phone.test(haystack)) score += 2;
+    if (rule.postal.test(haystack)) score += 1;
+    if (currency.value) {
+      if (currency.value === "RSD" && rule.code === "RS") score += 4;
+      if (currency.value === "MKD" && rule.code === "MK") score += 4;
+      if (currency.value === "HRK" && rule.code === "HR") score += 2;
+    }
+    return { ...rule, score };
+  }).sort((left, right) => right.score - left.score);
+
+  const best = scores[0];
+  if (!best || best.score <= 0) {
+    return { code: null, name: null, confidence: "none" };
+  }
+  if (best.score >= 5) {
+    return { code: best.code, name: best.name, confidence: "high" };
+  }
+  return { code: best.code, name: best.name, confidence: "medium" };
+}
+
+function detectDocumentType(
+  text: string,
+  fuel: FuelDetails | null,
+  hospitality: HospitalityDetails,
+  lodging: LodgingDetails,
+  parking: ParkingDetails,
+  toll: TollDetails,
+): FieldResult<OcrDocumentType> {
+  const fuelScore = keywordScore(text, FUEL_KEYWORDS)
+    + (fuel?.liters.value ? 2 : 0)
+    + (fuel?.pricePerLiter.value ? 2 : 0)
+    + (fuel?.fuelType.value ? 2 : 0);
+
+  const hospitalityScore = keywordScore(text, HOSPITALITY_KEYWORDS)
+    + (hospitality.tip.value ? 2 : 0)
+    + (hospitality.lineItems.length >= 2 ? 1 : 0);
+
+  const lodgingScore = keywordScore(text, LODGING_KEYWORDS)
+    + (lodging.nights.value ? 2 : 0)
+    + (lodging.tax.value ? 1 : 0)
+    + (lodging.lineItems.length > 0 ? 1 : 0);
+
+  const parkingScore = keywordScore(text, PARKING_KEYWORDS)
+    + (parking.durationText.value ? 2 : 0)
+    + (parking.entryTime.value || parking.exitTime.value ? 1 : 0);
+
+  const tollScore = keywordScore(text, TOLL_KEYWORDS)
+    + (toll.station.value ? 2 : 0)
+    + (toll.routeHint.value ? 1 : 0)
+    + (toll.vehicleClass.value ? 1 : 0);
+
+  const candidates: Array<{ value: OcrDocumentType; score: number }> = [
+    { value: "fuel", score: fuelScore },
+    { value: "hospitality", score: hospitalityScore },
+    { value: "lodging", score: lodgingScore },
+    { value: "parking", score: parkingScore },
+    { value: "toll", score: tollScore },
+  ].sort((left, right) => right.score - left.score);
+
+  const best = candidates[0];
+  if (!best || best.score < 3) {
+    return { value: "general", confidence: "low" };
+  }
+
+  return { value: best.value, confidence: best.score >= 5 ? "high" : "medium" };
+}
+
+function keywordScore(text: string, patterns: RegExp[]) {
+  return patterns.reduce((sum, pattern) => sum + (pattern.test(text) ? 1 : 0), 0);
+}
+
+function parseLocaleNumber(value: string) {
+  return parseFloat(value.replace(/\./g, "").replace(",", "."));
+}
+
+function normalizeTime(value: string) {
+  const [hours, minutes] = value.split(":");
+  return `${hours.padStart(2, "0")}:${minutes}`;
+}
+
+function toFieldResult<T>(value: T | null, confidence: OcrConfidenceLevel): FieldResult<T> {
+  return { value, confidence };
+}
+
+function findMatchingLine(lines: string[], pattern: RegExp, maxLength: number) {
+  const match = lines.find((line) => pattern.test(line) && !LOCATION_NOISE.test(line));
+  return match ? match.slice(0, maxLength) : null;
+}
+
+function hasFuelSignals(value: FuelDetails | null) {
+  if (!value) return false;
+  return [value.liters.confidence, value.pricePerLiter.confidence, value.fuelType.confidence].some((level) => level !== "none");
+}
+
+function hasHospitalitySignals(value: HospitalityDetails) {
+  return value.location.confidence !== "none"
+    || value.subtotal.confidence !== "none"
+    || value.tip.confidence !== "none"
+    || value.lineItems.length > 0;
+}
+
+function hasLodgingSignals(value: LodgingDetails) {
+  return value.location.confidence !== "none"
+    || value.nights.confidence !== "none"
+    || value.subtotal.confidence !== "none"
+    || value.tax.confidence !== "none"
+    || value.fees.confidence !== "none"
+    || value.lineItems.length > 0;
+}
+
+function hasParkingSignals(value: ParkingDetails) {
+  return value.location.confidence !== "none"
+    || value.durationText.confidence !== "none"
+    || value.entryTime.confidence !== "none"
+    || value.exitTime.confidence !== "none";
+}
+
+function hasTollSignals(value: TollDetails) {
+  return value.station.confidence !== "none"
+    || value.routeHint.confidence !== "none"
+    || value.vehicleClass.confidence !== "none";
 }

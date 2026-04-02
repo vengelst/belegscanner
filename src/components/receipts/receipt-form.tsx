@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { OcrResult } from "@/lib/ocr";
+import { CameraCapture } from "@/components/receipts/camera-capture";
+import { SmartCaptureSuggestions } from "@/components/receipts/smart-capture-suggestions";
+import { createReceiptWorkingImage, type ReceiptImageProcessingResult } from "@/lib/receipt-image-processing";
+import type { DocumentDetectionResult } from "@/components/receipts/document-detector";
+import { confidenceToReviewStatus, documentTypeLabels, type OcrFieldReviewStatus, toReceiptDocumentType } from "@/lib/ocr-suggestions";
 
 type Purpose = { id: string; name: string; isHospitality: boolean };
 type Category = { id: string; name: string };
@@ -25,7 +30,9 @@ type Props = {
 };
 
 type OcrExtracted = OcrResult["extracted"];
-type OcrFieldKey = keyof OcrExtracted;
+type OcrFieldKey = keyof Pick<OcrExtracted, "date" | "amount" | "currency" | "supplier">;
+type CaptureSource = "upload" | "camera";
+type CaptureTrigger = "manual" | "auto";
 
 type ReceiptSelectionState = {
   purposeId: string;
@@ -42,8 +49,14 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const [file, setFile] = useState<File | null>(null);
+  const [originalFile, setOriginalFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [captureSource, setCaptureSource] = useState<CaptureSource | null>(null);
+  const [captureTrigger, setCaptureTrigger] = useState<CaptureTrigger | null>(null);
+  const [workingImageInfo, setWorkingImageInfo] = useState<ReceiptImageProcessingResult | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraSupported, setCameraSupported] = useState(false);
+  const [isPreparingAsset, setIsPreparingAsset] = useState(false);
   const [ocrRunning, setOcrRunning] = useState(false);
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
 
@@ -56,6 +69,10 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
   const [categoryId, setCategoryId] = useState(userDefaults.defaultCategoryId ?? "");
   const [countryId, setCountryId] = useState(userDefaults.defaultCountryId ?? "");
   const [vehicleId, setVehicleId] = useState(userDefaults.defaultVehicleId ?? "");
+  const [countryManuallyChanged, setCountryManuallyChanged] = useState(false);
+  const [occasion, setOccasion] = useState("");
+  const [guests, setGuests] = useState("");
+  const [hospitalityLocation, setHospitalityLocation] = useState("");
   const [prefillSource, setPrefillSource] = useState<PrefillSource>("none");
   const [error, setError] = useState<string | null>(null);
   const [manualOverrides, setManualOverrides] = useState<Record<OcrFieldKey, boolean>>({
@@ -64,6 +81,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     currency: false,
     supplier: false,
   });
+  const [hospitalityLocationManual, setHospitalityLocationManual] = useState(false);
 
   const validIds = useMemo(() => ({
     purposes: new Set(purposes.map((purpose) => purpose.id)),
@@ -74,6 +92,75 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
 
   const selectedPurpose = purposes.find((purpose) => purpose.id === purposeId);
   const isHospitality = selectedPurpose?.isHospitality ?? false;
+  const suggestedCountry = useMemo(() => {
+    const code = ocrResult?.extracted.countryCode?.toUpperCase();
+    const name = ocrResult?.extracted.countryName?.toLowerCase();
+    const confidence = ocrResult?.fieldConfidence.country ?? "none";
+    if (!code && !name) return null;
+
+    const matched = countries.find((country) => {
+      const countryCode = country.code?.toUpperCase();
+      const countryName = country.name.toLowerCase();
+      return (code && countryCode === code) || (name && countryName.includes(name));
+    });
+
+    if (!matched) return null;
+    return {
+      id: matched.id,
+      label: matched.name,
+      reason: ocrResult?.extracted.countryName ?? matched.name,
+      confidence,
+      currencyCode: matched.currencyCode,
+    };
+  }, [countries, ocrResult?.extracted.countryCode, ocrResult?.extracted.countryName, ocrResult?.fieldConfidence.country]);
+
+  const suggestedPurpose = useMemo(() => {
+    const documentType = ocrResult?.extracted.documentType;
+    if (!documentType || documentType === "general") return null;
+
+    if (documentType === "hospitality") {
+      const hospitalityPurpose = purposes.find((purpose) => purpose.isHospitality);
+      if (hospitalityPurpose) {
+        return { id: hospitalityPurpose.id, label: hospitalityPurpose.name, reason: documentTypeLabels.hospitality };
+      }
+    }
+
+    if (documentType === "fuel") {
+      const fuelPurpose = purposes.find((purpose) => /tank/i.test(purpose.name));
+      if (fuelPurpose) {
+        return { id: fuelPurpose.id, label: fuelPurpose.name, reason: documentTypeLabels.fuel };
+      }
+    }
+
+    if (documentType === "lodging") {
+      const lodgingPurpose = purposes.find((purpose) => /unterkunft|hotel/i.test(purpose.name));
+      if (lodgingPurpose) {
+        return { id: lodgingPurpose.id, label: lodgingPurpose.name, reason: documentTypeLabels.lodging };
+      }
+    }
+
+    if (documentType === "parking") {
+      const parkingPurpose = purposes.find((purpose) => /park/i.test(purpose.name));
+      if (parkingPurpose) {
+        return { id: parkingPurpose.id, label: parkingPurpose.name, reason: documentTypeLabels.parking };
+      }
+    }
+
+    if (documentType === "toll") {
+      const tollPurpose = purposes.find((purpose) => /maut|toll/i.test(purpose.name));
+      if (tollPurpose) {
+        return { id: tollPurpose.id, label: tollPurpose.name, reason: documentTypeLabels.toll };
+      }
+    }
+
+    return null;
+  }, [ocrResult?.extracted.documentType, purposes]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof navigator === "undefined") return;
+    const secure = window.isSecureContext || ["localhost", "127.0.0.1"].includes(window.location.hostname);
+    setCameraSupported(secure && !!navigator.mediaDevices?.getUserMedia);
+  }, []);
 
   function markManualOverride(field: OcrFieldKey) {
     setManualOverrides((current) => (current[field] ? current : { ...current, [field]: true }));
@@ -90,6 +177,29 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
   }, [manualOverrides, ocrResult]);
 
   useEffect(() => {
+    if (!suggestedCountry || countryManuallyChanged || countryId) return;
+    if (suggestedCountry.confidence === "high") {
+      setCountryId(suggestedCountry.id);
+    }
+  }, [countryId, countryManuallyChanged, suggestedCountry]);
+
+  useEffect(() => {
+    if (!suggestedCountry || !suggestedCountry.currencyCode) return;
+    if (ocrResult?.extracted.currency || manualOverrides.currency) return;
+    if (suggestedCountry.currencyCode !== "EUR" && currency === "EUR") {
+      setCurrency(suggestedCountry.currencyCode);
+    }
+  }, [currency, manualOverrides.currency, ocrResult?.extracted.currency, suggestedCountry]);
+
+  useEffect(() => {
+    if (!ocrResult || !isHospitality || hospitalityLocationManual) return;
+    const suggestedLocation = ocrResult.special.hospitality?.location ?? ocrResult.extracted.location;
+    if (suggestedLocation && !hospitalityLocation) {
+      setHospitalityLocation(suggestedLocation);
+    }
+  }, [hospitalityLocation, hospitalityLocationManual, isHospitality, ocrResult]);
+
+  useEffect(() => {
     const sessionSelections = readLastSelections();
     const resolved = resolveSelectionState({
       sessionSelections,
@@ -104,10 +214,13 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     setPrefillSource(resolved.source);
   }, [userDefaults, validIds]);
 
-  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const nextFile = event.target.files?.[0];
-    if (!nextFile) return;
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
+  async function applySelectedFile(nextFile: File, source: CaptureSource, detection: DocumentDetectionResult | null = null, trigger: CaptureTrigger | null = null) {
     const allowed = ["image/jpeg", "image/png", "application/pdf"];
     if (!allowed.includes(nextFile.type)) {
       setError("Nur JPG, PNG und PDF sind erlaubt.");
@@ -118,87 +231,80 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
       return;
     }
 
-    setFile(nextFile);
     setError(null);
+    setIsPreparingAsset(true);
+    setOriginalFile(nextFile);
+    setCaptureSource(source);
+    setCaptureTrigger(trigger);
+    setOcrResult(null);
+    setWorkingImageInfo(null);
 
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
-    }
-
-    if (nextFile.type.startsWith("image/")) {
-      setPreviewUrl(URL.createObjectURL(nextFile));
-    } else {
       setPreviewUrl(null);
     }
 
-    setOcrRunning(true);
-    setOcrResult(null);
+    let nextOcrFile = nextFile;
+    let nextPreviewUrl: string | null = null;
+    let nextWorkingInfo: ReceiptImageProcessingResult | null = null;
 
-    const formData = new FormData();
-    formData.append("file", nextFile);
+    try {
+      if (nextFile.type.startsWith("image/")) {
+        try {
+          nextWorkingInfo = await createReceiptWorkingImage(nextFile, {
+            cropBounds: source === "camera" ? detection?.bounds ?? null : null,
+            rotationDeg: source === "camera" ? detection?.angleDeg ?? 0 : 0,
+          });
+          nextOcrFile = nextWorkingInfo.workingFile;
+          nextPreviewUrl = nextWorkingInfo.previewUrl;
+        } catch {
+          nextPreviewUrl = URL.createObjectURL(nextFile);
+          setError("Bildvorbereitung war nicht moeglich. OCR nutzt deshalb das Originalbild.");
+        }
+      }
 
-    fetch("/api/ocr/analyze", { method: "POST", body: formData })
-      .then(async (response) => {
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.error ?? "OCR konnte nicht ausgefuehrt werden.");
-        }
-        if (data.rawText !== undefined) {
-          setOcrResult(data as OcrResult);
-        }
-      })
-      .catch((requestError: unknown) => {
-        const message = requestError instanceof Error ? requestError.message : "OCR konnte nicht ausgefuehrt werden.";
-        setError(message);
-      })
-      .finally(() => setOcrRunning(false));
+      setWorkingImageInfo(nextWorkingInfo);
+      setPreviewUrl(nextPreviewUrl);
+      await runOcr(nextOcrFile);
+    } finally {
+      setIsPreparingAsset(false);
+    }
   }
 
-  useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
-  }, [previewUrl]);
+  async function runOcr(file: File) {
+    setOcrRunning(true);
 
-  function buildBody(formData: FormData): Record<string, unknown> {
-    const amountValue = parseFloat((formData.get("amount") as string).replace(",", "."));
-    const selectedCurrency = (formData.get("currency") as string) || "EUR";
+    const formData = new FormData();
+    formData.append("file", file);
 
-    let exchangeRate: number | null = null;
-    const exchangeRateValue = formData.get("exchangeRate") as string;
-    if (exchangeRateValue) exchangeRate = parseFloat(exchangeRateValue.replace(",", "."));
-
-    const body: Record<string, unknown> = {
-      date: formData.get("date"),
-      supplier: formData.get("supplier") || null,
-      amount: isNaN(amountValue) ? 0 : amountValue,
-      currency: selectedCurrency,
-      exchangeRate,
-      exchangeRateDate: formData.get("exchangeRateDate") || null,
-      countryId: formData.get("countryId") || null,
-      vehicleId: formData.get("vehicleId") || null,
-      purposeId: formData.get("purposeId"),
-      categoryId: formData.get("categoryId"),
-      remark: formData.get("remark") || null,
-      ocrRawText: ocrResult?.rawText ?? null,
-    };
-
-    if (isHospitality) {
-      body.hospitality = {
-        occasion: formData.get("occasion") || "",
-        guests: formData.get("guests") || "",
-        location: formData.get("location") || "",
-      };
+    try {
+      const response = await fetch("/api/ocr/analyze", { method: "POST", body: formData });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error ?? "OCR konnte nicht ausgefuehrt werden.");
+      }
+      if (data.rawText !== undefined) {
+        setOcrResult(data as OcrResult);
+      }
+    } catch (requestError: unknown) {
+      const message = requestError instanceof Error ? requestError.message : "OCR konnte nicht ausgefuehrt werden.";
+      setError(message);
+    } finally {
+      setOcrRunning(false);
     }
+  }
 
-    return body;
+  function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const nextFile = event.target.files?.[0];
+    if (!nextFile) return;
+    void applySelectedFile(nextFile, "upload");
   }
 
   function handleSubmit(formData: FormData) {
     setError(null);
 
-    if (!file) {
-      setError("Bitte zuerst den Originalbeleg hochladen.");
+    if (!originalFile) {
+      setError("Bitte zuerst den Originalbeleg hochladen oder mit der Kamera aufnehmen.");
       return;
     }
 
@@ -223,7 +329,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
       const receipt = await receiptResponse.json();
 
       const uploadData = new FormData();
-      uploadData.append("file", file);
+      uploadData.append("file", originalFile);
       uploadData.append("receiptId", receipt.id);
       const uploadResponse = await fetch("/api/files/upload", { method: "POST", body: uploadData });
       if (!uploadResponse.ok) {
@@ -258,237 +364,433 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     });
   }
 
+  function buildBody(formData: FormData): Record<string, unknown> {
+    const amountValue = parseFloat((formData.get("amount") as string).replace(",", "."));
+    const selectedCurrency = (formData.get("currency") as string) || "EUR";
+
+    let exchangeRate: number | null = null;
+    const exchangeRateValue = formData.get("exchangeRate") as string;
+    if (exchangeRateValue) exchangeRate = parseFloat(exchangeRateValue.replace(",", "."));
+
+    const body: Record<string, unknown> = {
+      date: formData.get("date"),
+      supplier: formData.get("supplier") || null,
+      amount: isNaN(amountValue) ? 0 : amountValue,
+      currency: selectedCurrency,
+      exchangeRate,
+      exchangeRateDate: formData.get("exchangeRateDate") || null,
+      countryId: formData.get("countryId") || null,
+      vehicleId: formData.get("vehicleId") || null,
+      purposeId: formData.get("purposeId"),
+      categoryId: formData.get("categoryId"),
+      remark: formData.get("remark") || null,
+      ocrRawText: ocrResult?.rawText ?? null,
+      detectedDocumentType: toReceiptDocumentType(ocrResult?.extracted.documentType),
+      ocrStructuredData: ocrResult ? buildStructuredData(ocrResult, buildFieldReviewStates({ result: ocrResult, manualOverrides, countryManuallyChanged, hospitalityLocationManual, selectedCountryId: String(formData.get("countryId") || ""), suggestedCountryId: suggestedCountry?.id ?? null, submitted: true })) : null,
+    };
+
+    if (isHospitality) {
+      body.hospitality = {
+        occasion,
+        guests,
+        location: hospitalityLocation,
+      };
+    }
+
+    return body;
+  }
+
   const hasDetectedValues = Boolean(
     ocrResult?.extracted.date
+      || ocrResult?.extracted.time
       || ocrResult?.extracted.amount !== null
       || ocrResult?.extracted.currency
-      || ocrResult?.extracted.supplier,
+      || ocrResult?.extracted.supplier
+      || ocrResult?.extracted.location
+      || ocrResult?.extracted.countryCode
+      || ocrResult?.extracted.paymentMethod
+      || ocrResult?.extracted.cardLastDigits
+      || ocrResult?.special.fuel?.liters !== null
+      || ocrResult?.special.hospitality?.lineItems.length
+      || ocrResult?.special.lodging?.lineItems.length
+      || ocrResult?.special.lodging?.nights !== null
+      || ocrResult?.special.parking?.durationText
+      || ocrResult?.special.toll?.station,
   );
 
   return (
-    <form action={handleSubmit} className="space-y-6">
-      <Card>
-        <h2 className="text-lg font-semibold tracking-tight">Belegdatei</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          JPG, PNG oder PDF hochladen (max. 20 MB). Die Originaldatei ist fuer neue Belege Pflicht. OCR wird automatisch ausgefuehrt.
-        </p>
-        <div className="mt-4">
-          <label className={`flex cursor-pointer flex-col items-center gap-3 rounded-2xl border-2 border-dashed p-8 transition hover:border-primary/40 hover:bg-primary/5 ${file ? "border-border" : "border-accent/40"}`}>
-            <span className="text-sm font-medium text-muted-foreground">
-              {file ? file.name : "Datei waehlen oder hierher ziehen"}
-            </span>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,application/pdf"
-              capture="environment"
-              onChange={handleFileChange}
-              className="sr-only"
-            />
-            <span className="rounded-2xl border border-border bg-card px-4 py-2 text-sm font-semibold transition hover:border-primary/40 hover:text-primary">
-              Datei auswaehlen
-            </span>
-          </label>
-          {previewUrl ? (
-            <img src={previewUrl} alt="Vorschau" className="mt-4 max-h-64 rounded-xl object-contain" />
-          ) : null}
-          {ocrRunning ? (
-            <p className="mt-3 text-sm text-muted-foreground">OCR laeuft...</p>
-          ) : null}
-          {ocrResult ? (
-            <div className="mt-3 rounded-xl border border-primary/20 bg-primary/5 p-3">
-              <p className="text-xs font-semibold text-primary">
-                {getOcrHeadline(ocrResult.sourceType)}
-              </p>
-              {ocrResult.message ? (
-                <p className="mt-1 text-xs text-muted-foreground">{ocrResult.message}</p>
-              ) : null}
-              {hasDetectedValues ? (
-                <div className="mt-2 grid grid-cols-2 gap-1 text-xs text-muted-foreground">
-                  {ocrResult.extracted.date ? <OcrField label="Datum" value={ocrResult.extracted.date} confidence={ocrResult.fieldConfidence.date} /> : null}
-                  {ocrResult.extracted.amount !== null ? <OcrField label="Betrag" value={String(ocrResult.extracted.amount)} confidence={ocrResult.fieldConfidence.amount} /> : null}
-                  {ocrResult.extracted.currency ? <OcrField label="Waehrung" value={ocrResult.extracted.currency} confidence={ocrResult.fieldConfidence.currency} /> : null}
-                  {ocrResult.extracted.supplier ? <OcrField label="Lieferant" value={ocrResult.extracted.supplier} confidence={ocrResult.fieldConfidence.supplier} /> : null}
-                </div>
-              ) : (
-                <p className="mt-2 text-xs text-muted-foreground">Keine sicheren Werte erkannt. Du kannst den Beleg trotzdem normal manuell erfassen.</p>
-              )}
-            </div>
-          ) : null}
-        </div>
-      </Card>
-
-      <Card>
-        <h2 className="text-lg font-semibold tracking-tight">Belegdaten</h2>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Input
-            label="Belegdatum"
-            name="date"
-            type="date"
-            required
-            value={date}
-            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-              markManualOverride("date");
-              setDate(event.target.value);
-            }}
-            max={today}
-          />
-          <Input
-            label="Betrag"
-            name="amount"
-            type="text"
-            inputMode="decimal"
-            required
-            placeholder="0,00"
-            value={amount}
-            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-              markManualOverride("amount");
-              setAmount(event.target.value);
-            }}
-          />
-          <Input
-            label="Waehrung"
-            name="currency"
-            type="text"
-            maxLength={3}
-            placeholder="EUR"
-            value={currency}
-            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-              markManualOverride("currency");
-              setCurrency(event.target.value);
-            }}
-          />
-          <Input
-            label="Lieferant / Haendler"
-            name="supplier"
-            placeholder="optional"
-            value={supplier}
-            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-              markManualOverride("supplier");
-              setSupplier(event.target.value);
-            }}
-          />
-          <Input
-            label="Wechselkurs (optional)"
-            name="exchangeRate"
-            type="text"
-            inputMode="decimal"
-            placeholder="1 EUR = ?"
-          />
-          <Input
-            label="Kursdatum (optional)"
-            name="exchangeRateDate"
-            type="date"
-          />
-        </div>
-      </Card>
-
-      <Card>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold tracking-tight">Zuordnung</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Diese Felder werden zuerst aus der letzten Folgeerfassung, dann aus deinen Standardwerten vorbelegt.</p>
-          </div>
-          {prefillSource !== "none" ? (
-            <span className="rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
-              {prefillSource === "session" ? "Vorbelegt aus letzter Erfassung" : "Vorbelegt aus deinen Standardwerten"}
-            </span>
-          ) : null}
-        </div>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <SelectField label="Zweck" name="purposeId" required value={purposeId} onChange={setPurposeId}>
-            <option value="">-- Zweck waehlen --</option>
-            {purposes.map((purpose) => (
-              <option key={purpose.id} value={purpose.id}>{purpose.name}</option>
-            ))}
-          </SelectField>
-          <SelectField label="Kategorie" name="categoryId" required value={categoryId} onChange={setCategoryId}>
-            <option value="">-- Kategorie waehlen --</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>{category.name}</option>
-            ))}
-          </SelectField>
-          <SelectField label="Land" name="countryId" value={countryId} onChange={setCountryId}>
-            <option value="">-- optional --</option>
-            {countries.map((country) => (
-              <option key={country.id} value={country.id}>{country.name}{country.code ? ` (${country.code})` : ""}</option>
-            ))}
-          </SelectField>
-          <SelectField label="Kfz" name="vehicleId" value={vehicleId} onChange={setVehicleId}>
-            <option value="">-- optional --</option>
-            {vehicles.map((vehicle) => (
-              <option key={vehicle.id} value={vehicle.id}>{vehicle.plate}{vehicle.description ? ` - ${vehicle.description}` : ""}</option>
-            ))}
-          </SelectField>
-          <label className="grid gap-1 text-sm font-medium sm:col-span-2 lg:col-span-2">
-            <span className="text-xs text-muted-foreground">Bemerkung</span>
-            <textarea
-              name="remark"
-              rows={2}
-              maxLength={2000}
-              placeholder="Freitext (optional)"
-              className="rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
-            />
-          </label>
-        </div>
-      </Card>
-
-      {isHospitality ? (
+    <>
+      <form action={handleSubmit} className="space-y-6">
         <Card>
-          <h2 className="text-lg font-semibold tracking-tight">Bewirtungsangaben</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Diese Felder sind bei Bewirtungsbelegen Pflicht.
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight">Belegdatei</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                JPG, PNG oder PDF hochladen (max. 20 MB). Die Originaldatei ist fuer neue Belege Pflicht. OCR wird automatisch ausgefuehrt.
+              </p>
+            </div>
+            {captureSource ? (
+              <span className="rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
+                Quelle: {captureSource === "camera" ? `Kamera${captureTrigger === "auto" ? " (Auto-Capture)" : captureTrigger === "manual" ? " (manuell)" : ""}` : "Datei-Upload"}
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-4 space-y-4">
+            <div className="flex flex-wrap gap-3">
+              {cameraSupported ? (
+                <button
+                  type="button"
+                  onClick={() => setCameraOpen(true)}
+                  className="rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+                >
+                  Kamera in App oeffnen
+                </button>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  In-App-Kamera braucht HTTPS oder localhost. Der normale Upload funktioniert weiterhin.
+                </p>
+              )}
+              <label className="inline-flex cursor-pointer items-center rounded-2xl border border-border bg-card px-5 py-3 text-sm font-semibold transition hover:border-primary/40 hover:text-primary">
+                Datei auswaehlen
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,application/pdf"
+                  capture="environment"
+                  onChange={handleFileChange}
+                  className="sr-only"
+                />
+              </label>
+            </div>
+
+            <label className={`flex cursor-pointer flex-col items-center gap-3 rounded-2xl border-2 border-dashed p-8 transition hover:border-primary/40 hover:bg-primary/5 ${originalFile ? "border-border" : "border-accent/40"}`}>
+              <span className="text-sm font-medium text-muted-foreground">
+                {originalFile ? originalFile.name : "Kamera oder Datei waehlen"}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                Originalbild bleibt unveraendert gespeichert. Bei Fotos nutzt OCR eine getrennte Arbeitskopie fuer Vorschau, Crop und Lesbarkeit.
+              </span>
+            </label>
+
+            {previewUrl ? (
+              <img src={previewUrl} alt="Vorschau" className="max-h-72 w-full rounded-xl object-contain" />
+            ) : null}
+            {isPreparingAsset ? (
+              <p className="text-sm text-muted-foreground">Bild wird fuer Vorschau und OCR vorbereitet...</p>
+            ) : null}
+            {workingImageInfo ? (
+              <div className="rounded-xl border border-border/80 bg-muted/40 p-3 text-xs text-muted-foreground">
+                Arbeitskopie fuer OCR: {workingImageInfo.appliedSteps.join(", ")}
+              </div>
+            ) : null}
+            {ocrRunning ? (
+              <p className="text-sm text-muted-foreground">OCR laeuft...</p>
+            ) : null}
+            {ocrResult ? (
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+                <p className="text-xs font-semibold text-primary">
+                  {getOcrHeadline(ocrResult.sourceType)}
+                </p>
+                {ocrResult.message ? (
+                  <p className="mt-1 text-xs text-muted-foreground">{ocrResult.message}</p>
+                ) : null}
+                {hasDetectedValues ? (
+                  <div className="mt-3">
+                    <SmartCaptureSuggestions
+                      ocrResult={ocrResult}
+                      purposeSuggestion={suggestedPurpose}
+                      countrySuggestion={suggestedCountry}
+                      currentPurposeId={purposeId}
+                      currentCountryId={countryId}
+                      fieldReviewStates={buildFieldReviewStates({
+                        result: ocrResult,
+                        manualOverrides,
+                        countryManuallyChanged,
+                        hospitalityLocationManual,
+                        selectedCountryId: countryId,
+                        suggestedCountryId: suggestedCountry?.id ?? null,
+                        submitted: false,
+                      })}
+                      onApplySuggestedPurpose={setPurposeId}
+                      onApplySuggestedCountry={(value) => { setCountryId(value); setCountryManuallyChanged(true); }}
+                    />
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-muted-foreground">Keine sicheren Werte erkannt. Du kannst den Beleg trotzdem normal manuell erfassen.</p>
+                )}
+              </div>
+            ) : null}
+          </div>
+        </Card>
+
+        <Card>
+          <h2 className="text-lg font-semibold tracking-tight">Belegdaten</h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Input label="Anlass" name="occasion" required placeholder="z.B. Projektbesprechung" />
-            <label className="grid gap-1 text-sm font-medium">
-              <span className="text-xs text-muted-foreground">Gaeste / Teilnehmer</span>
+            <Input
+              label="Belegdatum"
+              name="date"
+              type="date"
+              required
+              value={date}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                markManualOverride("date");
+                setDate(event.target.value);
+              }}
+              max={today}
+            />
+            <Input
+              label="Betrag"
+              name="amount"
+              type="text"
+              inputMode="decimal"
+              required
+              placeholder="0,00"
+              value={amount}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                markManualOverride("amount");
+                setAmount(event.target.value);
+              }}
+            />
+            <Input
+              label="Waehrung"
+              name="currency"
+              type="text"
+              maxLength={3}
+              placeholder="EUR"
+              value={currency}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                markManualOverride("currency");
+                setCurrency(event.target.value);
+              }}
+            />
+            <Input
+              label="Lieferant / Haendler"
+              name="supplier"
+              placeholder="optional"
+              value={supplier}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                markManualOverride("supplier");
+                setSupplier(event.target.value);
+              }}
+            />
+            <Input
+              label="Wechselkurs (optional)"
+              name="exchangeRate"
+              type="text"
+              inputMode="decimal"
+              placeholder="1 EUR = ?"
+            />
+            <Input
+              label="Kursdatum (optional)"
+              name="exchangeRateDate"
+              type="date"
+            />
+          </div>
+        </Card>
+
+        <Card>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight">Zuordnung</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Diese Felder werden zuerst aus der letzten Folgeerfassung, dann aus deinen Standardwerten vorbelegt.</p>
+            </div>
+            {prefillSource !== "none" ? (
+              <span className="rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
+                {prefillSource === "session" ? "Vorbelegt aus letzter Erfassung" : "Vorbelegt aus deinen Standardwerten"}
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <SelectField label="Zweck" name="purposeId" required value={purposeId} onChange={setPurposeId}>
+              <option value="">-- Zweck waehlen --</option>
+              {purposes.map((purpose) => (
+                <option key={purpose.id} value={purpose.id}>{purpose.name}</option>
+              ))}
+            </SelectField>
+            <SelectField label="Kategorie" name="categoryId" required value={categoryId} onChange={setCategoryId}>
+              <option value="">-- Kategorie waehlen --</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
+            </SelectField>
+            <SelectField label="Land" name="countryId" value={countryId} onChange={(value) => { setCountryManuallyChanged(true); setCountryId(value); }}>
+              <option value="">-- optional --</option>
+              {countries.map((country) => (
+                <option key={country.id} value={country.id}>{country.name}{country.code ? ` (${country.code})` : ""}</option>
+              ))}
+            </SelectField>
+            <SelectField label="Kfz" name="vehicleId" value={vehicleId} onChange={setVehicleId}>
+              <option value="">-- optional --</option>
+              {vehicles.map((vehicle) => (
+                <option key={vehicle.id} value={vehicle.id}>{vehicle.plate}{vehicle.description ? ` - ${vehicle.description}` : ""}</option>
+              ))}
+            </SelectField>
+            <label className="grid gap-1 text-sm font-medium sm:col-span-2 lg:col-span-2">
+              <span className="text-xs text-muted-foreground">Bemerkung</span>
               <textarea
-                name="guests"
-                required
+                name="remark"
                 rows={2}
-                placeholder="Hr. Mueller, Fr. Schmidt"
+                maxLength={2000}
+                placeholder="Freitext (optional)"
                 className="rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
               />
             </label>
-            <Input label="Ort" name="location" required placeholder="z.B. Restaurant Adria, Berlin" />
           </div>
         </Card>
-      ) : null}
 
-      {error ? (
-        <p className="text-sm font-medium text-danger">{error}</p>
-      ) : null}
-      <div className="flex flex-wrap gap-3">
-        <button
-          type="submit"
-          name="_action"
-          value="save"
-          disabled={isPending}
-          className="rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isPending ? "Wird gespeichert..." : "Speichern"}
-        </button>
-        <button
-          type="submit"
-          name="_action"
-          value="save_next"
-          disabled={isPending}
-          className="rounded-2xl border border-border bg-card px-6 py-3 text-sm font-semibold transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isPending ? "Wird vorbereitet..." : "Speichern & naechsten Beleg erfassen"}
-        </button>
-        <button
-          type="submit"
-          name="_action"
-          value="send"
-          disabled={isPending}
-          className="rounded-2xl border border-primary bg-primary/10 px-6 py-3 text-sm font-semibold text-primary transition hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {isPending ? "Wird gesendet..." : "Speichern & Senden"}
-        </button>
-      </div>
-    </form>
+        {isHospitality ? (
+          <Card>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold tracking-tight">Bewirtungsangaben</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Diese Felder sind bei Bewirtungsbelegen Pflicht.
+                </p>
+              </div>
+              {ocrResult?.extracted.documentType === "hospitality" ? (
+                <span className="rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
+                  OCR vermutet Bewirtungsbeleg
+                </span>
+              ) : null}
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <Input label="Anlass" name="occasion" required placeholder="z.B. Projektbesprechung" value={occasion} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setOccasion(event.target.value)} />
+              <label className="grid gap-1 text-sm font-medium">
+                <span className="text-xs text-muted-foreground">Gaeste / Teilnehmer</span>
+                <textarea
+                  name="guests"
+                  required
+                  rows={2}
+                  placeholder="Hr. Mueller, Fr. Schmidt"
+                  value={guests}
+                  onChange={(event) => setGuests(event.target.value)}
+                  className="rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
+                />
+              </label>
+              <Input label="Ort" name="location" required placeholder="z.B. Restaurant Adria, Berlin" value={hospitalityLocation} onChange={(event: React.ChangeEvent<HTMLInputElement>) => { setHospitalityLocationManual(true); setHospitalityLocation(event.target.value); }} />
+            </div>
+          </Card>
+        ) : null}
+
+        {error ? (
+          <p className="text-sm font-medium text-danger">{error}</p>
+        ) : null}
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="submit"
+            name="_action"
+            value="save"
+            disabled={isPending || isPreparingAsset}
+            className="rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isPending ? "Wird gespeichert..." : "Speichern"}
+          </button>
+          <button
+            type="submit"
+            name="_action"
+            value="save_next"
+            disabled={isPending || isPreparingAsset}
+            className="rounded-2xl border border-border bg-card px-6 py-3 text-sm font-semibold transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isPending ? "Wird vorbereitet..." : "Speichern & naechsten Beleg erfassen"}
+          </button>
+          <button
+            type="submit"
+            name="_action"
+            value="send"
+            disabled={isPending || isPreparingAsset}
+            className="rounded-2xl border border-primary bg-primary/10 px-6 py-3 text-sm font-semibold text-primary transition hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isPending ? "Wird gesendet..." : "Speichern & Senden"}
+          </button>
+        </div>
+      </form>
+
+      <CameraCapture
+        open={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onCapture={({ file, detection, trigger }) => {
+          void applySelectedFile(file, "camera", detection, trigger);
+        }}
+      />
+    </>
   );
+}
+
+type FieldReviewStateMap = Partial<Record<
+  "date" | "amount" | "currency" | "supplier" | "country" | "documentType" | "paymentMethod" | "cardLastDigits" | "fuelLiters" | "fuelPricePerLiter" | "fuelType" | "hospitalityLocation" | "hospitalitySubtotal" | "hospitalityTip" | "lodgingLocation" | "lodgingNights" | "lodgingSubtotal" | "lodgingTax" | "lodgingFees" | "parkingLocation" | "parkingDuration" | "parkingEntryTime" | "parkingExitTime" | "tollStation" | "tollRouteHint" | "tollVehicleClass",
+  OcrFieldReviewStatus
+>>;
+
+function buildStructuredData(result: OcrResult, fieldReviewStates: FieldReviewStateMap) {
+  return {
+    sourceType: result.sourceType,
+    extracted: result.extracted,
+    fieldConfidence: result.fieldConfidence,
+    fieldReviewStates,
+    special: result.special,
+    specialConfidence: result.specialConfidence,
+  };
+}
+
+function buildFieldReviewStates({
+  result,
+  manualOverrides,
+  countryManuallyChanged,
+  hospitalityLocationManual,
+  selectedCountryId,
+  suggestedCountryId,
+  submitted,
+}: {
+  result: OcrResult;
+  manualOverrides: Record<OcrFieldKey, boolean>;
+  countryManuallyChanged: boolean;
+  hospitalityLocationManual: boolean;
+  selectedCountryId: string;
+  suggestedCountryId: string | null;
+  submitted: boolean;
+}): FieldReviewStateMap {
+  const states: FieldReviewStateMap = {
+    date: manualOverrides.date ? "user_overridden" : submitted && result.extracted.date ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.date),
+    amount: manualOverrides.amount ? "user_overridden" : submitted && result.extracted.amount !== null ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.amount),
+    currency: manualOverrides.currency ? "user_overridden" : submitted && result.extracted.currency ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.currency),
+    supplier: manualOverrides.supplier ? "user_overridden" : submitted && result.extracted.supplier ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.supplier),
+    documentType: submitted && result.extracted.documentType ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.documentType),
+    paymentMethod: submitted && result.extracted.paymentMethod ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.paymentMethod),
+    cardLastDigits: submitted && result.extracted.cardLastDigits ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.cardLastDigits),
+    country: result.extracted.countryCode
+      ? countryManuallyChanged && selectedCountryId !== suggestedCountryId
+        ? "user_overridden"
+        : submitted && selectedCountryId && selectedCountryId === suggestedCountryId
+          ? "user_confirmed"
+          : confidenceToReviewStatus(result.fieldConfidence.country)
+      : "not_detected",
+    fuelLiters: result.special.fuel ? confidenceToReviewStatus(result.specialConfidence.fuel?.liters) : "not_detected",
+    fuelPricePerLiter: result.special.fuel ? confidenceToReviewStatus(result.specialConfidence.fuel?.pricePerLiter) : "not_detected",
+    fuelType: result.special.fuel ? confidenceToReviewStatus(result.specialConfidence.fuel?.fuelType) : "not_detected",
+    hospitalityLocation: result.special.hospitality
+      ? hospitalityLocationManual
+        ? "user_overridden"
+        : submitted && result.special.hospitality.location
+          ? "user_confirmed"
+          : confidenceToReviewStatus(result.specialConfidence.hospitality?.location)
+      : "not_detected",
+    hospitalitySubtotal: result.special.hospitality ? confidenceToReviewStatus(result.specialConfidence.hospitality?.subtotal) : "not_detected",
+    hospitalityTip: result.special.hospitality ? confidenceToReviewStatus(result.specialConfidence.hospitality?.tip) : "not_detected",
+    lodgingLocation: result.special.lodging ? confidenceToReviewStatus(result.specialConfidence.lodging?.location) : "not_detected",
+    lodgingNights: result.special.lodging ? confidenceToReviewStatus(result.specialConfidence.lodging?.nights) : "not_detected",
+    lodgingSubtotal: result.special.lodging ? confidenceToReviewStatus(result.specialConfidence.lodging?.subtotal) : "not_detected",
+    lodgingTax: result.special.lodging ? confidenceToReviewStatus(result.specialConfidence.lodging?.tax) : "not_detected",
+    lodgingFees: result.special.lodging ? confidenceToReviewStatus(result.specialConfidence.lodging?.fees) : "not_detected",
+    parkingLocation: result.special.parking ? confidenceToReviewStatus(result.specialConfidence.parking?.location) : "not_detected",
+    parkingDuration: result.special.parking ? confidenceToReviewStatus(result.specialConfidence.parking?.durationText) : "not_detected",
+    parkingEntryTime: result.special.parking ? confidenceToReviewStatus(result.specialConfidence.parking?.entryTime) : "not_detected",
+    parkingExitTime: result.special.parking ? confidenceToReviewStatus(result.specialConfidence.parking?.exitTime) : "not_detected",
+    tollStation: result.special.toll ? confidenceToReviewStatus(result.specialConfidence.toll?.station) : "not_detected",
+    tollRouteHint: result.special.toll ? confidenceToReviewStatus(result.specialConfidence.toll?.routeHint) : "not_detected",
+    tollVehicleClass: result.special.toll ? confidenceToReviewStatus(result.specialConfidence.toll?.vehicleClass) : "not_detected",
+  };
+
+  return states;
 }
 
 function readLastSelections(): Partial<ReceiptSelectionState> | null {
@@ -552,33 +854,17 @@ function resolveSelectionState({
   return { selection, source: "none" };
 }
 
-const CONFIDENCE_INDICATOR: Record<string, string> = {
-  high: "text-primary",
-  medium: "text-accent-foreground",
-  low: "text-danger",
-  none: "text-muted-foreground",
-};
-
 function getOcrHeadline(sourceType: OcrResult["sourceType"]): string {
   switch (sourceType) {
     case "pdf-text":
-      return "PDF-Text erkannt und als Vorschlag vorbelegt; manuelle Eingaben bleiben erhalten";
+      return "PDF-Text erkannt und als strukturierte Vorschlaege vorbelegt; manuelle Eingaben bleiben erhalten";
     case "pdf-scan":
-      return "Scan-PDF per OCR analysiert; manuelle Eingaben bleiben erhalten";
+      return "Scan-PDF per OCR analysiert; strukturierte Vorschlaege sind sichtbar und bleiben pruefbar";
     case "pdf-empty":
       return "Fuer dieses PDF konnten keine verlaesslichen OCR-Vorschlaege erzeugt werden";
     default:
-      return "OCR-Ergebnisse als Vorschlag vorbelegt; manuelle Eingaben bleiben erhalten";
+      return "OCR-Ergebnisse als strukturierte Vorschlaege vorbelegt; manuelle Eingaben bleiben erhalten";
   }
-}
-
-function OcrField({ label, value, confidence }: { label: string; value: string; confidence?: keyof typeof CONFIDENCE_INDICATOR }) {
-  const currentConfidence = confidence ?? "none";
-  return (
-    <span className={CONFIDENCE_INDICATOR[currentConfidence] ?? "text-muted-foreground"}>
-      {label}: {value} {currentConfidence === "high" ? "" : currentConfidence === "medium" ? "(~)" : currentConfidence === "low" ? "(?)" : ""}
-    </span>
-  );
 }
 
 function SelectField({

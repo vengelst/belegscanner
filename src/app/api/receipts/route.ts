@@ -148,6 +148,8 @@ export async function POST(request: NextRequest) {
       categoryId: d.categoryId,
       remark: d.remark ?? null,
       ocrRawText: d.ocrRawText ?? null,
+      detectedDocumentType: d.detectedDocumentType ?? null,
+      ocrStructuredData: d.ocrStructuredData === undefined ? undefined : d.ocrStructuredData === null ? Prisma.JsonNull : d.ocrStructuredData,
       sendStatus: "OPEN",
       ...(d.hospitality ? {
         hospitality: {

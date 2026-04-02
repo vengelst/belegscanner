@@ -1,4 +1,4 @@
-generator client {
+﻿generator client {
   provider = "prisma-client-js"
 }
 
@@ -30,6 +30,15 @@ enum ReviewStatus {
   APPROVED
   DEFERRED
   COMPLETED
+}
+
+enum DocumentType {
+  GENERAL
+  FUEL
+  HOSPITALITY
+  LODGING
+  PARKING
+  TOLL
 }
 
 enum FileType {
@@ -186,6 +195,8 @@ model Receipt {
 
   // OCR-Rohdaten
   ocrRawText          String?    @db.Text
+  detectedDocumentType DocumentType?
+  ocrStructuredData   Json?
 
   // Relationen
   hospitality         Hospitality?
@@ -204,6 +215,7 @@ model Receipt {
   @@index([categoryId])
   @@index([countryId])
   @@index([datevProfileId])
+  @@index([detectedDocumentType])
   @@index([createdAt])
 }
 
@@ -317,3 +329,4 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([createdAt])
 }
+

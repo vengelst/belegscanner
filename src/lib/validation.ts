@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { OCR_CONFIDENCE_LEVELS, OCR_DOCUMENT_TYPES, OCR_FIELD_REVIEW_STATUSES, OCR_PAYMENT_METHODS, RECEIPT_DOCUMENT_TYPE_VALUES } from "@/lib/ocr-suggestions";
 
 export const loginSchema = z.object({
   email: z.string().email("Bitte eine gültige E-Mail-Adresse eingeben."),
@@ -128,6 +129,117 @@ const hospitalitySchema = z.object({
   location: z.string().min(1, "Ort ist fuer Bewirtung erforderlich."),
 });
 
+const ocrConfidenceSchema = z.enum(OCR_CONFIDENCE_LEVELS);
+const ocrDocumentTypeSchema = z.enum(OCR_DOCUMENT_TYPES);
+const receiptDocumentTypeSchema = z.enum(RECEIPT_DOCUMENT_TYPE_VALUES);
+const paymentMethodSchema = z.enum(OCR_PAYMENT_METHODS);
+const fieldReviewStatusSchema = z.enum(OCR_FIELD_REVIEW_STATUSES);
+
+const ocrLineItemSchema = z.object({
+  label: z.string().min(1).max(120),
+  amount: z.number().nullable(),
+});
+
+const ocrLodgingSchema = z.object({
+  location: z.string().max(255).nullable(),
+  nights: z.number().int().min(0).nullable(),
+  subtotal: z.number().nullable(),
+  tax: z.number().nullable(),
+  fees: z.number().nullable(),
+  lineItems: z.array(ocrLineItemSchema).max(10),
+});
+
+const ocrParkingSchema = z.object({
+  location: z.string().max(255).nullable(),
+  durationText: z.string().max(80).nullable(),
+  entryTime: z.string().nullable(),
+  exitTime: z.string().nullable(),
+});
+
+const ocrTollSchema = z.object({
+  station: z.string().max(255).nullable(),
+  routeHint: z.string().max(255).nullable(),
+  vehicleClass: z.string().max(80).nullable(),
+});
+
+export const ocrStructuredDataSchema = z.object({
+  sourceType: z.enum(["image", "pdf-text", "pdf-scan", "pdf-empty"]).optional(),
+  extracted: z.object({
+    date: z.string().nullable(),
+    time: z.string().nullable(),
+    amount: z.number().nullable(),
+    currency: z.string().length(3).nullable(),
+    supplier: z.string().max(255).nullable(),
+    location: z.string().max(255).nullable(),
+    paymentMethod: paymentMethodSchema.nullable(),
+    cardLastDigits: z.string().regex(/^\d{2,4}$/).nullable(),
+    countryCode: z.string().max(3).nullable(),
+    countryName: z.string().max(100).nullable(),
+    documentType: ocrDocumentTypeSchema.nullable(),
+  }),
+  fieldConfidence: z.object({
+    date: ocrConfidenceSchema,
+    time: ocrConfidenceSchema,
+    amount: ocrConfidenceSchema,
+    currency: ocrConfidenceSchema,
+    supplier: ocrConfidenceSchema,
+    location: ocrConfidenceSchema,
+    paymentMethod: ocrConfidenceSchema,
+    cardLastDigits: ocrConfidenceSchema,
+    country: ocrConfidenceSchema,
+    documentType: ocrConfidenceSchema,
+  }),
+  special: z.object({
+    fuel: z.object({
+      liters: z.number().nullable(),
+      pricePerLiter: z.number().nullable(),
+      fuelType: z.string().max(80).nullable(),
+    }).nullable(),
+    hospitality: z.object({
+      location: z.string().max(255).nullable(),
+      subtotal: z.number().nullable(),
+      tip: z.number().nullable(),
+      lineItems: z.array(ocrLineItemSchema).max(10),
+    }).nullable(),
+    lodging: ocrLodgingSchema.nullable(),
+    parking: ocrParkingSchema.nullable(),
+    toll: ocrTollSchema.nullable(),
+  }),
+  fieldReviewStates: z.record(fieldReviewStatusSchema).optional(),
+  specialConfidence: z.object({
+    fuel: z.object({
+      liters: ocrConfidenceSchema,
+      pricePerLiter: ocrConfidenceSchema,
+      fuelType: ocrConfidenceSchema,
+    }).nullable(),
+    hospitality: z.object({
+      location: ocrConfidenceSchema,
+      subtotal: ocrConfidenceSchema,
+      tip: ocrConfidenceSchema,
+      lineItems: ocrConfidenceSchema,
+    }).nullable(),
+    lodging: z.object({
+      location: ocrConfidenceSchema,
+      nights: ocrConfidenceSchema,
+      subtotal: ocrConfidenceSchema,
+      tax: ocrConfidenceSchema,
+      fees: ocrConfidenceSchema,
+      lineItems: ocrConfidenceSchema,
+    }).nullable(),
+    parking: z.object({
+      location: ocrConfidenceSchema,
+      durationText: ocrConfidenceSchema,
+      entryTime: ocrConfidenceSchema,
+      exitTime: ocrConfidenceSchema,
+    }).nullable(),
+    toll: z.object({
+      station: ocrConfidenceSchema,
+      routeHint: ocrConfidenceSchema,
+      vehicleClass: ocrConfidenceSchema,
+    }).nullable(),
+  }),
+}).nullable();
+
 const receiptSchemaBase = z.object({
   date: z.string().date(),
   supplier: z.string().max(255).nullable().optional(),
@@ -145,6 +257,8 @@ const receiptSchemaBase = z.object({
   categoryId: z.string().min(1),
   remark: z.string().max(2000).nullable().optional(),
   ocrRawText: z.string().nullable().optional(),
+  detectedDocumentType: receiptDocumentTypeSchema.nullable().optional(),
+  ocrStructuredData: ocrStructuredDataSchema.optional(),
   hospitality: hospitalitySchema.nullable().optional(),
 });
 
