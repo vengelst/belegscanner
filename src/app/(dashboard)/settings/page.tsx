@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ChangePasswordForm } from "@/components/settings/change-password-form";
 import { ChangePinForm } from "@/components/settings/change-pin-form";
 import { UserReceiptDefaultsForm } from "@/components/settings/user-receipt-defaults-form";
+import { SettingsModeSwitch } from "@/components/settings/settings-mode-switch";
 import { connection } from "next/server";
 
 export default async function UserSettingsPage() {
@@ -36,8 +37,17 @@ export default async function UserSettingsPage() {
 
   return (
     <div className="space-y-8">
+      <div className="space-y-4">
+        <SettingsModeSwitch active="personal" showAdmin={user.role === "ADMIN"} />
+        <div className="space-y-2">
+          <h1 className="text-3xl font-semibold tracking-tight">Einstellungen</h1>
+          <p className="text-sm text-muted-foreground">
+            Persoenliche Voreinstellungen, Passwort und PIN fuer deinen Arbeitsbereich.
+          </p>
+        </div>
+      </div>
       <div className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Eigene Einstellungen</h1>
+        <h2 className="text-xl font-semibold tracking-tight">Profil</h2>
         <p className="text-sm text-muted-foreground">
           {user.name} &middot; {user.email} &middot; {user.role}
         </p>

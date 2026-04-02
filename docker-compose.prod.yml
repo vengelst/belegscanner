@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-belegbox}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-belegbox}
+      POSTGRES_DB: ${POSTGRES_DB:-belegbox}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:55433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-belegbox}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3003:3000"
+    volumes:
+      - storage:/app/storage
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://belegbox:belegbox@db:5432/belegbox}
+      AUTH_SECRET: ${AUTH_SECRET}
+      AUTH_URL: ${AUTH_URL:-https://beleg.vivahome.de}
+      STORAGE_PATH: /app/storage
+      OCR_LANGUAGE: ${OCR_LANGUAGE:-deu+eng}
+      SMTP_ENCRYPTION_KEY: ${SMTP_ENCRYPTION_KEY}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ADMIN_NAME: ${ADMIN_NAME:-Administrator}
+      EXCHANGE_RATE_API_URL: ${EXCHANGE_RATE_API_URL:-https://api.frankfurter.app}
+
+volumes:
+  pgdata:
+  storage:
