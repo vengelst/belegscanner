@@ -191,10 +191,25 @@ function Invoke-Deploy {
     Ensure-Value $ServerHost "ServerHost"
     Ensure-Value $ServerPath "ServerPath"
 
+    $sshTarget = $ServerUser + "@" + $ServerHost
+    $dirtyStatusCommand = "cd '$ServerPath' && git status --short"
+
+    if (-not $DryRun) {
+        Write-Info "Pruefe Server-Repository auf lokale Aenderungen"
+        $dirtyStatusOutput = (& ssh $sshTarget $dirtyStatusCommand | Out-String).Trim()
+
+        if ($LASTEXITCODE -ne 0) {
+            throw "Server-Status konnte nicht geprueft werden."
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($dirtyStatusOutput)) {
+            throw "Deploy abgebrochen: Das Repo auf dem Server enthaelt lokale Aenderungen:`n$dirtyStatusOutput"
+        }
+    }
+
     $remoteSteps = @()
     $remoteSteps += "set -e"
     $remoteSteps += "cd '$ServerPath'"
-    $remoteSteps += 'if [ -n "$(git status --porcelain)" ]; then echo SERVER_GIT_DIRTY; git status --short; exit 20; fi'
     $remoteSteps += "git fetch --tags $RemoteName"
     $remoteSteps += "git checkout $Branch"
     $remoteSteps += "git pull --ff-only $RemoteName $Branch"
@@ -215,19 +230,8 @@ function Invoke-Deploy {
     }
 
     $remoteCommand = [string]::Join(" && ", $remoteSteps)
-    $sshTarget = $ServerUser + "@" + $ServerHost
     $sshCommand = 'ssh ' + $sshTarget + ' "' + $remoteCommand + '"'
-
-    try {
-        Run-Command -Label "Deploye auf $sshTarget" -Command $sshCommand
-    }
-    catch {
-        if ($_.Exception.Message -like "*SERVER_GIT_DIRTY*") {
-            throw "Deploy abgebrochen: Das Repo auf dem Server enthaelt lokale Aenderungen. Bitte dort zuerst git status pruefen und die Aenderungen bereinigen."
-        }
-
-        throw
-    }
+    Run-Command -Label "Deploye auf $sshTarget" -Command $sshCommand
 
     Write-Info "Deployment abgeschlossen. Pruefe jetzt $AppUrl"
 }
