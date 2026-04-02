@@ -7,6 +7,8 @@ Version: 1.0.0 RC
 
 Die priorisierten Audit-Punkte 1 bis 10 sind umgesetzt. Der aktuelle Stand ist fuer ein kontrolliertes Staging tragfaehig; fuer Go-Live bleiben noch betriebliche und nicht priorisierte Produktentscheidungen ausserhalb dieses Durchgangs relevant.
 
+Smart Capture ist bis Phase 5 integriert und fuer einen echten internen Praxiseinsatz geeignet, bleibt aber bewusst review-pflichtig und heuristisch.
+
 ## Abnahmekriterien
 
 ### Authentifizierung
@@ -109,7 +111,7 @@ Die priorisierten Audit-Punkte 1 bis 10 sind umgesetzt. Der aktuelle Stand ist f
 
 ## Auditbedingte Einschraenkungen
 
-- PDF-OCR ist weiterhin nicht umgesetzt.
+- PDF-OCR ist umgesetzt: Text-PDFs werden direkt gelesen, gescannte PDFs aktuell ueber die ersten drei Seiten per OCR analysiert.
 - Batch-Versand und weitergehende Betriebsautomatisierung sind weiterhin ausserhalb des MVP.
 - Ein echter Staging-Durchlauf mit finaler Infrastruktur- und Mailkonfiguration steht weiterhin aus.
 

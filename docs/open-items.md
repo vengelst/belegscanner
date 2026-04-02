@@ -20,14 +20,15 @@ Aus den priorisierten Audit-Punkten 1 bis 10 ist aktuell kein offener Blocker me
 - Passwort-Vergessen per E-Mail
 - Refresh-Tokens
 
-## Smart Capture Phase 5
+## Smart Capture Phase 6
 
 - Zuschnitt / Crop-UI fuer manuelle Nachkorrektur
 - Perspektivkorrektur ueber die aktuelle Crop- und Rotationskorrektur hinaus
 - Erweiterte Bildverbesserung und feinere Eckenerkennung
-- Weitere Belegtypen nur bei robuster Erkennungsbasis, z. B. Parken / Maut
-- Mehr Nutzerhilfe fuer unsichere OCR-Vorschlaege und spaetere Review-Unterstuetzung
 - Noch feinere Laendererkennung fuer grenznahe EUR-Belege und gemischte Sprachsignale
+- Mehr Nutzerhilfe fuer unsichere OCR-Vorschlaege und spaetere Review-Unterstuetzung
+- Gezieltere manuelle Bestaetigung/Korrektur fuer typ-spezifische Zusatzhinweise (z. B. Unterkunft/Parken/Maut)
+- Weitere Typ-Verfeinerung fuer internationale Sonderformate ausserhalb der Kernbelegarten
 
 ## UX / Komfort
 

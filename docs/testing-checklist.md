@@ -142,6 +142,10 @@ Voraussetzung: PostgreSQL laeuft, `prisma migrate dev` und `prisma db seed` wurd
 - [ ] Versandhistorie sichtbar
 - [ ] OCR-Rohtext sichtbar (falls vorhanden)
 - [ ] Smart-Capture-Vorschlaege in Detailansicht sichtbar (Belegtyp, Land, Zahlungsart, Kartenendziffern, Tank-/Bewirtungshinweise)
+- [ ] Unterkunftsbeleg -> Hotel/Unterkunft wird als Typ erkannt, Zusatzfelder und Hinweise erscheinen
+- [ ] Parkbeleg -> Parktyp, Ort, Dauer und Ein-/Ausfahrtszeiten erscheinen nur als Vorschlaege
+- [ ] Mautbeleg -> Mauttyp, Station/Streckenhinweis/Fahrzeugklasse erscheinen nur als Vorschlaege
+- [ ] Unterkunfts-/Bewirtungs-Positionshinweise werden in Erfassung und Detailansicht sichtbar angezeigt
 - [ ] Feldstatus in Detailansicht nachvollziehbar (OCR sicher / unsicher / manuell bestaetigt / manuell gesetzt)
 - [ ] Bewirtungsblock nur bei Bewirtungsbelegen
 - [ ] Waehrungsblock nur bei Fremdwaehrung

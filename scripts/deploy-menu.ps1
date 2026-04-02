@@ -127,13 +127,13 @@ function Ask-DeployArguments {
 
     Write-Host ""
     Write-Host "Schema-Sync fuer Deploy:"
-    Write-Host "1) migrate deploy (Standard)"
-    Write-Host "2) prisma db push (nur fuer Initial-Setup / Ausnahmefaelle)"
+    Write-Host "1) prisma db push (Standard fuer dieses Projekt)"
+    Write-Host "2) migrate deploy (nur wenn Migrationen sauber gepflegt sind)"
 
     $schemaChoice = Read-Host "Auswahl"
     $schemaSyncMode = switch ($schemaChoice) {
-        "1" { "migrate" }
-        "2" { "push" }
+        "1" { "push" }
+        "2" { "migrate" }
         default { throw "Ungueltige Auswahl fuer den Schema-Sync." }
     }
 

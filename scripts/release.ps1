@@ -12,7 +12,7 @@ param(
     [string]$ServerPath = "/opt/belegscanner",
     [string]$ComposeFile = "docker-compose.prod.yml",
     [ValidateSet("migrate", "push")]
-    [string]$SchemaSyncMode = "migrate",
+    [string]$SchemaSyncMode = "push",
     [string]$AppUrl = "https://beleg.vivahome.de",
     [switch]$Push,
     [switch]$CreateTag,
@@ -199,15 +199,18 @@ function Invoke-Deploy {
     $remoteSteps += "git pull --ff-only $RemoteName $Branch"
     $remoteSteps += "docker compose -f $ComposeFile up -d --build"
 
+    $prismaHelperPrefix = "docker run --rm --network belegscanner_default --env-file .env -e DATABASE_URL='postgresql://belegbox:belegbox@db:5432/belegbox' -v '${ServerPath}:/app' -w /app node:20-alpine sh -lc"
+    $helperInstallCommand = "npm install >/tmp/belegscanner-npm-install.log 2>&1"
+
     if ($SchemaSyncMode -eq "push") {
-        $remoteSteps += "docker compose -f $ComposeFile exec -T app npx prisma db push"
+        $remoteSteps += $prismaHelperPrefix + " '" + $helperInstallCommand + " && npx prisma db push'"
     }
     else {
-        $remoteSteps += "docker compose -f $ComposeFile exec -T app npx prisma migrate deploy"
+        $remoteSteps += $prismaHelperPrefix + " '" + $helperInstallCommand + " && npx prisma migrate deploy'"
     }
 
     if ($RunSeed) {
-        $remoteSteps += "docker compose -f $ComposeFile exec -T app npx prisma db seed"
+        $remoteSteps += $prismaHelperPrefix + " '" + $helperInstallCommand + " && npx prisma db seed'"
     }
 
     $remoteCommand = [string]::Join(" && ", $remoteSteps)

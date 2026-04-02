@@ -34,12 +34,12 @@ Ein Beleg enthaelt:
 - Bemerkung (Freitext)
 - Originaldatei (unveraendert gespeichert)
 - OCR-Rohtext (bei Bilddateien, Kameraaufnahmen, Text-PDFs oder Scan-PDF-OCR)
-- Strukturierte OCR-Vorschlaege fuer Datum, Uhrzeit, Lieferant, Ort, Land, Betrag, Waehrung, Zahlungsart, Kartenendziffern sowie Tank-/Bewirtungshinweise
+- Strukturierte OCR-Vorschlaege fuer Datum, Uhrzeit, Lieferant, Ort, Land, Betrag, Waehrung, Zahlungsart, Kartenendziffern sowie typ-spezifische Hinweise fuer Tanken, Bewirtung, Unterkunft, Parken und Maut
 
 Regeln:
 - Originalbeleg wird unveraendert gespeichert
 - Bei Foto-Belegen darf fuer Vorschau/OCR eine getrennte Arbeitskopie mit Crop- und Rotationskorrektur erzeugt werden; gespeichert wird weiterhin nur das Original
-- OCR-Belegtyp, Laenderkennung und Spezialfelder sind Vorschlaege und duerfen manuelle Eingaben niemals still ueberschreiben
+- OCR-Belegtyp, Laenderkennung, Positionshinweise und Spezialfelder sind Vorschlaege und duerfen manuelle Eingaben niemals still ueberschreiben
 - Fuer wichtige OCR-Felder wird ein leichtgewichtiges Feldstatusmodell gefuehrt: sicher erkannt, unsicher erkannt, nicht erkannt, manuell bestaetigt, manuell gesetzt
 - Vorbelegung folgt der Prioritaet: aktuelle manuelle Eingabe -> letzte Werte aus Folgeerfassung -> Benutzer-Standards -> System-Defaults
 - Druckansicht und Originaldatei sind getrennte Artefakte
