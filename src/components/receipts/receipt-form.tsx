@@ -708,7 +708,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
 }
 
 type FieldReviewStateMap = Partial<Record<
-  "date" | "amount" | "currency" | "supplier" | "country" | "documentType" | "paymentMethod" | "cardLastDigits" | "fuelLiters" | "fuelPricePerLiter" | "fuelType" | "hospitalityLocation" | "hospitalitySubtotal" | "hospitalityTip" | "lodgingLocation" | "lodgingNights" | "lodgingSubtotal" | "lodgingTax" | "lodgingFees" | "parkingLocation" | "parkingDuration" | "parkingEntryTime" | "parkingExitTime" | "tollStation" | "tollRouteHint" | "tollVehicleClass",
+  "date" | "invoiceDate" | "serviceDate" | "amount" | "grossAmount" | "netAmount" | "taxAmount" | "currency" | "supplier" | "invoiceNumber" | "country" | "documentType" | "paymentMethod" | "cardLastDigits" | "invoiceLineItems" | "fuelLiters" | "fuelPricePerLiter" | "fuelType" | "hospitalityLocation" | "hospitalitySubtotal" | "hospitalityTip" | "lodgingLocation" | "lodgingNights" | "lodgingSubtotal" | "lodgingTax" | "lodgingFees" | "parkingLocation" | "parkingDuration" | "parkingEntryTime" | "parkingExitTime" | "tollStation" | "tollRouteHint" | "tollVehicleClass",
   OcrFieldReviewStatus
 >>;
 
@@ -721,15 +721,22 @@ function hasDetectedOcrValues(result: OcrResult) {
 
   return Boolean(
     result.extracted.date
+      || result.extracted.invoiceDate
+      || result.extracted.serviceDate
       || result.extracted.time
       || result.extracted.amount !== null
+      || result.extracted.grossAmount !== null
+      || result.extracted.netAmount !== null
+      || result.extracted.taxAmount !== null
       || result.extracted.currency
       || result.extracted.supplier
+      || result.extracted.invoiceNumber
       || result.extracted.location
       || result.extracted.countryCode
       || result.extracted.countryName
       || result.extracted.paymentMethod
       || result.extracted.cardLastDigits
+      || (result.special.invoice && result.special.invoice.lineItems.length > 0)
       || (fuel && (fuel.liters !== null || fuel.pricePerLiter !== null || fuel.fuelType))
       || (hospitality && (hospitality.location || hospitality.subtotal !== null || hospitality.tip !== null || hospitality.lineItems.length > 0))
       || (lodging && (lodging.location || lodging.nights !== null || lodging.subtotal !== null || lodging.tax !== null || lodging.fees !== null || lodging.lineItems.length > 0))
@@ -768,12 +775,19 @@ function buildFieldReviewStates({
 }): FieldReviewStateMap {
   const states: FieldReviewStateMap = {
     date: manualOverrides.date ? "user_overridden" : submitted && result.extracted.date ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.date),
+    invoiceDate: submitted && result.extracted.invoiceDate ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.invoiceDate),
+    serviceDate: submitted && result.extracted.serviceDate ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.serviceDate),
     amount: manualOverrides.amount ? "user_overridden" : submitted && result.extracted.amount !== null ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.amount),
+    grossAmount: submitted && result.extracted.grossAmount !== null ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.grossAmount),
+    netAmount: submitted && result.extracted.netAmount !== null ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.netAmount),
+    taxAmount: submitted && result.extracted.taxAmount !== null ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.taxAmount),
     currency: manualOverrides.currency ? "user_overridden" : submitted && result.extracted.currency ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.currency),
     supplier: manualOverrides.supplier ? "user_overridden" : submitted && result.extracted.supplier ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.supplier),
+    invoiceNumber: submitted && result.extracted.invoiceNumber ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.invoiceNumber),
     documentType: submitted && result.extracted.documentType ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.documentType),
     paymentMethod: submitted && result.extracted.paymentMethod ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.paymentMethod),
     cardLastDigits: submitted && result.extracted.cardLastDigits ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.cardLastDigits),
+    invoiceLineItems: result.special.invoice ? confidenceToReviewStatus(result.specialConfidence.invoice?.lineItems) : "not_detected",
     country: result.extracted.countryCode
       ? countryManuallyChanged && selectedCountryId !== suggestedCountryId
         ? "user_overridden"

@@ -12,7 +12,7 @@ BelegBox ist eine webbasierte Beleg-App fuer mobile Erfassung, Verwaltung im Bro
 - Login mit E-Mail/Passwort und 4-stelliger PIN (Kiosk)
 - Benutzerverwaltung mit Rollen ADMIN und USER
 - Belegaufnahme per Upload oder mobiler Kameraaufnahme (JPG, PNG, PDF, max 20 MB)
-- OCR-Verarbeitung zur Vorbelegung fuer Bild-, Kamera- und PDF-Belege (Tesseract.js, Deutsch + Englisch) mit strukturierter Feldzuordnung und heuristischer Belegtyp-Erkennung
+- OCR-Verarbeitung zur Vorbelegung fuer Bild-, Kamera- und PDF-Belege (Tesseract.js, Deutsch + Englisch) mit strukturierter Feldzuordnung, PDF-Typ-Erkennung und heuristischer Belegtyp-Erkennung
 - Formular zur Ergaenzung und Korrektur der Belegdaten
 - Komfortfunktionen fuer wiederkehrende Erfassungen (Benutzer-Standards, letzte Werte, Folgeerfassung)
 - Stammdatenverwaltung: Laender, Kfz, Zwecke, Kategorien
@@ -34,13 +34,14 @@ Ein Beleg enthaelt:
 - Bemerkung (Freitext)
 - Originaldatei (unveraendert gespeichert)
 - OCR-Rohtext (bei Bilddateien, Kameraaufnahmen, Text-PDFs oder Scan-PDF-OCR)
-- Strukturierte OCR-Vorschlaege fuer Datum, Uhrzeit, Lieferant, Ort, Land, Betrag, Waehrung, Zahlungsart, Kartenendziffern sowie typ-spezifische Hinweise fuer Tanken, Bewirtung, Unterkunft, Parken und Maut
+- Strukturierte OCR-Vorschlaege fuer Datum, Rechnungsdatum, Leistungsdatum, Uhrzeit, Lieferant, Rechnungsnummer (wenn robust), Betrag, Bruttobetrag, Nettobetrag, Steuerbetrag, Waehrung, Ort, Land, Zahlungsart, Kartenendziffern, Positionsvorschlaege fuer Rechnungen sowie typ-spezifische Hinweise fuer Tanken, Bewirtung, Unterkunft, Parken und Maut
 
 Regeln:
 - Originalbeleg wird unveraendert gespeichert
 - Bei Foto-Belegen darf fuer Vorschau/OCR eine getrennte Arbeitskopie mit Crop- und Rotationskorrektur erzeugt werden; gespeichert wird weiterhin nur das Original
+- Bei PDF-Belegen wird derselbe Receipt-Flow genutzt wie bei Bildern: textbasierte PDFs werden direkt gelesen, gescannte PDFs ueber Seitenbilder analysiert, problematische PDFs liefern eine nachvollziehbare Warnung und lassen den manuellen Flow offen
 - OCR-Belegtyp, Laenderkennung, Positionshinweise und Spezialfelder sind Vorschlaege und duerfen manuelle Eingaben niemals still ueberschreiben
-- Fuer wichtige OCR-Felder wird ein leichtgewichtiges Feldstatusmodell gefuehrt: sicher erkannt, unsicher erkannt, nicht erkannt, manuell bestaetigt, manuell gesetzt
+- Fuer wichtige OCR-Felder wird ein leichtgewichtiges Feldstatusmodell gefuehrt: sicher erkannt, unsicher erkannt, nicht erkannt, manuell bestaetigt, manuell gesetzt. Phase 2 nutzt dieses Modell auch fuer Rechnungsnummer, Rechnungs-/Leistungsdatum sowie Netto/Steuer/Brutto-Vorschlaege, ohne manuelle Eingaben still zu ueberschreiben
 - Vorbelegung folgt der Prioritaet: aktuelle manuelle Eingabe -> letzte Werte aus Folgeerfassung -> Benutzer-Standards -> System-Defaults
 - Druckansicht und Originaldatei sind getrennte Artefakte
 - Versandstatus wird systemgefuehrt behandelt (nicht frei editierbar)

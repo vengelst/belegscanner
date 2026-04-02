@@ -1,6 +1,6 @@
 # BelegBox - MVP-Abnahme
 
-Stand: 2026-04-02
+Stand: 2026-04-03
 Version: 1.0.0 RC
 
 ## MVP-Status: staging-faehig, mit Restpunkten vor Go-Live
@@ -111,7 +111,7 @@ Smart Capture ist bis Phase 5 integriert und fuer einen echten internen Praxisei
 
 ## Auditbedingte Einschraenkungen
 
-- PDF-OCR ist umgesetzt: Text-PDFs werden direkt gelesen, gescannte PDFs aktuell ueber die ersten drei Seiten per OCR analysiert.
+- PDF-OCR ist umgesetzt: Text-PDFs werden direkt gelesen. Der Scan-PDF-Fallback ueber die ersten drei Seiten ist implementiert, laut Audit vom 03.04.2026 aber noch kein belastbar nachgewiesener Staging-Pfad.
 - Batch-Versand und weitergehende Betriebsautomatisierung sind weiterhin ausserhalb des MVP.
 - Ein echter Staging-Durchlauf mit finaler Infrastruktur- und Mailkonfiguration steht weiterhin aus.
 
@@ -119,7 +119,7 @@ Smart Capture ist bis Phase 5 integriert und fuer einen echten internen Praxisei
 
 - Entwicklungsfaehig: ja
 - Intern testfaehig: ja
-- Staging-faehig: ja
+- Staging-faehig: nur eingeschraenkt; fuer die allgemeine App ja, fuer die PDF-Rechnungsanalyse mit Scan-PDFs noch nicht belastbar bestaetigt
 - Go-live-faehig: noch nicht belastbar bestaetigt
 
 ## Voraussetzungen fuer Produktivbetrieb

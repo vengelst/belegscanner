@@ -19,15 +19,35 @@ export type OcrLineItem = {
   amount: number | null;
 };
 
+export type OcrInvoiceLineItemStatus = "confident" | "uncertain" | "partial";
+
+export type OcrInvoiceLineItem = {
+  lineNumber: number | null;
+  description: string;
+  quantity: number | null;
+  unit: string | null;
+  unitPrice: number | null;
+  totalPrice: number | null;
+  taxHint: string | null;
+  confidence: OcrConfidenceLevel;
+  status: OcrInvoiceLineItemStatus;
+};
+
 export type OcrResult = {
   sourceType: OcrSourceType;
   rawText: string;
   extracted: {
     date: string | null;
+    invoiceDate: string | null;
+    serviceDate: string | null;
     time: string | null;
     amount: number | null;
+    grossAmount: number | null;
+    netAmount: number | null;
+    taxAmount: number | null;
     currency: string | null;
     supplier: string | null;
+    invoiceNumber: string | null;
     location: string | null;
     paymentMethod: OcrPaymentMethod | null;
     cardLastDigits: string | null;
@@ -66,14 +86,23 @@ export type OcrResult = {
       routeHint: string | null;
       vehicleClass: string | null;
     } | null;
+    invoice: {
+      lineItems: OcrInvoiceLineItem[];
+    } | null;
   };
   confidence: number;
   fieldConfidence: {
     date: OcrConfidenceLevel;
+    invoiceDate: OcrConfidenceLevel;
+    serviceDate: OcrConfidenceLevel;
     time: OcrConfidenceLevel;
     amount: OcrConfidenceLevel;
+    grossAmount: OcrConfidenceLevel;
+    netAmount: OcrConfidenceLevel;
+    taxAmount: OcrConfidenceLevel;
     currency: OcrConfidenceLevel;
     supplier: OcrConfidenceLevel;
+    invoiceNumber: OcrConfidenceLevel;
     location: OcrConfidenceLevel;
     paymentMethod: OcrConfidenceLevel;
     cardLastDigits: OcrConfidenceLevel;
@@ -110,6 +139,9 @@ export type OcrResult = {
       station: OcrConfidenceLevel;
       routeHint: OcrConfidenceLevel;
       vehicleClass: OcrConfidenceLevel;
+    } | null;
+    invoice: {
+      lineItems: OcrConfidenceLevel;
     } | null;
   };
   message: string | null;
@@ -162,12 +194,22 @@ type TollDetails = {
   vehicleClass: FieldResult<string>;
 };
 
+type InvoiceDetails = {
+  lineItems: OcrInvoiceLineItem[];
+};
+
 type ParsedReceiptText = {
   date: FieldResult<string>;
+  invoiceDate: FieldResult<string>;
+  serviceDate: FieldResult<string>;
   time: FieldResult<string>;
   amount: FieldResult<number>;
+  grossAmount: FieldResult<number>;
+  netAmount: FieldResult<number>;
+  taxAmount: FieldResult<number>;
   currency: FieldResult<string>;
   supplier: FieldResult<string>;
+  invoiceNumber: FieldResult<string>;
   location: FieldResult<string>;
   paymentMethod: FieldResult<OcrPaymentMethod>;
   cardLastDigits: FieldResult<string>;
@@ -179,6 +221,7 @@ type ParsedReceiptText = {
     lodging: LodgingDetails | null;
     parking: ParkingDetails | null;
     toll: TollDetails | null;
+    invoice: InvoiceDetails | null;
   };
 };
 
@@ -187,10 +230,16 @@ const EMPTY_RESULT: OcrResult = {
   rawText: "",
   extracted: {
     date: null,
+    invoiceDate: null,
+    serviceDate: null,
     time: null,
     amount: null,
+    grossAmount: null,
+    netAmount: null,
+    taxAmount: null,
     currency: null,
     supplier: null,
+    invoiceNumber: null,
     location: null,
     paymentMethod: null,
     cardLastDigits: null,
@@ -198,14 +247,20 @@ const EMPTY_RESULT: OcrResult = {
     countryName: null,
     documentType: null,
   },
-  special: { fuel: null, hospitality: null, lodging: null, parking: null, toll: null },
+  special: { fuel: null, hospitality: null, lodging: null, parking: null, toll: null, invoice: null },
   confidence: 0,
   fieldConfidence: {
     date: "none",
+    invoiceDate: "none",
+    serviceDate: "none",
     time: "none",
     amount: "none",
+    grossAmount: "none",
+    netAmount: "none",
+    taxAmount: "none",
     currency: "none",
     supplier: "none",
+    invoiceNumber: "none",
     location: "none",
     paymentMethod: "none",
     cardLastDigits: "none",
@@ -218,6 +273,7 @@ const EMPTY_RESULT: OcrResult = {
     lodging: { location: "none", nights: "none", subtotal: "none", tax: "none", fees: "none", lineItems: "none" },
     parking: { location: "none", durationText: "none", entryTime: "none", exitTime: "none" },
     toll: { station: "none", routeHint: "none", vehicleClass: "none" },
+    invoice: { lineItems: "none" },
   },
   message: null,
 };
@@ -229,6 +285,9 @@ const HOSPITALITY_KEYWORDS = [/restaurant/i, /cafe/i, /bistro/i, /gaststaette/i,
 const LODGING_KEYWORDS = [/hotel/i, /unterkunft/i, /uebernacht/i, /overnight/i, /zimmer/i, /room\b/i, /check-?in/i, /check-?out/i, /reservation/i, /booking/i, /nacht\b/i];
 const PARKING_KEYWORDS = [/parken/i, /parkhaus/i, /parkticket/i, /parking/i, /garage/i, /ticket\s*nr/i, /einfahrt/i, /ausfahrt/i];
 const TOLL_KEYWORDS = [/maut/i, /toll/i, /peage/i, /putarina/i, /enc\b/i, /naplatna/i, /autocesta/i, /autobahn/i, /station\b/i];
+const INVOICE_HEADER_KEYWORDS = /(beschreibung|artikel|leistung|leistungsbeschreibung|description|item|produkt|qty|menge|anzahl|einzelpreis|preis|gesamt|total)/i;
+const INVOICE_SECTION_END = /(summe|gesamtbetrag|brutto|netto|mwst|mehrwertsteuer|umsatzsteuer|steuerbetrag|subtotal|total due|amount due|zu\s*zahlen|zahlbar|iban|bic)/i;
+const INVOICE_LINE_SKIP = /(rechnungsdatum|leistungsdatum|lieferdatum|kunde|kundennummer|customer|client|empfaenger|bill to|ship to|ust-?id|vat|iban|bic|zahlung|payment|seite\b|page\b|rechnungsnummer|invoice\s*(nr|no|number))/i;
 const COUNTRY_RULES = [
   { code: "DE", name: "Deutschland", keywords: [/deutschland/i, /germany/i, /berlin/i, /muenchen/i, /hamburg/i, /koeln/i], vat: /\bDE\d{9}\b/, phone: /\+49|0049/, postal: /\b\d{5}\s+[A-Za-z]/ },
   { code: "AT", name: "Oesterreich", keywords: [/oesterreich/i, /austria/i, /wien/i, /salzburg/i, /graz/i], vat: /\bATU\d{8}\b/, phone: /\+43|0043/, postal: /\bA-?\d{4}\b/ },
@@ -378,17 +437,23 @@ function toLoggableError(error: unknown) {
 }
 
 function buildResult(rawText: string, confidence: number, sourceType: OcrSourceType): OcrResult {
-  const parsed = parseReceiptText(rawText);
+  const parsed = parseReceiptText(rawText, sourceType);
 
   return {
     sourceType,
     rawText,
     extracted: {
       date: parsed.date.value,
+      invoiceDate: parsed.invoiceDate.value,
+      serviceDate: parsed.serviceDate.value,
       time: parsed.time.value,
       amount: parsed.amount.value,
+      grossAmount: parsed.grossAmount.value,
+      netAmount: parsed.netAmount.value,
+      taxAmount: parsed.taxAmount.value,
       currency: parsed.currency.value,
       supplier: parsed.supplier.value,
+      invoiceNumber: parsed.invoiceNumber.value,
       location: parsed.location.value,
       paymentMethod: parsed.paymentMethod.value,
       cardLastDigits: parsed.cardLastDigits.value,
@@ -427,14 +492,23 @@ function buildResult(rawText: string, confidence: number, sourceType: OcrSourceT
         routeHint: parsed.special.toll.routeHint.value,
         vehicleClass: parsed.special.toll.vehicleClass.value,
       } : null,
+      invoice: parsed.special.invoice ? {
+        lineItems: parsed.special.invoice.lineItems,
+      } : null,
     },
     confidence,
     fieldConfidence: {
       date: parsed.date.confidence,
+      invoiceDate: parsed.invoiceDate.confidence,
+      serviceDate: parsed.serviceDate.confidence,
       time: parsed.time.confidence,
       amount: parsed.amount.confidence,
+      grossAmount: parsed.grossAmount.confidence,
+      netAmount: parsed.netAmount.confidence,
+      taxAmount: parsed.taxAmount.confidence,
       currency: parsed.currency.confidence,
       supplier: parsed.supplier.confidence,
+      invoiceNumber: parsed.invoiceNumber.confidence,
       location: parsed.location.confidence,
       paymentMethod: parsed.paymentMethod.confidence,
       cardLastDigits: parsed.cardLastDigits.confidence,
@@ -472,6 +546,13 @@ function buildResult(rawText: string, confidence: number, sourceType: OcrSourceT
         routeHint: parsed.special.toll.routeHint.confidence,
         vehicleClass: parsed.special.toll.vehicleClass.confidence,
       } : null,
+      invoice: parsed.special.invoice ? {
+        lineItems: parsed.special.invoice.lineItems.length >= 3
+          ? "high"
+          : parsed.special.invoice.lineItems.length > 0
+            ? "medium"
+            : "none",
+      } : null,
     },
     message: null,
   };
@@ -492,30 +573,38 @@ function hasMeaningfulText(text: string): boolean {
   return /[A-Za-z0-9]/.test(compact);
 }
 
-function parseReceiptText(text: string): ParsedReceiptText {
+function parseReceiptText(text: string, sourceType: OcrSourceType): ParsedReceiptText {
   const lines = toLines(text);
-  const date = extractDate(text);
+  const dateFields = extractDateFields(lines, text);
   const time = extractTime(text);
-  const amount = extractAmount(text);
   const currency = extractCurrency(text);
+  const amountFields = extractAmountFields(lines, text);
   const supplier = extractSupplier(lines);
+  const invoiceNumber = extractInvoiceNumber(lines);
   const location = extractLocation(lines);
   const paymentMethod = extractPaymentMethod(text);
   const cardLastDigits = extractCardLastDigits(text, paymentMethod);
-  const fuel = extractFuelDetails(text, amount);
+  const fuel = extractFuelDetails(text, amountFields.amount);
   const hospitality = extractHospitalityDetails(lines, location);
   const lodging = extractLodgingDetails(lines, location);
   const parking = extractParkingDetails(lines, location, time);
   const toll = extractTollDetails(lines, location);
+  const invoice = extractInvoiceDetails(lines, sourceType);
   const country = extractCountry(text, currency, location, supplier);
   const documentType = detectDocumentType(text, fuel, hospitality, lodging, parking, toll);
 
   return {
-    date,
+    date: dateFields.date,
+    invoiceDate: dateFields.invoiceDate,
+    serviceDate: dateFields.serviceDate,
     time,
-    amount,
+    amount: amountFields.amount,
+    grossAmount: amountFields.grossAmount,
+    netAmount: amountFields.netAmount,
+    taxAmount: amountFields.taxAmount,
     currency,
     supplier,
+    invoiceNumber,
     location,
     paymentMethod,
     cardLastDigits,
@@ -527,6 +616,7 @@ function parseReceiptText(text: string): ParsedReceiptText {
       lodging: documentType.value === "lodging" || hasLodgingSignals(lodging) ? lodging : null,
       parking: documentType.value === "parking" || hasParkingSignals(parking) ? parking : null,
       toll: documentType.value === "toll" || hasTollSignals(toll) ? toll : null,
+      invoice: invoice.lineItems.length > 0 ? invoice : null,
     },
   };
 }
@@ -537,6 +627,19 @@ function toLines(text: string) {
     .map((line) => line.trim())
     .filter(Boolean);
 }
+
+type DateFieldsResult = {
+  date: FieldResult<string>;
+  invoiceDate: FieldResult<string>;
+  serviceDate: FieldResult<string>;
+};
+
+type AmountFieldsResult = {
+  amount: FieldResult<number>;
+  grossAmount: FieldResult<number>;
+  netAmount: FieldResult<number>;
+  taxAmount: FieldResult<number>;
+};
 
 function extractDate(text: string): FieldResult<string> {
   const keywordMatch = text.match(/(?:datum|date|rechnungsdatum|belegdatum|invoice date|stay date)[:\s]*(\d{1,2})[./](\d{1,2})[./](20\d{2})/i);
@@ -558,6 +661,65 @@ function extractDate(text: string): FieldResult<string> {
   const isoMatch = text.match(/(20\d{2})-(\d{2})-(\d{2})/);
   if (isoMatch) return { value: isoMatch[0], confidence: "medium" };
   return { value: null, confidence: "none" };
+}
+
+function extractDateFields(lines: string[], text: string): DateFieldsResult {
+  const invoiceDate = extractKeywordDate(lines, [
+    /rechnungsdatum/i,
+    /invoice\s*date/i,
+    /bill\s*date/i,
+    /belegdatum/i,
+    /^datum\b/i,
+  ]);
+  const serviceDate = extractKeywordDate(lines, [
+    /leistungsdatum/i,
+    /leistungszeitraum/i,
+    /leistung\s+am/i,
+    /lieferdatum/i,
+    /service\s*date/i,
+    /delivery\s*date/i,
+  ]);
+  const fallbackDate = extractDate(text);
+
+  return {
+    invoiceDate,
+    serviceDate,
+    date: invoiceDate.value ? invoiceDate : fallbackDate,
+  };
+}
+
+function extractKeywordDate(lines: string[], patterns: RegExp[]): FieldResult<string> {
+  for (const line of lines.slice(0, 40)) {
+    if (!patterns.some((pattern) => pattern.test(line))) continue;
+    const matched = parseDateFromText(line);
+    if (matched) {
+      const highConfidence = patterns.some((pattern) => /rechnungsdatum|leistungsdatum|leistungszeitraum|invoice|service/i.test(pattern.source));
+      return {
+        value: matched,
+        confidence: highConfidence ? "high" : "medium",
+      };
+    }
+  }
+
+  return { value: null, confidence: "none" };
+}
+
+function parseDateFromText(text: string): string | null {
+  const euMatch = text.match(/(\d{1,2})[./](\d{1,2})[./](20\d{2})/);
+  if (euMatch) {
+    const [, day, month, year] = euMatch;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  const compactMatch = text.match(/\b(\d{2})(\d{2})(20\d{2})\b/);
+  if (compactMatch) {
+    const [, day, month, year] = compactMatch;
+    return `${year}-${month}-${day}`;
+  }
+
+  const isoMatch = text.match(/(20\d{2})-(\d{2})-(\d{2})/);
+  if (isoMatch) return isoMatch[0];
+  return null;
 }
 
 function extractTime(text: string): FieldResult<string> {
@@ -591,6 +753,107 @@ function extractAmount(text: string): FieldResult<number> {
   return { value: null, confidence: "none" };
 }
 
+function extractAmountFields(lines: string[], text: string): AmountFieldsResult {
+  const grossAmount = extractAmountByPatterns(lines, [
+    /grand\s*total/i,
+    /total\s*due/i,
+    /gesamtbetrag/i,
+    /endbetrag/i,
+    /rechnungsbetrag/i,
+    /zu\s*zahlen/i,
+    /brutto/i,
+    /gesamt/i,
+    /summe/i,
+    /total/i,
+  ]);
+  const netAmount = extractAmountByPatterns(lines, [
+    /netto/i,
+    /net\s*amount/i,
+    /subtotal/i,
+    /zwischensumme/i,
+    /warenwert/i,
+  ]);
+  const taxCandidates = extractMultipleAmountsByPatterns(lines, [
+    /mwst/i,
+    /mehrwertsteuer/i,
+    /umsatzsteuer/i,
+    /ust\.?/i,
+    /vat/i,
+    /tax/i,
+  ]);
+  const taxAmount = collapseTaxAmounts(taxCandidates);
+  const fallbackAmount = extractAmount(text);
+  const derivedGrossAmount = deriveGrossAmount({ grossAmount, netAmount, taxAmount, fallbackAmount });
+  const primaryAmount = derivedGrossAmount.value !== null ? derivedGrossAmount : fallbackAmount;
+
+  const adjustedGrossAmount = primaryAmount.value !== null && grossAmount.value === null
+    ? primaryAmount
+    : grossAmount;
+
+  return {
+    amount: primaryAmount,
+    grossAmount: adjustedGrossAmount,
+    netAmount,
+    taxAmount,
+  };
+}
+
+function extractAmountByPatterns(lines: string[], patterns: RegExp[]): FieldResult<number> {
+  for (const line of lines) {
+    if (!patterns.some((pattern) => pattern.test(line))) continue;
+    const amount = parseAmountFromLine(line);
+    if (amount !== null && amount > 0) {
+      const highConfidence = patterns.some((pattern) => /grand|total|gesamtbetrag|endbetrag|rechnungsbetrag|brutto|netto|subtotal|zwischensumme|mwst|mehrwertsteuer|umsatzsteuer|vat|tax/i.test(pattern.source));
+      return { value: amount, confidence: highConfidence ? "high" : "medium" };
+    }
+  }
+
+  return { value: null, confidence: "none" };
+}
+
+function extractMultipleAmountsByPatterns(lines: string[], patterns: RegExp[]): number[] {
+  const amounts: number[] = [];
+
+  for (const line of lines) {
+    if (!patterns.some((pattern) => pattern.test(line))) continue;
+    const amount = parseAmountFromLine(line);
+    if (amount !== null && amount > 0) amounts.push(amount);
+  }
+
+  return amounts;
+}
+
+function collapseTaxAmounts(amounts: number[]): FieldResult<number> {
+  if (amounts.length === 0) return { value: null, confidence: "none" };
+  if (amounts.length === 1) return { value: amounts[0], confidence: "high" };
+
+  const total = amounts.reduce((sum, amount) => sum + amount, 0);
+  return { value: Number(total.toFixed(2)), confidence: "medium" };
+}
+
+function deriveGrossAmount({
+  grossAmount,
+  netAmount,
+  taxAmount,
+  fallbackAmount,
+}: {
+  grossAmount: FieldResult<number>;
+  netAmount: FieldResult<number>;
+  taxAmount: FieldResult<number>;
+  fallbackAmount: FieldResult<number>;
+}): FieldResult<number> {
+  if (grossAmount.value !== null) return grossAmount;
+
+  if (netAmount.value !== null && taxAmount.value !== null) {
+    return {
+      value: Number((netAmount.value + taxAmount.value).toFixed(2)),
+      confidence: netAmount.confidence === "high" && taxAmount.confidence === "high" ? "medium" : "low",
+    };
+  }
+
+  return fallbackAmount;
+}
+
 function parseAmountFromLine(line: string): number | null {
   const eu = line.match(/(\d{1,3}(?:\.\d{3})*,\d{2,3})/);
   if (eu) return parseFloat(eu[1].replace(/\./g, "").replace(",", "."));
@@ -605,14 +868,14 @@ function extractAllAmounts(text: string): number[] {
   let match: RegExpExecArray | null;
   while ((match = euRegex.exec(text)) !== null) {
     const value = parseFloat(match[1].replace(/\./g, "").replace(",", "."));
-    if (!isNaN(value) && value > 0) amounts.push(value);
+    if (!Number.isNaN(value) && value > 0) amounts.push(value);
   }
 
   if (amounts.length === 0) {
     const usRegex = /(\d+\.\d{2,3})\b/g;
     while ((match = usRegex.exec(text)) !== null) {
       const value = parseFloat(match[1]);
-      if (!isNaN(value) && value > 0) amounts.push(value);
+      if (!Number.isNaN(value) && value > 0) amounts.push(value);
     }
   }
 
@@ -633,15 +896,74 @@ function extractCurrency(text: string): FieldResult<string> {
 }
 
 function extractSupplier(lines: string[]): FieldResult<string> {
-  for (const line of lines.slice(0, 8)) {
-    if (LOCATION_NOISE.test(line)) continue;
-    if (line.length < 3) continue;
-    const alphaCount = line.replace(/[^A-Za-z]/g, "").length;
-    const alphaRatio = alphaCount / Math.max(line.length, 1);
-    if (alphaRatio < 0.3) continue;
-    const clean = line.slice(0, 255);
-    const hasUpper = /[A-Z]{2,}/.test(clean);
-    return { value: clean, confidence: hasUpper ? "high" : "medium" };
+  const supplierExclusion = /(rechnungsempfaenger|leistungsempfaenger|kunde|kundennummer|bill to|ship to|lieferadresse|empfaenger|customer|client|recipient|anschrift des kunden)/i;
+  const companyHints = /(gmbh|ug\b|ag\b|kg\b|ohg\b|gbr\b|e\.k\.?|ek\b|inc\.?|llc\b|ltd\.?|s\.r\.o\.?|sarl|sas|corp\.?|company|co\.?\b)/i;
+  const taxHints = /(ust-?id|uid|vat|tax\s*id|steuer-?nr|handelsregister|iban|bic|tel\.?|telefon|www\.|@)/i;
+
+  const candidates = lines.slice(0, 18)
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => line.length >= 3)
+    .filter(({ line }) => !LOCATION_NOISE.test(line))
+    .filter(({ line }) => !supplierExclusion.test(line));
+
+  let best: { value: string; score: number } | null = null;
+
+  for (const { line, index } of candidates) {
+    const clean = line.slice(0, 255).trim();
+    const alphaCount = clean.replace(/[^A-Za-z]/g, "").length;
+    const alphaRatio = alphaCount / Math.max(clean.length, 1);
+    if (alphaRatio < 0.35) continue;
+
+    let score = 0;
+    if (index <= 3) score += 3;
+    else if (index <= 7) score += 2;
+    else score += 1;
+
+    if (companyHints.test(clean)) score += 4;
+    if (/[A-Z][A-Za-z&.,' -]{3,}/.test(clean)) score += 2;
+    if (/^[A-Z0-9][A-Za-z&.,'()\- ]+$/.test(clean)) score += 1;
+    if (clean.length > 60) score -= 1;
+    if (/\d{5}\s+[A-Za-z]/.test(clean)) score -= 1;
+    if (/^(rechnung|invoice|beleg|receipt|tax invoice)\b/i.test(clean)) score -= 4;
+    if (taxHints.test(clean)) score -= 2;
+
+    const nextLine = lines[index + 1] ?? "";
+    if (taxHints.test(nextLine)) score += 2;
+
+    if (!best || score > best.score) {
+      best = { value: clean, score };
+    }
+  }
+
+  if (!best || best.score < 3) return { value: null, confidence: "none" };
+  return { value: best.value, confidence: best.score >= 7 ? "high" : "medium" };
+}
+
+function extractInvoiceNumber(lines: string[]): FieldResult<string> {
+  const patterns: Array<{ pattern: RegExp; confidence: OcrConfidenceLevel }> = [
+    {
+      pattern: /(?:rechnungs(?:nr|nummer)?|invoice\s*(?:nr|no|number)?|beleg(?:nr|nummer)?|bon(?:nr|nummer)?|receipt\s*(?:nr|no|number)?|ref(?:erenz)?)[\s.:#-]*([A-Z0-9][A-Z0-9\/ .-]{2,39})/i,
+      confidence: "high",
+    },
+    {
+      pattern: /\b(?:nr|no)\.?\s*[:#-]?\s*([A-Z0-9][A-Z0-9\/ .-]{2,39})\b/i,
+      confidence: "medium",
+    },
+  ];
+
+  for (const line of lines.slice(0, 25)) {
+    for (const { pattern, confidence } of patterns) {
+      const match = line.match(pattern);
+      if (!match) continue;
+      const value = match[1].replace(/[.,;:]$/, "").trim();
+      const normalizedValue = value
+        .replace(/[. ]+/g, "-")
+        .replace(/--+/g, "-")
+        .replace(/^-|-$/g, "");
+      if (normalizedValue.length < 3) continue;
+      if (/^(datum|date|total|summe|eur)$/i.test(normalizedValue)) continue;
+      return { value: normalizedValue.slice(0, 40), confidence };
+    }
   }
 
   return { value: null, confidence: "none" };
@@ -856,6 +1178,160 @@ function extractTypedLineItems(lines: string[], includePattern: RegExp, limit: n
   return items;
 }
 
+function extractInvoiceDetails(lines: string[], sourceType: OcrSourceType): InvoiceDetails {
+  const mode = sourceType === "pdf-text" ? "text" : "scan";
+  const candidateLines = collectInvoiceCandidateLines(lines, mode);
+  const lineItems: OcrInvoiceLineItem[] = [];
+  let pendingDescription: string | null = null;
+
+  for (const line of candidateLines) {
+    if (!line) continue;
+    if (mode === "text" && shouldBufferInvoiceDescription(line)) {
+      pendingDescription = pendingDescription ? `${pendingDescription} ${line}` : line;
+      continue;
+    }
+
+    const parsed = parseInvoiceLine(line, mode, pendingDescription);
+    if (!parsed) continue;
+    lineItems.push(parsed);
+    pendingDescription = null;
+    if (lineItems.length >= (mode === "text" ? 12 : 6)) break;
+  }
+
+  return { lineItems };
+}
+
+function collectInvoiceCandidateLines(lines: string[], mode: "text" | "scan") {
+  const headerIndex = mode === "text"
+    ? lines.findIndex((line) => INVOICE_HEADER_KEYWORDS.test(line) && /(preis|amount|gesamt|total|menge|qty|anzahl)/i.test(line))
+    : -1;
+
+  const workingLines = headerIndex >= 0 ? lines.slice(headerIndex + 1) : lines;
+  const result: string[] = [];
+
+  for (const line of workingLines) {
+    const normalized = line.replace(/\s{2,}/g, " ").trim();
+    if (!normalized) continue;
+    if (INVOICE_SECTION_END.test(normalized) && hasAnyAmount(normalized)) break;
+    if (INVOICE_LINE_SKIP.test(normalized) && !hasAnyAmount(normalized)) continue;
+    result.push(normalized);
+  }
+
+  return result;
+}
+
+function shouldBufferInvoiceDescription(line: string) {
+  if (line.length < 4 || line.length > 120) return false;
+  if (hasAnyAmount(line)) return false;
+  if (INVOICE_SECTION_END.test(line) || INVOICE_LINE_SKIP.test(line)) return false;
+  return /[A-Za-z]/.test(line);
+}
+
+function parseInvoiceLine(line: string, mode: "text" | "scan", pendingDescription: string | null): OcrInvoiceLineItem | null {
+  if (INVOICE_SECTION_END.test(line) || INVOICE_LINE_SKIP.test(line)) return null;
+
+  const amountTokens = extractAmountTokens(line);
+  if (amountTokens.length === 0) return null;
+  if (mode === "scan" && amountTokens.length > 2) return null;
+
+  const source = pendingDescription ? `${pendingDescription} ${line}` : line;
+  const merged = source.replace(/\s{2,}/g, " ").trim();
+  const lineNumberMatch = merged.match(/^\s*(\d{1,3})[.)-]?\s+/);
+  const lineNumber = lineNumberMatch ? parseInt(lineNumberMatch[1], 10) : null;
+  const taxHintMatch = merged.match(/\b(\d{1,2}\s?%)\b/);
+  const descriptionPart = merged.slice(0, amountTokens[0].index).replace(/^\s*\d+[.)-]?\s*/, "").trim();
+  if (descriptionPart.length < 3) return null;
+
+  const quantityUnit = extractQuantityAndUnit(descriptionPart, mode);
+  const description = cleanInvoiceDescription(descriptionPart, quantityUnit.rawSegment);
+  if (description.length < 3) return null;
+
+  let unitPrice: number | null = null;
+  let totalPrice: number | null = null;
+  if (amountTokens.length >= 2) {
+    unitPrice = amountTokens[amountTokens.length - 2].value;
+    totalPrice = amountTokens[amountTokens.length - 1].value;
+  } else {
+    totalPrice = amountTokens[0].value;
+  }
+
+  if (mode === "scan" && unitPrice !== null && quantityUnit.quantity === null) {
+    unitPrice = null;
+  }
+
+  const completenessScore = [quantityUnit.quantity !== null, unitPrice !== null, totalPrice !== null].filter(Boolean).length;
+  const confidence: OcrConfidenceLevel = mode === "text"
+    ? completenessScore >= 2 ? "high" : "medium"
+    : completenessScore >= 2 ? "medium" : "low";
+  const status: OcrInvoiceLineItemStatus = completenessScore >= 2
+    ? (confidence === "high" ? "confident" : "uncertain")
+    : "partial";
+
+  return {
+    lineNumber,
+    description: description.slice(0, 180),
+    quantity: quantityUnit.quantity,
+    unit: quantityUnit.unit,
+    unitPrice,
+    totalPrice,
+    taxHint: taxHintMatch ? taxHintMatch[1].replace(/\s+/g, "") : null,
+    confidence,
+    status,
+  };
+}
+
+function extractAmountTokens(line: string) {
+  const tokens: Array<{ raw: string; value: number; index: number }> = [];
+  const matches = line.matchAll(/(\d{1,3}(?:\.\d{3})*,\d{2,3}|\d+\.\d{2,3})/g);
+  for (const match of matches) {
+    const raw = match[1];
+    const value = parseAmountToken(raw);
+    if (Number.isNaN(value) || value <= 0) continue;
+    tokens.push({ raw, value, index: match.index ?? 0 });
+  }
+  return tokens;
+}
+
+function hasAnyAmount(line: string) {
+  return extractAmountTokens(line).length > 0;
+}
+
+function extractQuantityAndUnit(description: string, mode: "text" | "scan") {
+  const tailMatch = description.match(/(?:^|\s)(\d+[.,]?\d*)\s*(stk|st\.?|pcs|pc|std|stunden|h|kg|g|m2|m3|m|l|tage|tag|mon|monat)\b/i);
+  if (tailMatch) {
+    return {
+      quantity: parseFloat(tailMatch[1].replace(",", ".")),
+      unit: tailMatch[2],
+      rawSegment: tailMatch[0].trim(),
+    };
+  }
+
+  if (mode === "text") {
+    const xMatch = description.match(/(?:^|\s)(\d+[.,]?\d*)\s*[xX]\s*$/i);
+    if (xMatch) {
+      return {
+        quantity: parseFloat(xMatch[1].replace(",", ".")),
+        unit: null,
+        rawSegment: xMatch[0].trim(),
+      };
+    }
+  }
+
+  return { quantity: null, unit: null, rawSegment: null as string | null };
+}
+
+function cleanInvoiceDescription(description: string, rawSegment: string | null) {
+  let value = description;
+  if (rawSegment) {
+    value = value.replace(rawSegment, " ");
+  }
+
+  return value
+    .replace(/\b(pos|position|item)\b\s*:?/i, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 function extractCountry(text: string, currency: FieldResult<string>, location: FieldResult<string>, supplier: FieldResult<string>): CountryResult {
   const haystack = `${text}\n${location.value ?? ""}\n${supplier.value ?? ""}`;
   const scores = COUNTRY_RULES.map((rule) => {
@@ -934,7 +1410,16 @@ function keywordScore(text: string, patterns: RegExp[]) {
 }
 
 function parseLocaleNumber(value: string) {
-  return parseFloat(value.replace(/\./g, "").replace(",", "."));
+  if (value.includes(",")) {
+    return parseFloat(value.replace(/\./g, "").replace(",", "."));
+  }
+  return parseFloat(value);
+}
+
+function parseAmountToken(value: string) {
+  return value.includes(",")
+    ? parseFloat(value.replace(/\./g, "").replace(",", "."))
+    : parseFloat(value);
 }
 
 function normalizeTime(value: string) {

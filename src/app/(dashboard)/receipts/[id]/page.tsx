@@ -278,11 +278,45 @@ export default async function ReceiptDetailPage({ params }: Props) {
               <>
                 <div className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
                   {structuredData.extracted.time ? <Field label="Uhrzeit" value={formatSuggestedValue(structuredData.extracted.time, structuredData.fieldReviewStates?.time, structuredData.fieldConfidence.time)} /> : null}
+                  {structuredData.extracted.invoiceDate ? <Field label="Rechnungsdatum" value={formatSuggestedValue(structuredData.extracted.invoiceDate, structuredData.fieldReviewStates?.invoiceDate, structuredData.fieldConfidence.invoiceDate)} /> : null}
+                  {structuredData.extracted.serviceDate ? <Field label="Leistungsdatum" value={formatSuggestedValue(structuredData.extracted.serviceDate, structuredData.fieldReviewStates?.serviceDate, structuredData.fieldConfidence.serviceDate)} /> : null}
+                  {structuredData.extracted.invoiceNumber ? <Field label="Rechnungsnummer" value={formatSuggestedValue(structuredData.extracted.invoiceNumber, structuredData.fieldReviewStates?.invoiceNumber, structuredData.fieldConfidence.invoiceNumber)} /> : null}
+                  {structuredData.extracted.grossAmount !== null ? <Field label="Bruttobetrag" value={formatSuggestedValue(structuredData.extracted.grossAmount.toFixed(2), structuredData.fieldReviewStates?.grossAmount, structuredData.fieldConfidence.grossAmount)} /> : null}
+                  {structuredData.extracted.netAmount !== null ? <Field label="Nettobetrag" value={formatSuggestedValue(structuredData.extracted.netAmount.toFixed(2), structuredData.fieldReviewStates?.netAmount, structuredData.fieldConfidence.netAmount)} /> : null}
+                  {structuredData.extracted.taxAmount !== null ? <Field label="Steuerbetrag" value={formatSuggestedValue(structuredData.extracted.taxAmount.toFixed(2), structuredData.fieldReviewStates?.taxAmount, structuredData.fieldConfidence.taxAmount)} /> : null}
                   {structuredData.extracted.location ? <Field label="Ort / Standort" value={formatSuggestedValue(structuredData.extracted.location, structuredData.fieldReviewStates?.location, structuredData.fieldConfidence.location)} /> : null}
                   {structuredData.extracted.countryName ? <Field label="Erkanntes Land" value={formatSuggestedValue(structuredData.extracted.countryName, structuredData.fieldReviewStates?.country, structuredData.fieldConfidence.country)} /> : null}
                   {structuredData.extracted.paymentMethod ? <Field label="Zahlungsart" value={formatSuggestedValue(paymentMethodLabels[structuredData.extracted.paymentMethod], structuredData.fieldReviewStates?.paymentMethod, structuredData.fieldConfidence.paymentMethod)} /> : null}
                   {structuredData.extracted.cardLastDigits ? <Field label="Kartenendziffern" value={formatSuggestedValue(`**** ${structuredData.extracted.cardLastDigits}`, structuredData.fieldReviewStates?.cardLastDigits, structuredData.fieldConfidence.cardLastDigits)} /> : null}
                 </div>
+                {structuredData.special.invoice ? (
+                  <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
+                    <p className="text-sm font-semibold">Rechnungspositionen</p>
+                    <div className="mt-3 space-y-2">
+                      {structuredData.special.invoice.lineItems.map((item, index) => (
+                        <div key={`${item.description}-${index}`} className="rounded-xl border border-border bg-background px-3 py-2 text-sm">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-medium">{item.lineNumber ? `${item.lineNumber}. ` : ""}{item.description}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {[
+                                  item.quantity !== null ? `Menge ${item.quantity}` : null,
+                                  item.unit ? `Einheit ${item.unit}` : null,
+                                  item.unitPrice !== null ? `Einzelpreis ${item.unitPrice.toFixed(2)}` : null,
+                                  item.taxHint ? `Steuer ${item.taxHint}` : null,
+                                ].filter(Boolean).join(" / ") || "Teilweise erkannt"}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-semibold">{item.totalPrice !== null ? formatSuggestedValue(item.totalPrice.toFixed(2), structuredData.fieldReviewStates?.invoiceLineItems, item.confidence) : "-"}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">{item.status === "confident" ? "sicher" : item.status === "uncertain" ? "pruefen" : "teilweise"}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
                 {structuredData.special.fuel ? (
                   <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
                     <p className="text-sm font-semibold">Tankhinweise</p>
@@ -405,16 +439,28 @@ function StatusBadge({ status }: { status: string }) {
 type StructuredData = {
   extracted: {
     time: string | null;
+    invoiceDate: string | null;
+    serviceDate: string | null;
     location: string | null;
     paymentMethod: keyof typeof paymentMethodLabels | null;
     cardLastDigits: string | null;
+    invoiceNumber: string | null;
+    grossAmount: number | null;
+    netAmount: number | null;
+    taxAmount: number | null;
     countryName: string | null;
   };
   fieldConfidence: {
     time: string;
+    invoiceDate: string;
+    serviceDate: string;
     location: string;
     paymentMethod: string;
     cardLastDigits: string;
+    invoiceNumber: string;
+    grossAmount: string;
+    netAmount: string;
+    taxAmount: string;
     country: string;
   };
   fieldReviewStates?: Partial<Record<string, OcrFieldReviewStatus>>;
@@ -449,6 +495,19 @@ type StructuredData = {
       routeHint: string | null;
       vehicleClass: string | null;
     } | null;
+    invoice: {
+      lineItems: Array<{
+        lineNumber: number | null;
+        description: string;
+        quantity: number | null;
+        unit: string | null;
+        unitPrice: number | null;
+        totalPrice: number | null;
+        taxHint: string | null;
+        confidence: string;
+        status: "confident" | "uncertain" | "partial";
+      }>;
+    } | null;
   };
   specialConfidence: {
     fuel: {
@@ -479,6 +538,9 @@ type StructuredData = {
       station: string;
       routeHint: string;
       vehicleClass: string;
+    } | null;
+    invoice: {
+      lineItems: string;
     } | null;
   };
 };

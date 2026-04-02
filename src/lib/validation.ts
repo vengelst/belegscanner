@@ -162,14 +162,32 @@ const ocrTollSchema = z.object({
   vehicleClass: z.string().max(80).nullable(),
 });
 
+const ocrInvoiceLineItemSchema = z.object({
+  lineNumber: z.number().int().positive().nullable(),
+  description: z.string().max(180),
+  quantity: z.number().nullable(),
+  unit: z.string().max(20).nullable(),
+  unitPrice: z.number().nullable(),
+  totalPrice: z.number().nullable(),
+  taxHint: z.string().max(10).nullable(),
+  confidence: ocrConfidenceSchema,
+  status: z.enum(["confident", "uncertain", "partial"]),
+});
+
 export const ocrStructuredDataSchema = z.object({
   sourceType: z.enum(["image", "pdf-text", "pdf-scan", "pdf-empty"]).optional(),
   extracted: z.object({
     date: z.string().nullable(),
+    invoiceDate: z.string().nullable(),
+    serviceDate: z.string().nullable(),
     time: z.string().nullable(),
     amount: z.number().nullable(),
+    grossAmount: z.number().nullable(),
+    netAmount: z.number().nullable(),
+    taxAmount: z.number().nullable(),
     currency: z.string().length(3).nullable(),
     supplier: z.string().max(255).nullable(),
+    invoiceNumber: z.string().max(40).nullable(),
     location: z.string().max(255).nullable(),
     paymentMethod: paymentMethodSchema.nullable(),
     cardLastDigits: z.string().regex(/^\d{2,4}$/).nullable(),
@@ -179,10 +197,16 @@ export const ocrStructuredDataSchema = z.object({
   }),
   fieldConfidence: z.object({
     date: ocrConfidenceSchema,
+    invoiceDate: ocrConfidenceSchema,
+    serviceDate: ocrConfidenceSchema,
     time: ocrConfidenceSchema,
     amount: ocrConfidenceSchema,
+    grossAmount: ocrConfidenceSchema,
+    netAmount: ocrConfidenceSchema,
+    taxAmount: ocrConfidenceSchema,
     currency: ocrConfidenceSchema,
     supplier: ocrConfidenceSchema,
+    invoiceNumber: ocrConfidenceSchema,
     location: ocrConfidenceSchema,
     paymentMethod: ocrConfidenceSchema,
     cardLastDigits: ocrConfidenceSchema,
@@ -204,6 +228,9 @@ export const ocrStructuredDataSchema = z.object({
     lodging: ocrLodgingSchema.nullable(),
     parking: ocrParkingSchema.nullable(),
     toll: ocrTollSchema.nullable(),
+    invoice: z.object({
+      lineItems: z.array(ocrInvoiceLineItemSchema).max(20),
+    }).nullable(),
   }),
   fieldReviewStates: z.record(fieldReviewStatusSchema).optional(),
   specialConfidence: z.object({
@@ -236,6 +263,9 @@ export const ocrStructuredDataSchema = z.object({
       station: ocrConfidenceSchema,
       routeHint: ocrConfidenceSchema,
       vehicleClass: ocrConfidenceSchema,
+    }).nullable(),
+    invoice: z.object({
+      lineItems: ocrConfidenceSchema,
     }).nullable(),
   }),
 }).nullable();

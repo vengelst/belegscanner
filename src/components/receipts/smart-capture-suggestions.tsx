@@ -1,4 +1,4 @@
-﻿import type { OcrResult } from "@/lib/ocr";
+﻿import type { OcrInvoiceLineItem, OcrResult } from "@/lib/ocr";
 import {
   documentTypeLabels,
   fieldReviewStatusLabels,
@@ -45,14 +45,22 @@ export function SmartCaptureSuggestions({
   onApplySuggestedPurpose,
   onApplySuggestedCountry,
 }: Props) {
+  const formatMoney = (value: number | null) => value !== null ? `${value.toFixed(2)} ${ocrResult.extracted.currency ?? ""}`.trim() : null;
+
   const generalItems = [
     { key: "documentType", label: "Belegtyp", value: ocrResult.extracted.documentType ? documentTypeLabels[ocrResult.extracted.documentType] : null, confidence: ocrResult.fieldConfidence.documentType },
     { key: "date", label: "Datum", value: ocrResult.extracted.date, confidence: ocrResult.fieldConfidence.date },
+    { key: "invoiceDate", label: "Rechnungsdatum", value: ocrResult.extracted.invoiceDate, confidence: ocrResult.fieldConfidence.invoiceDate },
+    { key: "serviceDate", label: "Leistungsdatum", value: ocrResult.extracted.serviceDate, confidence: ocrResult.fieldConfidence.serviceDate },
     { key: "time", label: "Uhrzeit", value: ocrResult.extracted.time, confidence: ocrResult.fieldConfidence.time },
     { key: "supplier", label: "Lieferant", value: ocrResult.extracted.supplier, confidence: ocrResult.fieldConfidence.supplier },
+    { key: "invoiceNumber", label: "Rechnungsnummer", value: ocrResult.extracted.invoiceNumber, confidence: ocrResult.fieldConfidence.invoiceNumber },
     { key: "location", label: "Ort", value: ocrResult.extracted.location, confidence: ocrResult.fieldConfidence.location },
     { key: "country", label: "Land", value: ocrResult.extracted.countryName, confidence: ocrResult.fieldConfidence.country },
-    { key: "amount", label: "Betrag", value: ocrResult.extracted.amount !== null ? `${ocrResult.extracted.amount.toFixed(2)} ${ocrResult.extracted.currency ?? ""}`.trim() : null, confidence: ocrResult.fieldConfidence.amount },
+    { key: "amount", label: "Betrag", value: formatMoney(ocrResult.extracted.amount), confidence: ocrResult.fieldConfidence.amount },
+    { key: "grossAmount", label: "Bruttobetrag", value: formatMoney(ocrResult.extracted.grossAmount), confidence: ocrResult.fieldConfidence.grossAmount },
+    { key: "netAmount", label: "Nettobetrag", value: formatMoney(ocrResult.extracted.netAmount), confidence: ocrResult.fieldConfidence.netAmount },
+    { key: "taxAmount", label: "Steuerbetrag", value: formatMoney(ocrResult.extracted.taxAmount), confidence: ocrResult.fieldConfidence.taxAmount },
     { key: "currency", label: "Waehrung", value: ocrResult.extracted.currency, confidence: ocrResult.fieldConfidence.currency },
     { key: "paymentMethod", label: "Zahlungsart", value: ocrResult.extracted.paymentMethod ? paymentMethodLabels[ocrResult.extracted.paymentMethod] : null, confidence: ocrResult.fieldConfidence.paymentMethod },
     { key: "cardLastDigits", label: "Kartenendziffern", value: ocrResult.extracted.cardLastDigits ? `**** ${ocrResult.extracted.cardLastDigits}` : null, confidence: ocrResult.fieldConfidence.cardLastDigits },
@@ -80,6 +88,12 @@ export function SmartCaptureSuggestions({
 
       {countrySuggestion && onApplySuggestedCountry && countrySuggestion.id !== currentCountryId ? (
         <ActionSuggestionCard text={`Land wirkt plausibel als ${countrySuggestion.label}. Bitte pruefen oder direkt uebernehmen.`} buttonLabel="Land uebernehmen" onClick={() => onApplySuggestedCountry(countrySuggestion.id)} />
+      ) : null}
+
+      {ocrResult.special.invoice ? (
+        <SpecialSuggestionCard title="Rechnungspositionen" status={fieldReviewStates?.invoiceLineItems} confidence={ocrResult.specialConfidence.invoice?.lineItems ?? "none"}>
+          <InvoiceLineItemList items={ocrResult.special.invoice.lineItems} currency={ocrResult.extracted.currency} />
+        </SpecialSuggestionCard>
       ) : null}
 
       {ocrResult.special.fuel ? (
@@ -181,6 +195,37 @@ function LineItemList({ items, title }: { items: Array<{ label: string; amount: 
         <div key={`${item.label}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/70 px-3 py-2">
           <span>{item.label}</span>
           <span>{item.amount !== null ? item.amount.toFixed(2) : "-"}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function InvoiceLineItemList({ items, currency }: { items: OcrInvoiceLineItem[]; currency: string | null }) {
+  if (!items || items.length === 0) return null;
+
+  return (
+    <div className="mt-3 space-y-2 text-xs text-muted-foreground">
+      <p className="font-semibold text-foreground">Erkannte Positionen</p>
+      {items.map((item, index) => (
+        <div key={`${item.description}-${index}`} className="rounded-xl border border-border/70 bg-background/70 px-3 py-2">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">{item.lineNumber ? `${item.lineNumber}. ` : ""}{item.description}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {[
+                  item.quantity !== null ? `Menge ${item.quantity}` : null,
+                  item.unit ? `Einheit ${item.unit}` : null,
+                  item.unitPrice !== null ? `Einzelpreis ${item.unitPrice.toFixed(2)} ${currency ?? ""}`.trim() : null,
+                  item.taxHint ? `Steuer ${item.taxHint}` : null,
+                ].filter(Boolean).join(" / ") || "Teilweise erkannt"}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-semibold text-foreground">{item.totalPrice !== null ? `${item.totalPrice.toFixed(2)} ${currency ?? ""}`.trim() : "-"}</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">{item.status === "confident" ? "sicher" : item.status === "uncertain" ? "pruefen" : "teilweise"}</p>
+            </div>
+          </div>
         </div>
       ))}
     </div>

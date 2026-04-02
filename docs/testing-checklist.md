@@ -1,6 +1,6 @@
 # BelegBox - Manuelle Test-Checkliste
 
-Stand: 2026-04-02
+Stand: 2026-04-03
 Voraussetzung: PostgreSQL laeuft, `prisma migrate dev` und `prisma db seed` wurden ausgefuehrt, `.env` ist konfiguriert.
 
 ---
@@ -55,6 +55,16 @@ Voraussetzung: PostgreSQL laeuft, `prisma migrate dev` und `prisma db seed` wurd
 - [ ] Profil deaktivieren
 - [ ] Bei mehreren Profilen: Auswahl im Versand sichtbar
 
+## 6a. Scan-PDF Staging Gate
+
+- [ ] Nur echte Scan-PDF-Praxisdateien verwenden
+- [ ] `SCAN-001` Standardrechnung einseitig -> `pdf-scan` mit Rohtext oder klar als nicht bestanden dokumentiert
+- [ ] `SCAN-003` Kassenbeleg-Scan -> Betrag/Waehrung bei Erfolg nachvollziehbar, sonst sauberer manueller Fallback
+- [ ] `SCAN-004` Summenblock-Scan -> Brutto nicht systematisch falsch
+- [ ] `SCAN-006` bis `SCAN-010` Problemfaelle -> kein Crash, keine irrefuehrende Erfolgsmeldung
+- [ ] Mehrseitige Scan-PDFs >3 Seiten zeigen Begrenzungshinweis
+- [ ] Gate-Ergebnis in `docs/pdf-analysis-audit.md` nachtragen
+
 ## 7. Beleg erfassen
 
 - [ ] /receipts/new oeffnen
@@ -68,14 +78,28 @@ Voraussetzung: PostgreSQL laeuft, `prisma migrate dev` und `prisma db seed` wurd
 - [ ] Bei Auto-Capture: Quelle als Kamera (Auto-Capture) gekennzeichnet
 - [ ] Bei Kamerafoto: OCR-Arbeitskopie zeigt Crop/Ausrichtung in den Hinweisen an
 - [ ] OCR-Werte werden als Vorbelegung in Formularfelder uebernommen
+- [ ] OCR zeigt strukturierte Vorschlaege fuer Lieferant, Datum, Betrag, Waehrung und OCR-Rohtext, wenn erkennbar
+- [ ] OCR zeigt Rechnungsnummer als Vorschlag nur dann, wenn sie robust erkannt wurde
+- [ ] Textbasierte Rechnung mit Netto, Steuer und Brutto hochladen -> alle drei Werte erscheinen als Vorschlaege mit nachvollziehbarem Status
+- [ ] Rechnung mit Rechnungsdatum und Leistungsdatum hochladen -> beide Daten werden getrennt angezeigt oder unklare Faelle bleiben als unsicher markiert
+- [ ] Unsichere Rechnungsfelder bleiben Vorschlaege und ueberschreiben manuelle Eingaben nicht still
+- [ ] Textbasiertes Rechnungs-PDF mit Positionszeilen hochladen -> Positionen erscheinen als Zusatzvorschlaege
+- [ ] Typische Positionsspalten fuer Menge, Einzelpreis und Gesamtpreis werden nur bei plausiblen Zeilen gefuellt
+- [ ] Summenzeilen wie Netto/MwSt./Gesamt werden nicht als Positionen angezeigt
+- [ ] OCR-/Scan-Fall mit einfachen Zeilenpreisen -> Positionen bleiben konservativ und koennen teilweise sein
 - [ ] OCR zeigt strukturierte Vorschlaege fuer Uhrzeit, Ort, Land, Zahlungsart und Kartenendziffern, wenn erkennbar
 - [ ] OCR markiert unsichere Werte sichtbar als Vorschlag / unsicher
 - [ ] Land wird nur bei hoher Plausibilitaet automatisch gesetzt, sonst als Vorschlag angeboten
 - [ ] Kartenziffern zeigen nur 2 bis 4 Endziffern und niemals volle Kartennummern
 - [ ] Vorbelegungshinweis zeigt letzte Werte oder Benutzer-Standards an, wenn vorhanden
-- [ ] Textbasiertes PDF hochladen -> OCR-Vorschlaege erscheinen
-- [ ] Gescanntes PDF hochladen -> OCR versucht Seitenbild-Analyse, manuelle Eingaben bleiben vorrangig
+- [ ] Textbasiertes PDF hochladen -> Quelle bleibt derselbe Receipt-Flow, Rohtext und Grundvorschlaege erscheinen
+- [ ] Textbasiertes PDF hochladen -> Lieferant, Datum, Betrag, Waehrung und ggf. Rechnungsnummer werden als Vorschlaege angezeigt
+- [ ] Gescanntes PDF hochladen -> OCR versucht Seitenbild-Analyse der ersten Seiten, manuelle Eingaben bleiben vorrangig
+- [ ] Gescanntes PDF hochladen -> Hinweistext erklaert, dass Scan-PDF per Seitenbild analysiert wurde oder nachvollziehbar auf manuelle Erfassung faellt
+- [ ] Scan-PDF-Freigabe nur mit echten Praxisdateien gegen `docs/pdf-scan-gate.md` pruefen; synthetische Test-PDFs reichen nicht
+- [ ] Fuer Kernfaelle `SCAN-001` bis `SCAN-005` aus `docs/pdf-scan-gate.md` pro Datei `sourceType`, Rohtext, Kernfelder und Gate-Urteil dokumentieren
 - [ ] PDF ohne brauchbaren Text -> klare Hinweis-Meldung, manuelle Erfassung bleibt moeglich
+- [ ] Problematisches PDF -> Fehler oder Warnung ist nachvollziehbar, ohne Belegdaten preiszugeben
 - [ ] Zu grosse Datei (>20 MB) wird abgelehnt
 - [ ] Ungueltiger Dateityp wird abgelehnt
 - [ ] Kameraberechtigung verweigern -> klare Fehlermeldung, Upload bleibt weiter nutzbar
@@ -141,7 +165,7 @@ Voraussetzung: PostgreSQL laeuft, `prisma migrate dev` und `prisma db seed` wurd
 - [ ] Versandstatus-Badge sichtbar
 - [ ] Versandhistorie sichtbar
 - [ ] OCR-Rohtext sichtbar (falls vorhanden)
-- [ ] Smart-Capture-Vorschlaege in Detailansicht sichtbar (Belegtyp, Land, Zahlungsart, Kartenendziffern, Tank-/Bewirtungshinweise)
+- [ ] Smart-Capture-Vorschlaege in Detailansicht sichtbar (Rechnungsnummer, Positionen, Belegtyp, Land, Zahlungsart, Kartenendziffern, Tank-/Bewirtungshinweise)
 - [ ] Unterkunftsbeleg -> Hotel/Unterkunft wird als Typ erkannt, Zusatzfelder und Hinweise erscheinen
 - [ ] Parkbeleg -> Parktyp, Ort, Dauer und Ein-/Ausfahrtszeiten erscheinen nur als Vorschlaege
 - [ ] Mautbeleg -> Mauttyp, Station/Streckenhinweis/Fahrzeugklasse erscheinen nur als Vorschlaege
