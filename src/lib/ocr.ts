@@ -865,11 +865,11 @@ function detectDocumentType(
     + (toll.vehicleClass.value ? 1 : 0);
 
   const candidates: Array<{ value: OcrDocumentType; score: number }> = [
-    { value: "fuel", score: fuelScore },
-    { value: "hospitality", score: hospitalityScore },
-    { value: "lodging", score: lodgingScore },
-    { value: "parking", score: parkingScore },
-    { value: "toll", score: tollScore },
+    { value: "fuel" as OcrDocumentType, score: fuelScore },
+    { value: "hospitality" as OcrDocumentType, score: hospitalityScore },
+    { value: "lodging" as OcrDocumentType, score: lodgingScore },
+    { value: "parking" as OcrDocumentType, score: parkingScore },
+    { value: "toll" as OcrDocumentType, score: tollScore },
   ].sort((left, right) => right.score - left.score);
 
   const best = candidates[0];
