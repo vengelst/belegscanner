@@ -52,7 +52,7 @@ Stand: 2026-04-03
 
 1. **HTTPS erforderlich fuer Kamera**: Die MediaDevices API funktioniert auf Mobilgeraeten nur ueber HTTPS.
 2. **Scan-PDF-OCR ist bewusst begrenzt und aktuell der groesste Praxisrestpunkt**: Textbasierte PDFs werden direkt gelesen, der Seitenbild-Fallback fuer gescannte PDFs ist implementiert, aber noch nicht per Staging-Gate mit echten Praxisdateien freigegeben.
-3. **Rechnungs-Kernfelder bleiben heuristische Vorschlaege**: Lieferant, Rechnungsnummer, Rechnungs-/Leistungsdatum sowie Netto/Steuer/Brutto werden robust priorisiert, aber nicht als Vollautomatik behandelt.
+3. **Rechnungs-Kernfelder bleiben heuristische Vorschlaege**: Lieferant, Rechnungsnummer, Rechnungs-/Faelligkeits-/Leistungsdatum sowie Netto/Steuer/Brutto werden robust priorisiert, aber nicht als Vollautomatik behandelt.
 4. **Einzelversand**: Kein Batch-/Sammelversand.
 5. **Kein E-Mail-Tracking**: SendLog protokolliert SMTP-Versand, nicht die Zustellung beim Empfaenger.
 6. **Wechselkurse manuell**: Keine automatische Wechselkurs-Abfrage.

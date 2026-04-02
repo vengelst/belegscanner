@@ -30,7 +30,7 @@ type Props = {
 };
 
 type OcrExtracted = OcrResult["extracted"];
-type OcrFieldKey = keyof Pick<OcrExtracted, "date" | "amount" | "currency" | "supplier">;
+type OcrFieldKey = keyof Pick<OcrExtracted, "date" | "dueDate" | "amount" | "currency" | "supplier">;
 type CaptureSource = "upload" | "camera";
 type CaptureTrigger = "manual" | "auto";
 
@@ -62,6 +62,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
 
   const today = new Date().toISOString().split("T")[0];
   const [date, setDate] = useState(today);
+  const [dueDate, setDueDate] = useState("");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("EUR");
   const [supplier, setSupplier] = useState("");
@@ -77,6 +78,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
   const [error, setError] = useState<string | null>(null);
   const [manualOverrides, setManualOverrides] = useState<Record<OcrFieldKey, boolean>>({
     date: false,
+    dueDate: false,
     amount: false,
     currency: false,
     supplier: false,
@@ -171,6 +173,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     const extracted = ocrResult.extracted;
 
     if (extracted.date && !manualOverrides.date) setDate(extracted.date);
+    if (!manualOverrides.dueDate) setDueDate(extracted.dueDate ?? "");
     if (extracted.amount !== null && !manualOverrides.amount) setAmount(String(extracted.amount).replace(".", ","));
     if (extracted.currency && !manualOverrides.currency) setCurrency(extracted.currency);
     if (extracted.supplier && !manualOverrides.supplier) setSupplier(extracted.supplier);
@@ -281,20 +284,30 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     try {
       const response = await fetch("/api/ocr/analyze", { method: "POST", body: formData });
       const responseText = await response.text();
-      const data = responseText ? JSON.parse(responseText) : null;
+      let data: unknown = null;
+
+      if (responseText) {
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          data = null;
+        }
+      }
+
       if (!response.ok) {
         throw new Error((data && typeof data === "object" && "error" in data ? String(data.error) : null)
-          ?? "OCR konnte nicht ausgefuehrt werden.");
+          ?? `OCR konnte nicht ausgefuehrt werden (HTTP ${response.status}).`);
       }
-      if (data && typeof data === "object" && "rawText" in data) {
-        setOcrResult(data as OcrResult);
+
+      if (!data || typeof data !== "object" || !("rawText" in data)) {
+        throw new Error("OCR lieferte keine gueltige Antwort. Bitte Datei oder Serverprotokoll pruefen.");
       }
+
+      setOcrResult(data as OcrResult);
     } catch (requestError: unknown) {
-      const message = requestError instanceof SyntaxError
-        ? "OCR lieferte keine gueltige Antwort. Bitte Datei oder Serverprotokoll pruefen."
-        : requestError instanceof Error
-          ? requestError.message
-          : "OCR konnte nicht ausgefuehrt werden.";
+      const message = requestError instanceof Error
+        ? requestError.message
+        : "OCR konnte nicht ausgefuehrt werden.";
       setError(message);
     } finally {
       setOcrRunning(false);
@@ -393,7 +406,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
       remark: formData.get("remark") || null,
       ocrRawText: ocrResult?.rawText ?? null,
       detectedDocumentType: toReceiptDocumentType(ocrResult?.extracted.documentType),
-      ocrStructuredData: ocrResult ? buildStructuredData(ocrResult, buildFieldReviewStates({ result: ocrResult, manualOverrides, countryManuallyChanged, hospitalityLocationManual, selectedCountryId: String(formData.get("countryId") || ""), suggestedCountryId: suggestedCountry?.id ?? null, submitted: true })) : null,
+      ocrStructuredData: ocrResult ? buildStructuredData(ocrResult, buildFieldReviewStates({ result: ocrResult, manualOverrides, countryManuallyChanged, hospitalityLocationManual, selectedCountryId: String(formData.get("countryId") || ""), suggestedCountryId: suggestedCountry?.id ?? null, submitted: true }), { dueDate }) : null,
     };
 
     if (isHospitality) {
@@ -527,6 +540,16 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
                 setDate(event.target.value);
               }}
               max={today}
+            />
+            <Input
+              label="Faelligkeitsdatum"
+              name="dueDate"
+              type="date"
+              value={dueDate}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                markManualOverride("dueDate");
+                setDueDate(event.target.value);
+              }}
             />
             <Input
               label="Betrag"
@@ -708,7 +731,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
 }
 
 type FieldReviewStateMap = Partial<Record<
-  "date" | "invoiceDate" | "serviceDate" | "amount" | "grossAmount" | "netAmount" | "taxAmount" | "currency" | "supplier" | "invoiceNumber" | "country" | "documentType" | "paymentMethod" | "cardLastDigits" | "invoiceLineItems" | "fuelLiters" | "fuelPricePerLiter" | "fuelType" | "hospitalityLocation" | "hospitalitySubtotal" | "hospitalityTip" | "lodgingLocation" | "lodgingNights" | "lodgingSubtotal" | "lodgingTax" | "lodgingFees" | "parkingLocation" | "parkingDuration" | "parkingEntryTime" | "parkingExitTime" | "tollStation" | "tollRouteHint" | "tollVehicleClass",
+  "date" | "invoiceDate" | "dueDate" | "serviceDate" | "amount" | "grossAmount" | "netAmount" | "taxAmount" | "currency" | "supplier" | "invoiceNumber" | "country" | "documentType" | "paymentMethod" | "cardLastDigits" | "invoiceLineItems" | "fuelLiters" | "fuelPricePerLiter" | "fuelType" | "hospitalityLocation" | "hospitalitySubtotal" | "hospitalityTip" | "lodgingLocation" | "lodgingNights" | "lodgingSubtotal" | "lodgingTax" | "lodgingFees" | "parkingLocation" | "parkingDuration" | "parkingEntryTime" | "parkingExitTime" | "tollStation" | "tollRouteHint" | "tollVehicleClass",
   OcrFieldReviewStatus
 >>;
 
@@ -722,6 +745,7 @@ function hasDetectedOcrValues(result: OcrResult) {
   return Boolean(
     result.extracted.date
       || result.extracted.invoiceDate
+      || result.extracted.dueDate
       || result.extracted.serviceDate
       || result.extracted.time
       || result.extracted.amount !== null
@@ -745,10 +769,13 @@ function hasDetectedOcrValues(result: OcrResult) {
   );
 }
 
-function buildStructuredData(result: OcrResult, fieldReviewStates: FieldReviewStateMap) {
+function buildStructuredData(result: OcrResult, fieldReviewStates: FieldReviewStateMap, overrides?: { dueDate?: string }) {
   return {
     sourceType: result.sourceType,
-    extracted: result.extracted,
+    extracted: {
+      ...result.extracted,
+      dueDate: overrides?.dueDate || null,
+    },
     fieldConfidence: result.fieldConfidence,
     fieldReviewStates,
     special: result.special,
@@ -776,6 +803,7 @@ function buildFieldReviewStates({
   const states: FieldReviewStateMap = {
     date: manualOverrides.date ? "user_overridden" : submitted && result.extracted.date ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.date),
     invoiceDate: submitted && result.extracted.invoiceDate ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.invoiceDate),
+    dueDate: manualOverrides.dueDate ? "user_overridden" : submitted && result.extracted.dueDate ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.dueDate),
     serviceDate: submitted && result.extracted.serviceDate ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.serviceDate),
     amount: manualOverrides.amount ? "user_overridden" : submitted && result.extracted.amount !== null ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.amount),
     grossAmount: submitted && result.extracted.grossAmount !== null ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.grossAmount),

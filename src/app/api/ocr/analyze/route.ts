@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { validateFile } from "@/lib/storage";
-import { analyzeDocument } from "@/lib/ocr";
+import ocrModule from "@/lib/ocr";
 
 export async function POST(request: NextRequest) {
   let fileMeta: { mimeType: string; sizeBytes: number; fileName: string } | null = null;
@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
+    const { analyzeDocument } = ocrModule as { analyzeDocument: (buffer: Buffer, mimeType: string) => Promise<unknown> };
     const result = await analyzeDocument(buffer, file.type);
 
     if (result.message) {

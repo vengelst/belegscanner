@@ -179,6 +179,7 @@ export const ocrStructuredDataSchema = z.object({
   extracted: z.object({
     date: z.string().nullable(),
     invoiceDate: z.string().nullable(),
+    dueDate: z.string().nullable(),
     serviceDate: z.string().nullable(),
     time: z.string().nullable(),
     amount: z.number().nullable(),
@@ -198,6 +199,7 @@ export const ocrStructuredDataSchema = z.object({
   fieldConfidence: z.object({
     date: ocrConfidenceSchema,
     invoiceDate: ocrConfidenceSchema,
+    dueDate: ocrConfidenceSchema,
     serviceDate: ocrConfidenceSchema,
     time: ocrConfidenceSchema,
     amount: ocrConfidenceSchema,

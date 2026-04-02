@@ -82,6 +82,7 @@ Voraussetzung: PostgreSQL laeuft, `prisma migrate dev` und `prisma db seed` wurd
 - [ ] OCR zeigt Rechnungsnummer als Vorschlag nur dann, wenn sie robust erkannt wurde
 - [ ] Textbasierte Rechnung mit Netto, Steuer und Brutto hochladen -> alle drei Werte erscheinen als Vorschlaege mit nachvollziehbarem Status
 - [ ] Rechnung mit Rechnungsdatum und Leistungsdatum hochladen -> beide Daten werden getrennt angezeigt oder unklare Faelle bleiben als unsicher markiert
+- [ ] Rechnung mit Faelligkeitsdatum / `Due Date` / `zahlbar bis` hochladen -> Faelligkeitsdatum erscheint nur bei plausibler Zuordnung als Vorschlag
 - [ ] Unsichere Rechnungsfelder bleiben Vorschlaege und ueberschreiben manuelle Eingaben nicht still
 - [ ] Textbasiertes Rechnungs-PDF mit Positionszeilen hochladen -> Positionen erscheinen als Zusatzvorschlaege
 - [ ] Typische Positionsspalten fuer Menge, Einzelpreis und Gesamtpreis werden nur bei plausiblen Zeilen gefuellt

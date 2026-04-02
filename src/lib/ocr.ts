@@ -39,6 +39,7 @@ export type OcrResult = {
   extracted: {
     date: string | null;
     invoiceDate: string | null;
+    dueDate: string | null;
     serviceDate: string | null;
     time: string | null;
     amount: number | null;
@@ -94,6 +95,7 @@ export type OcrResult = {
   fieldConfidence: {
     date: OcrConfidenceLevel;
     invoiceDate: OcrConfidenceLevel;
+    dueDate: OcrConfidenceLevel;
     serviceDate: OcrConfidenceLevel;
     time: OcrConfidenceLevel;
     amount: OcrConfidenceLevel;
@@ -201,6 +203,7 @@ type InvoiceDetails = {
 type ParsedReceiptText = {
   date: FieldResult<string>;
   invoiceDate: FieldResult<string>;
+  dueDate: FieldResult<string>;
   serviceDate: FieldResult<string>;
   time: FieldResult<string>;
   amount: FieldResult<number>;
@@ -231,6 +234,7 @@ const EMPTY_RESULT: OcrResult = {
   extracted: {
     date: null,
     invoiceDate: null,
+    dueDate: null,
     serviceDate: null,
     time: null,
     amount: null,
@@ -252,6 +256,7 @@ const EMPTY_RESULT: OcrResult = {
   fieldConfidence: {
     date: "none",
     invoiceDate: "none",
+    dueDate: "none",
     serviceDate: "none",
     time: "none",
     amount: "none",
@@ -445,6 +450,7 @@ function buildResult(rawText: string, confidence: number, sourceType: OcrSourceT
     extracted: {
       date: parsed.date.value,
       invoiceDate: parsed.invoiceDate.value,
+      dueDate: parsed.dueDate.value,
       serviceDate: parsed.serviceDate.value,
       time: parsed.time.value,
       amount: parsed.amount.value,
@@ -500,6 +506,7 @@ function buildResult(rawText: string, confidence: number, sourceType: OcrSourceT
     fieldConfidence: {
       date: parsed.date.confidence,
       invoiceDate: parsed.invoiceDate.confidence,
+      dueDate: parsed.dueDate.confidence,
       serviceDate: parsed.serviceDate.confidence,
       time: parsed.time.confidence,
       amount: parsed.amount.confidence,
@@ -596,6 +603,7 @@ function parseReceiptText(text: string, sourceType: OcrSourceType): ParsedReceip
   return {
     date: dateFields.date,
     invoiceDate: dateFields.invoiceDate,
+    dueDate: dateFields.dueDate,
     serviceDate: dateFields.serviceDate,
     time,
     amount: amountFields.amount,
@@ -631,6 +639,7 @@ function toLines(text: string) {
 type DateFieldsResult = {
   date: FieldResult<string>;
   invoiceDate: FieldResult<string>;
+  dueDate: FieldResult<string>;
   serviceDate: FieldResult<string>;
 };
 
@@ -667,9 +676,19 @@ function extractDateFields(lines: string[], text: string): DateFieldsResult {
   const invoiceDate = extractKeywordDate(lines, [
     /rechnungsdatum/i,
     /invoice\s*date/i,
+    /issue\s*date/i,
+    /ausstellungsdatum/i,
     /bill\s*date/i,
     /belegdatum/i,
     /^datum\b/i,
+  ]);
+  const dueDate = extractKeywordDate(lines, [
+    /faellig(?:keit|keitsdatum)?/i,
+    /zahlbar(?:\s*(?:bis|am|zum))?/i,
+    /payment\s*due/i,
+    /due\s*date/i,
+    /due\s*on/i,
+    /payable\s*(?:until|by)/i,
   ]);
   const serviceDate = extractKeywordDate(lines, [
     /leistungsdatum/i,
@@ -683,6 +702,7 @@ function extractDateFields(lines: string[], text: string): DateFieldsResult {
 
   return {
     invoiceDate,
+    dueDate,
     serviceDate,
     date: invoiceDate.value ? invoiceDate : fallbackDate,
   };
@@ -904,12 +924,18 @@ function extractSupplier(lines: string[]): FieldResult<string> {
     .map((line, index) => ({ line, index }))
     .filter(({ line }) => line.length >= 3)
     .filter(({ line }) => !LOCATION_NOISE.test(line))
-    .filter(({ line }) => !supplierExclusion.test(line));
+    .filter(({ line }) => !supplierExclusion.test(line))
+    .filter(({ line }) => !INVOICE_SECTION_END.test(line));
 
   let best: { value: string; score: number } | null = null;
 
   for (const { line, index } of candidates) {
     const clean = line.slice(0, 255).trim();
+    const normalized = clean
+      .replace(/\b([A-Za-z]+)(GmbH|mbH|UG|AG|KG|OHG|GbR|LLC|Ltd)\b/g, "$1 $2")
+      .replace(/\bG\s*mbH\b/g, "GmbH")
+      .replace(/\bU\s*G\b/g, "UG")
+      .replace(/\s{2,}/g, " ");
     const alphaCount = clean.replace(/[^A-Za-z]/g, "").length;
     const alphaRatio = alphaCount / Math.max(clean.length, 1);
     if (alphaRatio < 0.35) continue;
@@ -919,19 +945,20 @@ function extractSupplier(lines: string[]): FieldResult<string> {
     else if (index <= 7) score += 2;
     else score += 1;
 
-    if (companyHints.test(clean)) score += 4;
-    if (/[A-Z][A-Za-z&.,' -]{3,}/.test(clean)) score += 2;
-    if (/^[A-Z0-9][A-Za-z&.,'()\- ]+$/.test(clean)) score += 1;
-    if (clean.length > 60) score -= 1;
-    if (/\d{5}\s+[A-Za-z]/.test(clean)) score -= 1;
-    if (/^(rechnung|invoice|beleg|receipt|tax invoice)\b/i.test(clean)) score -= 4;
-    if (taxHints.test(clean)) score -= 2;
+    if (companyHints.test(normalized)) score += 4;
+    if (/[A-Z][A-Za-z&.,' -]{3,}/.test(normalized)) score += 2;
+    if (/^[A-Z0-9][A-Za-z&.,'()\- ]+$/.test(normalized)) score += 1;
+    if (normalized.length > 60) score -= 1;
+    if (/\d{5}\s+[A-Za-z]/.test(normalized)) score -= 1;
+    if (/^(rechnung|invoice|beleg|receipt|tax invoice)\b/i.test(normalized)) score -= 4;
+    if (taxHints.test(normalized)) score -= 2;
+    if (parseAmountFromLine(normalized) !== null) score -= 3;
 
     const nextLine = lines[index + 1] ?? "";
     if (taxHints.test(nextLine)) score += 2;
 
     if (!best || score > best.score) {
-      best = { value: clean, score };
+      best = { value: normalized, score };
     }
   }
 
@@ -942,7 +969,7 @@ function extractSupplier(lines: string[]): FieldResult<string> {
 function extractInvoiceNumber(lines: string[]): FieldResult<string> {
   const patterns: Array<{ pattern: RegExp; confidence: OcrConfidenceLevel }> = [
     {
-      pattern: /(?:rechnungs(?:nr|nummer)?|invoice\s*(?:nr|no|number)?|beleg(?:nr|nummer)?|bon(?:nr|nummer)?|receipt\s*(?:nr|no|number)?|ref(?:erenz)?)[\s.:#-]*([A-Z0-9][A-Z0-9\/ .-]{2,39})/i,
+      pattern: /(?:re(?:chnungs)?[\s.-]?(?:nr|nummer)|rechnungs(?:nr|nummer)?|invoice\s*(?:nr|no|number)?|inv[\s.-]?(?:nr|no)|beleg(?:nr|nummer)?|bon(?:nr|nummer)?|receipt\s*(?:nr|no|number)?|ref(?:erenz)?)[\s.:#-]*([A-Z0-9][A-Z0-9\/ .-]{2,39})/i,
       confidence: "high",
     },
     {

@@ -279,6 +279,7 @@ export default async function ReceiptDetailPage({ params }: Props) {
                 <div className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
                   {structuredData.extracted.time ? <Field label="Uhrzeit" value={formatSuggestedValue(structuredData.extracted.time, structuredData.fieldReviewStates?.time, structuredData.fieldConfidence.time)} /> : null}
                   {structuredData.extracted.invoiceDate ? <Field label="Rechnungsdatum" value={formatSuggestedValue(structuredData.extracted.invoiceDate, structuredData.fieldReviewStates?.invoiceDate, structuredData.fieldConfidence.invoiceDate)} /> : null}
+                  {structuredData.extracted.dueDate ? <Field label="Faelligkeitsdatum" value={formatSuggestedValue(structuredData.extracted.dueDate, structuredData.fieldReviewStates?.dueDate, structuredData.fieldConfidence.dueDate)} /> : null}
                   {structuredData.extracted.serviceDate ? <Field label="Leistungsdatum" value={formatSuggestedValue(structuredData.extracted.serviceDate, structuredData.fieldReviewStates?.serviceDate, structuredData.fieldConfidence.serviceDate)} /> : null}
                   {structuredData.extracted.invoiceNumber ? <Field label="Rechnungsnummer" value={formatSuggestedValue(structuredData.extracted.invoiceNumber, structuredData.fieldReviewStates?.invoiceNumber, structuredData.fieldConfidence.invoiceNumber)} /> : null}
                   {structuredData.extracted.grossAmount !== null ? <Field label="Bruttobetrag" value={formatSuggestedValue(structuredData.extracted.grossAmount.toFixed(2), structuredData.fieldReviewStates?.grossAmount, structuredData.fieldConfidence.grossAmount)} /> : null}
@@ -440,6 +441,7 @@ type StructuredData = {
   extracted: {
     time: string | null;
     invoiceDate: string | null;
+    dueDate: string | null;
     serviceDate: string | null;
     location: string | null;
     paymentMethod: keyof typeof paymentMethodLabels | null;
@@ -453,6 +455,7 @@ type StructuredData = {
   fieldConfidence: {
     time: string;
     invoiceDate: string;
+    dueDate: string;
     serviceDate: string;
     location: string;
     paymentMethod: string;

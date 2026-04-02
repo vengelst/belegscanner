@@ -78,6 +78,7 @@ Soweit robust erkennbar, werden vorgeschlagen:
 - Lieferant
 - Datum
 - Rechnungsdatum
+- Faelligkeitsdatum
 - Leistungsdatum
 - Betrag / Bruttobetrag
 - Nettobetrag
@@ -95,7 +96,7 @@ Phase 2 vertieft die bestehende PDF-Analyse im selben OCR-/Receipt-Flow:
 
 - Lieferant wird im Kopfbereich robuster gescored und gegen Empfaenger-/Kundenbloecke abgegrenzt
 - Rechnungsnummer wird keywordbasiert, aber toleranter gegen OCR-Zeichenfehler und Trennzeichen erkannt
-- Rechnungsdatum und Leistungsdatum werden, soweit plausibel, getrennt vorgeschlagen
+- Rechnungsdatum, Faelligkeitsdatum und Leistungsdatum werden, soweit plausibel, getrennt vorgeschlagen
 - Netto, Steuer und Brutto werden aus typischen Summenzeilen abgeleitet; mehrere Steuerzeilen koennen pragmatisch aufsummiert werden
 - `date` und `amount` bleiben die primaeren Vorschlagsfelder fuer den bestehenden Receipt-Kern
 - vertiefte Rechnungsfelder werden zunaechst als `ocrStructuredData` plus Feldstatus mitgefuehrt, nicht als unkontrollierte Kernwert-Ueberschreibung
@@ -111,6 +112,8 @@ Fuer Rechnungs-Kernfelder gelten weiterhin die bestehenden Feldstatus:
 - `user_overridden`: manuelle Eingabe hat Vorrang
 
 Phase 2 fuehrt keine zweite Review-Welt ein. Die PDF-Rechnungsfelder nutzen dasselbe `fieldConfidence`- und `fieldReviewStates`-Modell wie bestehende OCR-Vorschlaege.
+
+Faelligkeitsdatum wird nur bei klaren Keywords wie `faellig`, `zahlbar bis` oder `due date` vorgeschlagen. Unklare Mehrfachdaten bleiben bewusst leer oder unsicher.
 
 
 ## Rechnungspositionen in Phase 3
