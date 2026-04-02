@@ -407,23 +407,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     return body;
   }
 
-  const hasDetectedValues = Boolean(
-    ocrResult?.extracted.date
-      || ocrResult?.extracted.time
-      || ocrResult?.extracted.amount !== null
-      || ocrResult?.extracted.currency
-      || ocrResult?.extracted.supplier
-      || ocrResult?.extracted.location
-      || ocrResult?.extracted.countryCode
-      || ocrResult?.extracted.paymentMethod
-      || ocrResult?.extracted.cardLastDigits
-      || ocrResult?.special.fuel?.liters !== null
-      || ocrResult?.special.hospitality?.lineItems.length
-      || ocrResult?.special.lodging?.lineItems.length
-      || ocrResult?.special.lodging?.nights !== null
-      || ocrResult?.special.parking?.durationText
-      || ocrResult?.special.toll?.station,
-  );
+  const hasDetectedValues = ocrResult ? hasDetectedOcrValues(ocrResult) : false;
 
   return (
     <>
@@ -727,6 +711,32 @@ type FieldReviewStateMap = Partial<Record<
   "date" | "amount" | "currency" | "supplier" | "country" | "documentType" | "paymentMethod" | "cardLastDigits" | "fuelLiters" | "fuelPricePerLiter" | "fuelType" | "hospitalityLocation" | "hospitalitySubtotal" | "hospitalityTip" | "lodgingLocation" | "lodgingNights" | "lodgingSubtotal" | "lodgingTax" | "lodgingFees" | "parkingLocation" | "parkingDuration" | "parkingEntryTime" | "parkingExitTime" | "tollStation" | "tollRouteHint" | "tollVehicleClass",
   OcrFieldReviewStatus
 >>;
+
+function hasDetectedOcrValues(result: OcrResult) {
+  const fuel = result.special.fuel;
+  const hospitality = result.special.hospitality;
+  const lodging = result.special.lodging;
+  const parking = result.special.parking;
+  const toll = result.special.toll;
+
+  return Boolean(
+    result.extracted.date
+      || result.extracted.time
+      || result.extracted.amount !== null
+      || result.extracted.currency
+      || result.extracted.supplier
+      || result.extracted.location
+      || result.extracted.countryCode
+      || result.extracted.countryName
+      || result.extracted.paymentMethod
+      || result.extracted.cardLastDigits
+      || (fuel && (fuel.liters !== null || fuel.pricePerLiter !== null || fuel.fuelType))
+      || (hospitality && (hospitality.location || hospitality.subtotal !== null || hospitality.tip !== null || hospitality.lineItems.length > 0))
+      || (lodging && (lodging.location || lodging.nights !== null || lodging.subtotal !== null || lodging.tax !== null || lodging.fees !== null || lodging.lineItems.length > 0))
+      || (parking && (parking.location || parking.durationText || parking.entryTime || parking.exitTime))
+      || (toll && (toll.station || toll.routeHint || toll.vehicleClass)),
+  );
+}
 
 function buildStructuredData(result: OcrResult, fieldReviewStates: FieldReviewStateMap) {
   return {

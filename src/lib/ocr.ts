@@ -117,6 +117,14 @@ export type OcrResult = {
 
 type FieldResult<T> = { value: T | null; confidence: OcrConfidenceLevel };
 type CountryResult = { code: string | null; name: string | null; confidence: OcrConfidenceLevel };
+type TesseractAdapter = {
+  recognize: (image: Buffer, languages?: string) => Promise<{
+    data?: {
+      text?: string;
+      confidence?: number;
+    };
+  }>;
+};
 
 type FuelDetails = {
   liters: FieldResult<number>;
@@ -240,7 +248,10 @@ export async function analyzeDocument(buffer: Buffer, mimeType: string): Promise
     const imageResult = await recognizeImageText(buffer);
     return buildResult(imageResult.rawText, imageResult.confidence, "image");
   } catch (err) {
-    console.error("OCR failed:", err);
+    console.error("OCR image analysis failed:", {
+      mimeType,
+      error: toLoggableError(err),
+    });
     return {
       ...EMPTY_RESULT,
       sourceType: "image",
@@ -317,7 +328,9 @@ async function analyzePdf(buffer: Buffer): Promise<OcrResult> {
         : "Im PDF wurde kein verwertbarer Text gefunden. Bitte Felder manuell ausfuellen.",
     };
   } catch (err) {
-    console.error("PDF OCR failed:", err);
+    console.error("PDF OCR failed:", {
+      error: toLoggableError(err),
+    });
     return {
       ...EMPTY_RESULT,
       sourceType: "pdf-empty",
@@ -329,13 +342,38 @@ async function analyzePdf(buffer: Buffer): Promise<OcrResult> {
 }
 
 async function recognizeImageText(buffer: Buffer): Promise<{ rawText: string; confidence: number }> {
-  const Tesseract = await import("tesseract.js");
+  const Tesseract = await resolveTesseractAdapter();
   const lang = process.env.OCR_LANGUAGE ?? "deu+eng";
-  const { data } = await Tesseract.recognize(buffer, lang);
+  const response = await Tesseract.recognize(buffer, lang);
+  const data = response.data ?? {};
 
   return {
     rawText: normalizeText(data.text ?? ""),
     confidence: (data.confidence ?? 0) / 100,
+  };
+}
+
+async function resolveTesseractAdapter(): Promise<TesseractAdapter> {
+  const imported = await import("tesseract.js");
+  const adapter = ("default" in imported ? imported.default : imported) as Partial<TesseractAdapter>;
+
+  if (typeof adapter.recognize !== "function") {
+    throw new Error("Tesseract-Adapter ist nicht verfuegbar.");
+  }
+
+  return adapter as TesseractAdapter;
+}
+
+function toLoggableError(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+    };
+  }
+
+  return {
+    message: String(error),
   };
 }
 
