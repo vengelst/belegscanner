@@ -139,7 +139,6 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
             <input
               type="file"
               accept="image/jpeg,image/png,application/pdf"
-              capture="environment"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               className="sr-only"
             />
