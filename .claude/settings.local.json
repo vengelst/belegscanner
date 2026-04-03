@@ -7,7 +7,9 @@
       "Bash(curl -s -X POST -F \"file=@test-ocr/Invoice-CQYYZ8OA-0012.jpg\" \"http://localhost:8868/ocr?lang=german\")",
       "Bash(node test-date-parse.mjs)",
       "Bash(node test-supplier.mjs)",
-      "Bash(npx tsx:*)"
+      "Bash(npx tsx:*)",
+      "Bash(pwsh -NoProfile -Command '& { $null = [System.Management.Automation.Language.Parser]::ParseFile\\('\\\\''c:\\\\coding\\\\belegscanner\\\\scripts\\\\release.ps1'\\\\'', [ref]$null, [ref]$null\\); Write-Host '\\\\''Syntax OK'\\\\'' }')",
+      "Bash(powershell.exe -NoProfile -Command '& { $null = [System.Management.Automation.Language.Parser]::ParseFile\\('\\\\''c:\\\\coding\\\\belegscanner\\\\scripts\\\\release.ps1'\\\\'', [ref]$null, [ref]$errors\\); if \\($errors.Count -gt 0\\) { $errors | ForEach-Object { Write-Host $_.Message }; exit 1 } else { Write-Host '\\\\''Syntax OK'\\\\'' } }')"
     ]
   }
 }
