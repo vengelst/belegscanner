@@ -266,10 +266,10 @@ export default async function ReceiptDetailPage({ params }: Props) {
         </div>
       </Card>
 
-      {/* Smart Capture */}
+      {/* KI-Auslese */}
       {structuredData || detectedDocumentType ? (
         <Card>
-          <h2 className="text-lg font-semibold tracking-tight">Smart-Capture-Vorschlaege</h2>
+          <h2 className="text-lg font-semibold tracking-tight">KI-Vorschlaege</h2>
           <div className="mt-4 space-y-4 text-sm">
             {detectedDocumentType ? (
               <Field label="Erkannter Belegtyp" value={documentTypeLabels[detectedDocumentType]} />
@@ -399,10 +399,10 @@ export default async function ReceiptDetailPage({ params }: Props) {
         </Card>
       ) : null}
 
-      {/* OCR Raw Text */}
+      {/* KI-Rohtext */}
       {receipt.ocrRawText ? (
         <Card>
-          <h2 className="text-lg font-semibold tracking-tight">OCR-Rohtext</h2>
+          <h2 className="text-lg font-semibold tracking-tight">KI-Rohtext</h2>
           <pre className="mt-4 max-h-48 overflow-auto whitespace-pre-wrap rounded-xl bg-muted p-4 text-xs text-muted-foreground">
             {receipt.ocrRawText}
           </pre>

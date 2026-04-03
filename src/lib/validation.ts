@@ -175,7 +175,7 @@ const ocrInvoiceLineItemSchema = z.object({
 });
 
 export const ocrStructuredDataSchema = z.object({
-  sourceType: z.enum(["image", "pdf-text", "pdf-scan", "pdf-empty"]).optional(),
+  sourceType: z.enum(["image", "pdf"]).optional(),
   extracted: z.object({
     date: z.string().nullable(),
     invoiceDate: z.string().nullable(),

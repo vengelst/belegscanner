@@ -1,4 +1,4 @@
-﻿import type { OcrInvoiceLineItem, OcrResult } from "@/lib/ocr";
+﻿import type { OcrInvoiceLineItem, OcrResult } from "@/lib/document-analysis";
 import {
   documentTypeLabels,
   fieldReviewStatusLabels,
@@ -84,7 +84,7 @@ export function SmartCaptureSuggestions({
       ) : null}
 
       {purposeSuggestion && onApplySuggestedPurpose && purposeSuggestion.id !== currentPurposeId ? (
-        <ActionSuggestionCard text={`OCR erkennt wahrscheinlich ${purposeSuggestion.reason}. Du kannst den Zweck auf ${purposeSuggestion.label} setzen, falls das passt.`} buttonLabel="Zweck uebernehmen" onClick={() => onApplySuggestedPurpose(purposeSuggestion.id)} />
+        <ActionSuggestionCard text={`Die KI erkennt wahrscheinlich ${purposeSuggestion.reason}. Du kannst den Zweck auf ${purposeSuggestion.label} setzen, falls das passt.`} buttonLabel="Zweck uebernehmen" onClick={() => onApplySuggestedPurpose(purposeSuggestion.id)} />
       ) : null}
 
       {countrySuggestion && onApplySuggestedCountry && countrySuggestion.id !== currentCountryId ? (
@@ -242,7 +242,7 @@ function SuggestionPill({ label, value, confidence, status }: { label: string; v
         <span className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${STATUS_STYLES[currentStatus]}`}>{fieldReviewStatusLabels[currentStatus]}</span>
       </div>
       <p className="mt-1 text-sm font-medium text-foreground">{value}</p>
-      {!status ? <p className="mt-1 text-[11px] text-muted-foreground">OCR {formatConfidenceLabel(confidence)}</p> : null}
+      {!status ? <p className="mt-1 text-[11px] text-muted-foreground">KI {formatConfidenceLabel(confidence)}</p> : null}
     </div>
   );
 }

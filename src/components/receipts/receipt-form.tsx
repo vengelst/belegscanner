@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import type { OcrResult } from "@/lib/ocr";
+import type { OcrResult } from "@/lib/document-analysis";
 import { CameraCapture } from "@/components/receipts/camera-capture";
 import { SmartCaptureSuggestions } from "@/components/receipts/smart-capture-suggestions";
 import { createReceiptWorkingImage, type ReceiptImageProcessingResult } from "@/lib/receipt-image-processing";
@@ -262,19 +262,19 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
           nextPreviewUrl = nextWorkingInfo.previewUrl;
         } catch {
           nextPreviewUrl = URL.createObjectURL(nextFile);
-          setError("Bildvorbereitung war nicht moeglich. OCR nutzt deshalb das Originalbild.");
+          setError("Bildvorbereitung war nicht moeglich. Die KI-Auslese nutzt deshalb das Originalbild.");
         }
       }
 
       setWorkingImageInfo(nextWorkingInfo);
       setPreviewUrl(nextPreviewUrl);
-      await runOcr(nextOcrFile);
+      await runAnalysis(nextOcrFile);
     } finally {
       setIsPreparingAsset(false);
     }
   }
 
-  async function runOcr(file: File) {
+  async function runAnalysis(file: File) {
     setOcrRunning(true);
     setError(null);
 
@@ -282,7 +282,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     formData.append("file", file);
 
     try {
-      const response = await fetch("/api/ocr/analyze", { method: "POST", body: formData });
+      const response = await fetch("/api/ai/analyze", { method: "POST", body: formData });
       const responseText = await response.text();
       let data: unknown = null;
 
@@ -297,20 +297,20 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
       if (!response.ok) {
         const serverError = data && typeof data === "object" && "error" in data ? String(data.error) : null;
         const fallbackMessage = response.status === 504
-          ? "Die OCR-Analyse dauerte zu lange. Bitte kleinere Bilder oder einfachere PDFs verwenden; manuelle Erfassung bleibt moeglich."
-          : `OCR konnte nicht ausgefuehrt werden (HTTP ${response.status}).`;
+          ? "Die KI-Auslese dauerte zu lange. Bitte kleinere Bilder oder einfachere PDFs verwenden; manuelle Erfassung bleibt moeglich."
+          : `Die KI-Auslese konnte nicht ausgefuehrt werden (HTTP ${response.status}).`;
         throw new Error(serverError ?? fallbackMessage);
       }
 
       if (!data || typeof data !== "object" || !("rawText" in data)) {
-        throw new Error("OCR lieferte keine gueltige Antwort. Bitte Datei oder Serverprotokoll pruefen.");
+        throw new Error("Die KI-Auslese lieferte keine gueltige Antwort. Bitte Datei oder Serverprotokoll pruefen.");
       }
 
       setOcrResult(data as OcrResult);
     } catch (requestError: unknown) {
       const message = requestError instanceof Error
         ? requestError.message
-        : "OCR konnte nicht ausgefuehrt werden.";
+        : "Die KI-Auslese konnte nicht ausgefuehrt werden.";
       setError(message);
     } finally {
       setOcrRunning(false);
@@ -433,7 +433,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
             <div>
               <h2 className="text-lg font-semibold tracking-tight">Belegdatei</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                JPG, PNG oder PDF hochladen (max. 20 MB). Die Originaldatei ist fuer neue Belege Pflicht. OCR wird automatisch ausgefuehrt.
+                JPG, PNG oder PDF hochladen (max. 20 MB). Die Originaldatei ist fuer neue Belege Pflicht. ChatGPT liest den Beleg automatisch aus; fehlende Angaben kannst du manuell ergaenzen.
               </p>
             </div>
             {captureSource ? (
@@ -473,7 +473,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
                 {originalFile ? originalFile.name : "Kamera oder Datei waehlen"}
               </span>
               <span className="text-xs text-muted-foreground">
-                Originalbild bleibt unveraendert gespeichert. Bei Fotos nutzt OCR eine getrennte Arbeitskopie fuer Vorschau, Crop und Lesbarkeit.
+                Originalbild bleibt unveraendert gespeichert. Bei Fotos nutzt die KI-Auslese eine getrennte Arbeitskopie fuer Vorschau, Crop und Lesbarkeit.
               </span>
             </label>
 
@@ -481,20 +481,20 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
               <img src={previewUrl} alt="Vorschau" className="max-h-72 w-full rounded-xl object-contain" />
             ) : null}
             {isPreparingAsset ? (
-              <p className="text-sm text-muted-foreground">Bild wird fuer Vorschau und OCR vorbereitet...</p>
+              <p className="text-sm text-muted-foreground">Bild wird fuer Vorschau und KI-Auslese vorbereitet...</p>
             ) : null}
             {workingImageInfo ? (
               <div className="rounded-xl border border-border/80 bg-muted/40 p-3 text-xs text-muted-foreground">
-                Arbeitskopie fuer OCR: {workingImageInfo.appliedSteps.join(", ")}
+                Arbeitskopie fuer KI-Auslese: {workingImageInfo.appliedSteps.join(", ")}
               </div>
             ) : null}
             {ocrRunning ? (
-              <p className="text-sm text-muted-foreground">OCR laeuft...</p>
+              <p className="text-sm text-muted-foreground">ChatGPT analysiert den Beleg...</p>
             ) : null}
             {ocrResult ? (
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
                 <p className="text-xs font-semibold text-primary">
-                  {getOcrHeadline(ocrResult.sourceType)}
+                  {getAnalysisHeadline(ocrResult.sourceType)}
                 </p>
                 {ocrResult.message ? (
                   <p className="mt-1 text-xs text-muted-foreground">{ocrResult.message}</p>
@@ -521,7 +521,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
                     />
                   </div>
                 ) : (
-                  <p className="mt-2 text-xs text-muted-foreground">Keine sicheren Werte erkannt. Du kannst den Beleg trotzdem normal manuell erfassen.</p>
+                  <p className="mt-2 text-xs text-muted-foreground">Es wurden keine verlaesslichen Werte erkannt. Du kannst den Beleg komplett manuell erfassen.</p>
                 )}
               </div>
             ) : null}
@@ -664,7 +664,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
               </div>
               {ocrResult?.extracted.documentType === "hospitality" ? (
                 <span className="rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
-                  OCR vermutet Bewirtungsbeleg
+                  KI vermutet Bewirtungsbeleg
                 </span>
               ) : null}
             </div>
@@ -915,16 +915,12 @@ function resolveSelectionState({
   return { selection, source: "none" };
 }
 
-function getOcrHeadline(sourceType: OcrResult["sourceType"]): string {
+function getAnalysisHeadline(sourceType: OcrResult["sourceType"]): string {
   switch (sourceType) {
-    case "pdf-text":
-      return "PDF-Text erkannt und als strukturierte Vorschlaege vorbelegt; manuelle Eingaben bleiben erhalten";
-    case "pdf-scan":
-      return "Scan-PDF per OCR analysiert; strukturierte Vorschlaege sind sichtbar und bleiben pruefbar";
-    case "pdf-empty":
-      return "Fuer dieses PDF konnten keine verlaesslichen OCR-Vorschlaege erzeugt werden";
+    case "pdf":
+      return "ChatGPT hat das PDF analysiert und strukturierte Vorschlaege vorbelegt; manuelle Eingaben bleiben jederzeit moeglich";
     default:
-      return "OCR-Ergebnisse als strukturierte Vorschlaege vorbelegt; manuelle Eingaben bleiben erhalten";
+      return "ChatGPT hat den Beleg analysiert und strukturierte Vorschlaege vorbelegt; manuelle Eingaben bleiben jederzeit moeglich";
   }
 }
 

@@ -26,25 +26,11 @@ services:
       timeout: 3s
       retries: 10
 
-  ocr:
-    build: ./ocr-service
-    restart: unless-stopped
-    environment:
-      OCR_LANGUAGE: "german"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8868/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-
   app:
     build: .
     restart: unless-stopped
     depends_on:
       db:
-        condition: service_healthy
-      ocr:
         condition: service_healthy
     ports:
       - "3000:3000"
@@ -56,13 +42,6 @@ services:
       AUTH_SECRET: "${AUTH_SECRET:-change-me-generate-with-openssl-rand-base64-48}"
       AUTH_URL: "http://localhost:3000"
       STORAGE_PATH: "/app/storage"
-      OCR_PROVIDER: "${OCR_PROVIDER:-paddle}"
-      OCR_LANGUAGE: "german"
-      OCR_SERVICE_URL: "http://ocr:8868"
-      GOOGLE_APPLICATION_CREDENTIALS: "${GOOGLE_APPLICATION_CREDENTIALS:-}"
-      GOOGLE_PROJECT_ID: "${GOOGLE_PROJECT_ID:-}"
-      GOOGLE_DOCUMENT_AI_LOCATION: "${GOOGLE_DOCUMENT_AI_LOCATION:-}"
-      GOOGLE_PROCESSOR_ID: "${GOOGLE_PROCESSOR_ID:-}"
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
       OPENAI_MODEL: "${OPENAI_MODEL:-}"
       SMTP_ENCRYPTION_KEY: "${SMTP_ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}"

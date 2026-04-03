@@ -76,7 +76,7 @@ export function ReceiptFilterBar({ filters, filterOptions, isAdmin, onFilterChan
             type="search"
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
-            placeholder="Suche (Lieferant, Bemerkung, OCR-Text)..."
+            placeholder="Suche (Lieferant, Bemerkung, KI-Text)..."
             className="h-10 flex-1 rounded-2xl border border-border bg-background px-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
           />
           <button

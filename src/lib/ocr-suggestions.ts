@@ -36,8 +36,8 @@ export const paymentMethodLabels: Record<OcrPaymentMethod, string> = {
 };
 
 export const fieldReviewStatusLabels: Record<OcrFieldReviewStatus, string> = {
-  detected_confident: "OCR sicher",
-  detected_uncertain: "OCR unsicher",
+  detected_confident: "KI sicher",
+  detected_uncertain: "KI unsicher",
   not_detected: "nicht erkannt",
   user_confirmed: "manuell bestaetigt",
   user_overridden: "manuell gesetzt",
