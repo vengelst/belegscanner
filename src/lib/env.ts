@@ -9,6 +9,13 @@ const SUPPORTED_OCR_LANGUAGES = ["german", "en", "latin", "french", "spanish", "
 
 const SUPPORTED_OCR_PROVIDERS = ["paddle", "google", "openai"] as const;
 
+function normalizeOcrLanguage(value: string | undefined): string | undefined {
+  if (!value) return value;
+  // Backward compatibility for older env files from the previous Tesseract-based setup.
+  if (value === "deu+eng") return "german";
+  return value;
+}
+
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   AUTH_SECRET: z.string().min(1),
@@ -59,7 +66,7 @@ export const env = envSchema.parse({
   AUTH_URL: process.env.AUTH_URL,
   STORAGE_PATH: process.env.STORAGE_PATH,
   OCR_PROVIDER: process.env.OCR_PROVIDER,
-  OCR_LANGUAGE: process.env.OCR_LANGUAGE,
+  OCR_LANGUAGE: normalizeOcrLanguage(process.env.OCR_LANGUAGE),
   OCR_SERVICE_URL: process.env.OCR_SERVICE_URL,
   GOOGLE_APPLICATION_CREDENTIALS: process.env.GOOGLE_APPLICATION_CREDENTIALS || undefined,
   GOOGLE_PROJECT_ID: process.env.GOOGLE_PROJECT_ID || undefined,
