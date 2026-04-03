@@ -462,7 +462,6 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
                 <input
                   type="file"
                   accept="image/jpeg,image/png,application/pdf"
-                  capture="environment"
                   onChange={handleFileChange}
                   className="sr-only"
                 />
