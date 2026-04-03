@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { analyzeDocument } from "@/lib/ocr";
+import ocrModule from "@/lib/ocr";
 import { validateFile } from "@/lib/storage";
 
 export async function POST(request: NextRequest) {
   let fileMeta: { mimeType: string; sizeBytes: number; fileName: string } | null = null;
+  const startedAt = Date.now();
 
   try {
     const { error } = await requireAuth();
@@ -28,14 +29,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
+    console.info("OCR analyze request received:", fileMeta);
+
     const buffer = Buffer.from(await file.arrayBuffer());
-    const result = await analyzeDocument(buffer, file.type);
+    const { analyzeDocument } = ocrModule as { analyzeDocument: (buffer: Buffer, mimeType: string) => Promise<unknown> };
+    const result = await analyzeDocument(buffer, file.type) as {
+      sourceType: string;
+      rawText: string;
+      message: string | null;
+    };
+
+    console.info("OCR analyze request completed:", {
+      ...fileMeta,
+      sourceType: result.sourceType,
+      hasRawText: Boolean(result.rawText.trim()),
+      durationMs: Date.now() - startedAt,
+    });
 
     if (result.message) {
       console.warn("OCR analyze completed with warning:", {
         ...fileMeta,
         sourceType: result.sourceType,
         hasRawText: Boolean(result.rawText.trim()),
+        durationMs: Date.now() - startedAt,
         message: result.message,
       });
     }
@@ -44,6 +60,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("OCR analyze route failed:", {
       ...fileMeta,
+      durationMs: Date.now() - startedAt,
       error: error instanceof Error ? { name: error.name, message: error.message } : { message: String(error) },
     });
     return NextResponse.json(

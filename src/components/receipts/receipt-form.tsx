@@ -295,8 +295,11 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
       }
 
       if (!response.ok) {
-        throw new Error((data && typeof data === "object" && "error" in data ? String(data.error) : null)
-          ?? `OCR konnte nicht ausgefuehrt werden (HTTP ${response.status}).`);
+        const serverError = data && typeof data === "object" && "error" in data ? String(data.error) : null;
+        const fallbackMessage = response.status === 504
+          ? "Die OCR-Analyse dauerte zu lange. Bitte kleinere Bilder oder einfachere PDFs verwenden; manuelle Erfassung bleibt moeglich."
+          : `OCR konnte nicht ausgefuehrt werden (HTTP ${response.status}).`;
+        throw new Error(serverError ?? fallbackMessage);
       }
 
       if (!data || typeof data !== "object" || !("rawText" in data)) {

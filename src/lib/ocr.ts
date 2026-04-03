@@ -1,9 +1,9 @@
 /**
  * OCR service for receipt documents.
  *
- * Images are analyzed directly with Tesseract.js.
- * PDFs first try native text extraction; if the PDF does not contain usable text,
- * the first pages are rendered to images and passed through the same OCR flow.
+ * Images are sent to an external PaddleOCR service via HTTP for text recognition.
+ * PDFs first try native text extraction (pdf-parse); if the PDF does not contain
+ * usable text, pages are rendered to images and sent through the same OCR flow.
  */
 
 import {
@@ -284,6 +284,9 @@ const EMPTY_RESULT: OcrResult = {
 };
 
 const MAX_PDF_SCAN_PAGES = 3;
+const PDF_SCAN_DESIRED_WIDTH = 1200;
+const MAX_OCR_IMAGE_DIMENSION = 2200;
+const OCR_STEP_TIMEOUT_MS = 12000;
 const SUPPORTED_CURRENCIES = ["EUR", "CHF", "RSD", "MKD", "USD", "GBP", "CZK", "HRK", "PLN", "HUF", "RON", "BGN", "SEK", "NOK", "DKK"] as const;
 const FUEL_KEYWORDS = [/tankstelle/i, /kraftstoff/i, /diesel/i, /super\s*e?1?0?/i, /benzin/i, /fuel/i, /lit(?:er|ers|re|res)?\b/i, /\be10\b/i, /\be5\b/i, /autogas/i, /lpg/i];
 const HOSPITALITY_KEYWORDS = [/restaurant/i, /cafe/i, /bistro/i, /gaststaette/i, /pizzeria/i, /bar\b/i, /speise/i, /getraenk/i, /trinkgeld/i, /table\s*\d+/i, /tisch\s*\d+/i];
@@ -304,22 +307,33 @@ const LOCATION_NOISE = /^(tel|fax|mail|e-mail|www|http|ust|steuer|mwst|iban|bic|
 const LINE_ITEM_SKIP = /(?:summe|gesamt|subtotal|zwischensumme|trinkgeld|tip|karte|zahlung|zahlungsart|mwst|steuer|netto|brutto|beleg|rechnung|amount due|zu zahlen)/i;
 
 export async function analyzeDocument(buffer: Buffer, mimeType: string): Promise<OcrResult> {
+  const startedAt = Date.now();
+
   if (mimeType === "application/pdf") {
-    return analyzePdf(buffer);
+    return measureStep("analyzeDocument.pdf", { mimeType, sizeBytes: buffer.length }, () => analyzePdf(buffer));
   }
 
   try {
-    const imageResult = await recognizeImageText(buffer);
-    return buildResult(imageResult.rawText, imageResult.confidence, "image");
+    const imageResult = await measureStep("analyzeDocument.imageOcr", { mimeType, sizeBytes: buffer.length }, () => recognizeImageText(buffer));
+    return await measureStep("analyzeDocument.imageParse", {
+      mimeType,
+      sizeBytes: buffer.length,
+      durationMs: Date.now() - startedAt,
+      rawTextLength: imageResult.rawText.length,
+    }, () => Promise.resolve(buildResult(imageResult.rawText, imageResult.confidence, "image")));
   } catch (err) {
     console.error("OCR image analysis failed:", {
       mimeType,
+      sizeBytes: buffer.length,
+      durationMs: Date.now() - startedAt,
       error: toLoggableError(err),
     });
     return {
       ...EMPTY_RESULT,
       sourceType: "image",
-      message: "OCR konnte fuer diese Datei nicht ausgefuehrt werden. Bitte Felder manuell pruefen oder ergaenzen.",
+      message: isOcrTimeoutError(err)
+        ? "OCR dauerte fuer dieses Bild zu lange. Bitte kleinere oder besser lesbare Datei verwenden oder Felder manuell erfassen."
+        : "OCR konnte fuer diese Datei nicht ausgefuehrt werden. Bitte Felder manuell pruefen oder ergaenzen.",
     };
   }
 }
@@ -340,31 +354,62 @@ async function analyzePdf(buffer: Buffer): Promise<OcrResult> {
     const { PDFParse } = await import("pdf-parse");
     parser = new PDFParse({ data: new Uint8Array(buffer) });
 
-    const textResult = await parser.getText({
-      pageJoiner: "\n\n",
-      lineEnforce: true,
-    });
+    const destroyParser = () => { parser?.destroy().catch(() => undefined); };
+
+    const textResult = await measureStep("pdf.getText", { sizeBytes: buffer.length }, () => withTimeout(
+      parser!.getText({
+        pageJoiner: "\n\n",
+        lineEnforce: true,
+      }),
+      OCR_STEP_TIMEOUT_MS,
+      "pdf.getText",
+      { sizeBytes: buffer.length },
+      destroyParser,
+    ));
     const extractedText = normalizeText(textResult.text);
 
     if (hasMeaningfulText(extractedText)) {
-      return buildResult(extractedText, 0.92, "pdf-text");
+      return measureStep("pdf.parseTextResult", {
+        sizeBytes: buffer.length,
+        pageCount: textResult.total,
+        rawTextLength: extractedText.length,
+      }, () => Promise.resolve(buildResult(extractedText, 0.92, "pdf-text")));
     }
 
-    const screenshotResult = await parser.getScreenshot({
-      first: MAX_PDF_SCAN_PAGES,
-      desiredWidth: 1800,
-      imageDataUrl: false,
-      imageBuffer: true,
-    });
+    const screenshotResult = await measureStep("pdf.getScreenshot", {
+      sizeBytes: buffer.length,
+      pageCount: Math.min(textResult.total, MAX_PDF_SCAN_PAGES),
+    }, () => withTimeout(
+      parser!.getScreenshot({
+        first: MAX_PDF_SCAN_PAGES,
+        desiredWidth: PDF_SCAN_DESIRED_WIDTH,
+        imageDataUrl: false,
+        imageBuffer: true,
+      }),
+      OCR_STEP_TIMEOUT_MS,
+      "pdf.getScreenshot",
+      { sizeBytes: buffer.length, pageCount: Math.min(textResult.total, MAX_PDF_SCAN_PAGES) },
+      destroyParser,
+    ));
 
     const pageTexts: string[] = [];
     const confidences: number[] = [];
 
-    for (const page of screenshotResult.pages) {
-      const pageResult = await recognizeImageText(Buffer.from(page.data));
-      const pageText = normalizeText(pageResult.rawText);
-      if (pageText) pageTexts.push(pageText);
-      confidences.push(pageResult.confidence);
+    for (const [index, page] of screenshotResult.pages.entries()) {
+      try {
+        const pageResult = await measureStep("pdf.pageOcr", {
+          pageIndex: index,
+          imageBytes: page.data.length,
+        }, () => recognizeImageText(Buffer.from(page.data)));
+        const pageText = normalizeText(pageResult.rawText);
+        if (pageText) pageTexts.push(pageText);
+        confidences.push(pageResult.confidence);
+      } catch (pageErr) {
+        console.warn("OCR for PDF page failed, skipping:", {
+          pageIndex: index,
+          error: toLoggableError(pageErr),
+        });
+      }
     }
 
     const scanText = normalizeText(pageTexts.join("\n\n"));
@@ -377,7 +422,10 @@ async function analyzePdf(buffer: Buffer): Promise<OcrResult> {
         : 0;
 
       return {
-        ...buildResult(scanText, averageConfidence, "pdf-scan"),
+        ...await measureStep("pdf.parseScanResult", {
+          pageCount: scannedPageCount,
+          rawTextLength: scanText.length,
+        }, () => Promise.resolve(buildResult(scanText, averageConfidence, "pdf-scan"))),
         message: hasMorePages
           ? `Scan-PDF ueber die ersten ${scannedPageCount} Seiten analysiert. Bitte Werte bei mehrseitigen Belegen pruefen.`
           : "Scan-PDF ueber Seitenbilder analysiert. Bitte Werte vor dem Speichern kurz pruefen.",
@@ -393,12 +441,15 @@ async function analyzePdf(buffer: Buffer): Promise<OcrResult> {
     };
   } catch (err) {
     console.error("PDF OCR failed:", {
+      sizeBytes: buffer.length,
       error: toLoggableError(err),
     });
     return {
       ...EMPTY_RESULT,
       sourceType: "pdf-empty",
-      message: "PDF konnte nicht gelesen oder analysiert werden. Datei bleibt gespeichert; bitte Felder manuell erfassen.",
+      message: isOcrTimeoutError(err)
+        ? "Die PDF-Analyse dauerte zu lange. Text-PDFs sollten direkt funktionieren; bei komplexen Scan-PDFs bitte Datei vereinfachen oder Felder manuell erfassen."
+        : "PDF konnte nicht gelesen oder analysiert werden. Datei bleibt gespeichert; bitte Felder manuell erfassen.",
     };
   } finally {
     await parser?.destroy().catch(() => undefined);
@@ -406,29 +457,156 @@ async function analyzePdf(buffer: Buffer): Promise<OcrResult> {
 }
 
 async function recognizeImageText(buffer: Buffer): Promise<{ rawText: string; confidence: number }> {
-  const Tesseract = await resolveTesseractAdapter();
-  const lang = process.env.OCR_LANGUAGE ?? "deu+eng";
-  const response = await Tesseract.recognize(buffer, lang);
-  const data = response.data ?? {};
+  const { env } = await import("@/lib/env");
+  const ocrUrl = env.OCR_SERVICE_URL;
+  const lang = env.OCR_LANGUAGE;
+
+  const form = new FormData();
+  form.append("file", new Blob([new Uint8Array(buffer)]), "image.jpg");
+
+  const abort = new AbortController();
+  const timeout = setTimeout(() => abort.abort(), OCR_STEP_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(`${ocrUrl}/ocr?lang=${encodeURIComponent(lang)}`, {
+      method: "POST",
+      body: form,
+      signal: abort.signal,
+    });
+  } catch (err) {
+    if (abort.signal.aborted) {
+      throw new OcrTimeoutError("ocr.recognize", OCR_STEP_TIMEOUT_MS, { imageBytes: buffer.length, lang });
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`OCR-Service: ${response.status} ${detail}`.trim());
+  }
+
+  const data = await response.json() as { text?: string; confidence?: number };
 
   return {
     rawText: normalizeText(data.text ?? ""),
-    confidence: (data.confidence ?? 0) / 100,
+    confidence: data.confidence ?? 0,
   };
 }
 
-async function resolveTesseractAdapter(): Promise<TesseractAdapter> {
-  const imported = await import("tesseract.js");
-  const adapter = ("default" in imported ? imported.default : imported) as Partial<TesseractAdapter>;
+// --- Tesseract.js-Adapter (deaktiviert, wird nach erfolgreichem PaddleOCR-Test entfernt) ---
+// async function resolveTesseractAdapter(): Promise<TesseractAdapter> {
+//   const imported = await import("tesseract.js");
+//   const adapter = ("default" in imported ? imported.default : imported) as Partial<TesseractAdapter>;
+//   if (typeof adapter.recognize !== "function") {
+//     throw new Error("Tesseract-Adapter ist nicht verfuegbar.");
+//   }
+//   return adapter as TesseractAdapter;
+// }
+//
+// async function prepareImageBufferForOcr(buffer: Buffer): Promise<Buffer> {
+//   const image = await loadImage(buffer);
+//   const width = Number((image as { width?: number }).width ?? 0);
+//   const height = Number((image as { height?: number }).height ?? 0);
+//   const maxDimension = Math.max(width, height);
+//   if (!width || !height || maxDimension <= MAX_OCR_IMAGE_DIMENSION) return buffer;
+//   const scale = MAX_OCR_IMAGE_DIMENSION / maxDimension;
+//   const targetWidth = Math.max(1, Math.round(width * scale));
+//   const targetHeight = Math.max(1, Math.round(height * scale));
+//   const canvas = createCanvas(targetWidth, targetHeight);
+//   const context = canvas.getContext("2d");
+//   context.imageSmoothingEnabled = true;
+//   context.imageSmoothingQuality = "high";
+//   context.drawImage(image, 0, 0, targetWidth, targetHeight);
+//   const resized = await canvas.encode("png");
+//   return Buffer.from(resized);
+// }
 
-  if (typeof adapter.recognize !== "function") {
-    throw new Error("Tesseract-Adapter ist nicht verfuegbar.");
+async function measureStep(step: string, meta: Record<string, unknown>, fn: () => Promise<any>) {
+  const startedAt = Date.now();
+  try {
+    const result = await fn();
+    console.info("OCR step completed:", {
+      step,
+      durationMs: Date.now() - startedAt,
+      ...meta,
+    });
+    return result;
+  } catch (error) {
+    console.warn("OCR step failed:", {
+      step,
+      durationMs: Date.now() - startedAt,
+      ...meta,
+      error: toLoggableError(error),
+    });
+    throw error;
   }
+}
 
-  return adapter as TesseractAdapter;
+/**
+ * Race a promise against a timeout.
+ *
+ * Limitation: the underlying promise is NOT cancelled — it may continue running
+ * in the background until it settles on its own. This is unavoidable for
+ * libraries like pdf-parse that do not accept an AbortSignal.
+ *
+ * For HTTP calls, prefer AbortController (see recognizeImageText).
+ * For pdf-parse calls, pass `onTimeout` to trigger `parser.destroy()` so the
+ * pdfjs worker is torn down and no further work is scheduled.
+ */
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  step: string,
+  meta: Record<string, unknown>,
+  onTimeout?: () => void,
+): Promise<T> {
+  let timeoutHandle: NodeJS.Timeout | null = null;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => {
+      onTimeout?.();
+      reject(new OcrTimeoutError(step, timeoutMs, meta));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+  }
+}
+
+class OcrTimeoutError extends Error {
+  readonly step: string;
+  readonly timeoutMs: number;
+  readonly meta: Record<string, unknown>;
+
+  constructor(step: string, timeoutMs: number, meta: Record<string, unknown>) {
+    super(`OCR-Schritt '${step}' hat das Zeitlimit von ${timeoutMs} ms ueberschritten.`);
+    this.name = "OcrTimeoutError";
+    this.step = step;
+    this.timeoutMs = timeoutMs;
+    this.meta = meta;
+  }
+}
+
+function isOcrTimeoutError(error: unknown): error is OcrTimeoutError {
+  return error instanceof OcrTimeoutError;
 }
 
 function toLoggableError(error: unknown) {
+  if (isOcrTimeoutError(error)) {
+    return {
+      name: error.name,
+      message: error.message,
+      step: error.step,
+      timeoutMs: error.timeoutMs,
+      ...error.meta,
+    };
+  }
+
   if (error instanceof Error) {
     return {
       name: error.name,
@@ -651,12 +829,25 @@ type AmountFieldsResult = {
 };
 
 function extractDate(text: string): FieldResult<string> {
+  // Keyword + EU numeric format: "Datum: 24.03.2026"
   const keywordMatch = text.match(/(?:datum|date|rechnungsdatum|belegdatum|invoice date|stay date)[:\s]*(\d{1,2})[./](\d{1,2})[./](20\d{2})/i);
   if (keywordMatch) {
     const [, day, month, year] = keywordMatch;
     return { value: `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`, confidence: "high" };
   }
 
+  // Keyword + English long format: "Date of issue  March 24, 2026"
+  const keywordEnMatch = text.match(new RegExp(
+    `(?:datum|date|rechnungsdatum|belegdatum|invoice date|date of issue|stay date)[:\\s]*(${ENGLISH_MONTH_PATTERN})\\s+(\\d{1,2}),?\\s*(20\\d{2})`, "i",
+  ));
+  if (keywordEnMatch) {
+    const month = ENGLISH_MONTHS[keywordEnMatch[1].toLowerCase()];
+    if (month) {
+      return { value: `${keywordEnMatch[3]}-${month}-${keywordEnMatch[2].padStart(2, "0")}`, confidence: "high" };
+    }
+  }
+
+  // EU numeric without keyword: "24.03.2026"
   const euMatch = text.match(/(\d{1,2})[./](\d{1,2})[./](20\d{2})/);
   if (euMatch) {
     const [, day, month, year] = euMatch;
@@ -665,6 +856,13 @@ function extractDate(text: string): FieldResult<string> {
     if (d >= 1 && d <= 31 && m >= 1 && m <= 12) {
       return { value: `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`, confidence: "medium" };
     }
+  }
+
+  // English long without keyword: "March 24, 2026"
+  const enMatch = text.match(new RegExp(`(${ENGLISH_MONTH_PATTERN})\\s+(\\d{1,2}),?\\s*(20\\d{2})`, "i"));
+  if (enMatch) {
+    const month = ENGLISH_MONTHS[enMatch[1].toLowerCase()];
+    if (month) return { value: `${enMatch[3]}-${month}-${enMatch[2].padStart(2, "0")}`, confidence: "medium" };
   }
 
   const isoMatch = text.match(/(20\d{2})-(\d{2})-(\d{2})/);
@@ -724,11 +922,36 @@ function extractKeywordDate(lines: string[], patterns: RegExp[]): FieldResult<st
   return { value: null, confidence: "none" };
 }
 
+const ENGLISH_MONTHS: Record<string, string> = {
+  january: "01", february: "02", march: "03", april: "04",
+  may: "05", june: "06", july: "07", august: "08",
+  september: "09", october: "10", november: "11", december: "12",
+};
+const ENGLISH_MONTH_PATTERN = Object.keys(ENGLISH_MONTHS).join("|");
+
 function parseDateFromText(text: string): string | null {
   const euMatch = text.match(/(\d{1,2})[./](\d{1,2})[./](20\d{2})/);
   if (euMatch) {
     const [, day, month, year] = euMatch;
     return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  // English long format: "March 24, 2026" or "April 2, 2026"
+  const enMatch = text.match(new RegExp(`(${ENGLISH_MONTH_PATTERN})\\s+(\\d{1,2}),?\\s*(20\\d{2})`, "i"));
+  if (enMatch) {
+    const month = ENGLISH_MONTHS[enMatch[1].toLowerCase()];
+    const day = enMatch[2].padStart(2, "0");
+    const year = enMatch[3];
+    if (month) return `${year}-${month}-${day}`;
+  }
+
+  // English reversed: "2 April 2026"
+  const enRevMatch = text.match(new RegExp(`(\\d{1,2})\\s+(${ENGLISH_MONTH_PATTERN})\\s+(20\\d{2})`, "i"));
+  if (enRevMatch) {
+    const day = enRevMatch[1].padStart(2, "0");
+    const month = ENGLISH_MONTHS[enRevMatch[2].toLowerCase()];
+    const year = enRevMatch[3];
+    if (month) return `${year}-${month}-${day}`;
   }
 
   const compactMatch = text.match(/\b(\d{2})(\d{2})(20\d{2})\b/);
@@ -916,16 +1139,110 @@ function extractCurrency(text: string): FieldResult<string> {
 }
 
 function extractSupplier(lines: string[]): FieldResult<string> {
-  const supplierExclusion = /(rechnungsempfaenger|leistungsempfaenger|kunde|kundennummer|bill to|ship to|lieferadresse|empfaenger|customer|client|recipient|anschrift des kunden)/i;
-  const companyHints = /(gmbh|ug\b|ag\b|kg\b|ohg\b|gbr\b|e\.k\.?|ek\b|inc\.?|llc\b|ltd\.?|s\.r\.o\.?|sarl|sas|corp\.?|company|co\.?\b)/i;
+  const recipientMarker = /^(bill\s*to|sold\s*to|ship\s*to|deliver\s*to|buyer|customer|client|auftraggeber|rechnungsempfaenger|leistungsempfaenger|empfaenger|lieferadresse|anschrift des kunden|kunde|geschaeftsadresse|gesch.ftsadresse)\b/i;
+  const supplierExclusion = /(rechnungsempfaenger|leistungsempfaenger|kunde|kundennummer|bill\s*to|ship\s*to|sold\s*to|deliver\s*to|lieferadresse|empfaenger|customer|client|recipient|anschrift des kunden|buyer|auftraggeber|geschaeftsadresse|gesch.ftsadresse)/i;
+  const supplierMarker = /^(verkauft\s*von|sold\s*by|vendor|seller|from)\b/i;
+  const registerNoise = /(sitz der gesellschaft|sitz der zweigniederlassung|eingetragen im|handelsregister|amtsgericht|registered office|company reg)/i;
+  const companyHints = /(gmbh|ug\b|ag\b|se\b|kg\b|ohg\b|gbr\b|e\.k\.?|ek\b|inc\.?|llc\b|ltd\.?|pbc\b|s\.r\.o\.?|s\.?[aà]\.?\s*r\.?\s*l|sarl|sas|corp\.?|company|co\.?\b)/i;
   const taxHints = /(ust-?id|uid|vat|tax\s*id|steuer-?nr|handelsregister|iban|bic|tel\.?|telefon|www\.|@)/i;
+  const customerNumberMarker = /^(kundennummer|kd[\s.-]?nr|kunden[\s.-]?nr|customer\s*(no|nr|number|id)|account\s*(no|nr|number)|vertragsnummer)\s*[:\s]/i;
 
-  const candidates = lines.slice(0, 18)
+  const searchScope = lines.slice(0, 25);
+
+  // --- Identify recipient zone ---
+  const recipientLines = new Set<number>();
+
+  // Strategy 1: Explicit markers like "Bill to", "Kunde", "Empfaenger"
+  for (let i = 0; i < searchScope.length; i++) {
+    if (recipientMarker.test(searchScope[i])) {
+      for (let j = i; j < Math.min(i + 7, searchScope.length); j++) {
+        recipientLines.add(j);
+      }
+    }
+  }
+
+  // Strategy 1b: "Auftraggeber" / "Geschäftsadresse" followed by address block
+  for (let i = 0; i < searchScope.length; i++) {
+    if (/^(auftraggeber|geschaeftsadresse|gesch.ftsadresse)\b/i.test(searchScope[i])) {
+      for (let j = i; j < Math.min(i + 7, searchScope.length); j++) {
+        recipientLines.add(j);
+      }
+    }
+  }
+
+  // Strategy 2: German letter format — sender compact line on top, then recipient
+  // address window (lines 1..N), then sender block again. Detected by:
+  //   - Line 0/1 contains "·" or "|" or " - " separators with a company name
+  //   - "Kundennummer" / "Rechnungsnummer" appears later → lines between are recipient
+  let compactSenderLine: string | null = null;
+  for (const line of searchScope.slice(0, 3)) {
+    if (/[·|]/.test(line) || (companyHints.test(line) && / - /.test(line))) {
+      compactSenderLine = line;
+      break;
+    }
+  }
+  if (compactSenderLine && recipientLines.size === 0) {
+    // Find where the address window ends: first line with a keyword like
+    // "Rechnungsnummer", "Kundennummer", "Invoice number", or the sender name repeated.
+    const senderNameFromCompact = compactSenderLine.split(/[·|]/)[0].trim();
+    let addressEndIndex = -1;
+    for (let i = 1; i < Math.min(searchScope.length, 15); i++) {
+      if (customerNumberMarker.test(searchScope[i])
+        || /^rechnungs(nummer|datum)|^invoice\s*(number|date|nr)|^date of issue/i.test(searchScope[i])
+        || (senderNameFromCompact.length >= 3 && searchScope[i].startsWith(senderNameFromCompact))) {
+        addressEndIndex = i;
+        break;
+      }
+    }
+    if (addressEndIndex > 1) {
+      // Lines 1..(addressEndIndex-1) are the recipient address window
+      for (let j = 1; j < addressEndIndex; j++) {
+        recipientLines.add(j);
+      }
+    }
+  }
+
+  const candidates = searchScope
     .map((line, index) => ({ line, index }))
+    .filter(({ index }) => index < 18)
     .filter(({ line }) => line.length >= 3)
     .filter(({ line }) => !LOCATION_NOISE.test(line))
     .filter(({ line }) => !supplierExclusion.test(line))
-    .filter(({ line }) => !INVOICE_SECTION_END.test(line));
+    .filter(({ line }) => !INVOICE_SECTION_END.test(line))
+    .filter(({ index }) => !recipientLines.has(index));
+
+  // --- Try extracting supplier from the compact sender line ---
+  // "IONOS SE · Elgendorfer Str. 57 · 56410 Montabaur" → "IONOS SE"
+  // "Amazon Business EU S.à r.l. - 38 avenue John F. Kennedy" → "Amazon Business EU S.à r.l."
+  let compactSupplier: string | null = null;
+  if (compactSenderLine) {
+    const firstSegment = compactSenderLine.split(/[·|]| - /)[0].trim();
+    if (firstSegment.length >= 3 && companyHints.test(firstSegment)) {
+      compactSupplier = firstSegment;
+    }
+  }
+
+  // --- Check for explicit "Verkauft von" / "Sold by" marker ---
+  let vendorMarkerName: string | null = null;
+  for (let i = 0; i < searchScope.length; i++) {
+    if (supplierMarker.test(searchScope[i])) {
+      // Name may be on the same line or the next line(s)
+      const afterMarker = searchScope[i].replace(supplierMarker, "").replace(/^[:\s]+/, "").trim();
+      if (afterMarker.length >= 3) {
+        vendorMarkerName = afterMarker;
+      } else if (i + 1 < searchScope.length && searchScope[i + 1].length >= 3) {
+        vendorMarkerName = searchScope[i + 1].trim();
+      }
+      // Append continuation line if next line looks like company name continuation
+      if (vendorMarkerName && i + 1 < searchScope.length) {
+        const next = (afterMarker.length >= 3 ? searchScope[i + 1] : searchScope[i + 2])?.trim();
+        if (next && next.length >= 3 && !taxHints.test(next) && !/\d{5}/.test(next)) {
+          vendorMarkerName = vendorMarkerName + " " + next;
+        }
+      }
+      break;
+    }
+  }
 
   let best: { value: string; score: number } | null = null;
 
@@ -952,7 +1269,13 @@ function extractSupplier(lines: string[]): FieldResult<string> {
     if (/\d{5}\s+[A-Za-z]/.test(normalized)) score -= 1;
     if (/^(rechnung|invoice|beleg|receipt|tax invoice)\b/i.test(normalized)) score -= 4;
     if (taxHints.test(normalized)) score -= 2;
+    if (registerNoise.test(normalized)) score -= 5;
     if (parseAmountFromLine(normalized) !== null) score -= 3;
+
+    // Boost: line matches the name extracted from compact sender line
+    if (compactSupplier && normalized.startsWith(compactSupplier.split(/\s/)[0])) score += 3;
+    // Boost: line matches or follows "Verkauft von" / "Sold by"
+    if (vendorMarkerName && normalized.includes(vendorMarkerName.split(",")[0].trim())) score += 3;
 
     const nextLine = lines[index + 1] ?? "";
     if (taxHints.test(nextLine)) score += 2;
@@ -962,6 +1285,15 @@ function extractSupplier(lines: string[]): FieldResult<string> {
     }
   }
 
+  // Prefer explicit vendor marker name or compact sender name over generic scoring,
+  // but only if the scored best is less specific (e.g. a full address line).
+  const preferredName = vendorMarkerName ?? compactSupplier;
+  if (preferredName && best && best.value.length > preferredName.length + 10) {
+    // The best candidate is much longer than the preferred name — likely an address line.
+    // Use the cleaner preferred name if it scored reasonably.
+    return { value: preferredName, confidence: "high" };
+  }
+
   if (!best || best.score < 3) return { value: null, confidence: "none" };
   return { value: best.value, confidence: best.score >= 7 ? "high" : "medium" };
 }
@@ -969,7 +1301,9 @@ function extractSupplier(lines: string[]): FieldResult<string> {
 function extractInvoiceNumber(lines: string[]): FieldResult<string> {
   const patterns: Array<{ pattern: RegExp; confidence: OcrConfidenceLevel }> = [
     {
-      pattern: /(?:re(?:chnungs)?[\s.-]?(?:nr|nummer)|rechnungs(?:nr|nummer)?|invoice\s*(?:nr|no|number)?|inv[\s.-]?(?:nr|no)|beleg(?:nr|nummer)?|bon(?:nr|nummer)?|receipt\s*(?:nr|no|number)?|ref(?:erenz)?)[\s.:#-]*([A-Z0-9][A-Z0-9\/ .-]{2,39})/i,
+      // [Il]nvoice tolerates OCR confusing I/l; \bref(?:erenz) requires word boundary to avoid "prefer"
+      // "rechnung(s)" requires nr/nummer to avoid matching "Rechnungsdatum"
+      pattern: /(?:rechnungsnummer|rechnung[\s.-]*(?:nr|nummer)|re[\s.-]?(?:nr|nummer)|[Il]nvoice\s*(?:nr|no|number)|inv[\s.-]?(?:nr|no)|beleg(?:nr|nummer)?|bon(?:nr|nummer)?|receipt\s*(?:nr|no|number)?|\bref(?:erenz))[\s.:#-]*([A-Z0-9][A-Z0-9\/ .-]{2,39})/i,
       confidence: "high",
     },
     {
@@ -1496,3 +1830,5 @@ function hasTollSignals(value: TollDetails) {
     || value.routeHint.confidence !== "none"
     || value.vehicleClass.confidence !== "none";
 }
+
+export default { analyzeDocument };

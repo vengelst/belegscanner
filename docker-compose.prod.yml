@@ -16,11 +16,29 @@ services:
       timeout: 3s
       retries: 10
 
+  ocr:
+    build: ./ocr-service
+    restart: unless-stopped
+    environment:
+      OCR_LANGUAGE: ${OCR_LANGUAGE:-german}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8868/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
   app:
     build: .
     restart: unless-stopped
     depends_on:
       db:
+        condition: service_healthy
+      ocr:
         condition: service_healthy
     ports:
       - "127.0.0.1:3003:3000"
@@ -31,7 +49,8 @@ services:
       AUTH_SECRET: ${AUTH_SECRET}
       AUTH_URL: ${AUTH_URL:-https://beleg.vivahome.de}
       STORAGE_PATH: /app/storage
-      OCR_LANGUAGE: ${OCR_LANGUAGE:-deu+eng}
+      OCR_LANGUAGE: ${OCR_LANGUAGE:-german}
+      OCR_SERVICE_URL: ${OCR_SERVICE_URL:-http://ocr:8868}
       SMTP_ENCRYPTION_KEY: ${SMTP_ENCRYPTION_KEY}
       ADMIN_EMAIL: ${ADMIN_EMAIL}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}

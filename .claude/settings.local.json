@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(docker compose:*)",
+      "Bash(node -e ':*)",
+      "Bash(curl -s -X POST -F \"file=@test-ocr/Invoice-CQYYZ8OA-0012.jpg\" \"http://localhost:8868/ocr?lang=german\")",
+      "Bash(node test-date-parse.mjs)",
+      "Bash(node test-supplier.mjs)",
+      "Bash(npx tsx:*)"
+    ]
+  }
+}
