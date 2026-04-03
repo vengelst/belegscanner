@@ -215,23 +215,42 @@ function Invoke-Deploy {
     $remoteSteps += "git pull --ff-only $RemoteName $Branch"
     $remoteSteps += "docker compose -f $ComposeFile up -d --build"
 
-    $prismaHelperPrefix = "docker run --rm --network belegscanner_default --env-file .env -e DATABASE_URL='postgresql://belegbox:belegbox@db:5432/belegbox' -v '${ServerPath}:/app' -w /app node:20-alpine sh -lc"
-    $helperInstallCommand = "npm install >/tmp/belegscanner-npm-install.log 2>&1"
+    # Prisma helper: copy only the needed files into a temp dir inside the container
+    # so that npm ci never touches the server repo. The server path is mounted read-only.
+    $prismaHelperSetup = @(
+        "mkdir -p /tmp/prisma-work",
+        "cp /repo/package.json /repo/package-lock.json /tmp/prisma-work/",
+        "cp -r /repo/prisma /tmp/prisma-work/prisma",
+        "cd /tmp/prisma-work",
+        "npm ci --ignore-scripts >/dev/null 2>&1"
+    ) -join " && "
+    $prismaHelperPrefix = "docker run --rm --network belegscanner_default --env-file .env -e DATABASE_URL='postgresql://belegbox:belegbox@db:5432/belegbox' -v '${ServerPath}:/repo:ro' -w /tmp/prisma-work node:20-alpine sh -lc"
 
     if ($SchemaSyncMode -eq "push") {
-        $remoteSteps += $prismaHelperPrefix + " '" + $helperInstallCommand + " && npx prisma db push'"
+        $remoteSteps += $prismaHelperPrefix + " '" + $prismaHelperSetup + " && npx prisma db push'"
     }
     else {
-        $remoteSteps += $prismaHelperPrefix + " '" + $helperInstallCommand + " && npx prisma migrate deploy'"
+        $remoteSteps += $prismaHelperPrefix + " '" + $prismaHelperSetup + " && npx prisma migrate deploy'"
     }
 
     if ($RunSeed) {
-        $remoteSteps += $prismaHelperPrefix + " '" + $helperInstallCommand + " && npx prisma db seed'"
+        $remoteSteps += $prismaHelperPrefix + " '" + $prismaHelperSetup + " && npx prisma db seed'"
     }
 
     $remoteCommand = [string]::Join(" && ", $remoteSteps)
     $sshCommand = 'ssh ' + $sshTarget + ' "' + $remoteCommand + '"'
     Run-Command -Label "Deploye auf $sshTarget" -Command $sshCommand
+
+    # Post-deploy: verify server repo is still clean
+    Write-Info "Pruefe Server-Repository nach Deploy auf Sauberkeit"
+    if (-not $DryRun) {
+        $postDeployStatus = (& ssh $sshTarget $dirtyStatusCommand | Out-String).Trim()
+        if (-not [string]::IsNullOrWhiteSpace($postDeployStatus)) {
+            Write-WarnLine "Server-Repo ist nach Deploy dirty:`n$postDeployStatus"
+        } else {
+            Write-Info "Server-Repo ist sauber."
+        }
+    }
 
     Write-Info "Deployment abgeschlossen. Pruefe jetzt $AppUrl"
 }
