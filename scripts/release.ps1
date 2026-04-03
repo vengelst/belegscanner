@@ -75,6 +75,30 @@ function Ensure-Value {
     }
 }
 
+function Assert-ServerEnvValue {
+    param(
+        [string]$SshTarget,
+        [string]$ServerPath,
+        [string]$VariableName,
+        [string]$ErrorMessage
+    )
+
+    $checkCommand = "cd '$ServerPath' && if [ ! -f .env ]; then echo ENV_FILE_MISSING; elif grep -Eq '^${VariableName}=.+$' .env; then echo OK; else echo MISSING; fi"
+    $checkResult = (& ssh $SshTarget $checkCommand | Out-String).Trim()
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Server-Konfiguration konnte nicht geprueft werden."
+    }
+
+    if ($checkResult -eq "ENV_FILE_MISSING") {
+        throw "Deploy abgebrochen: $ServerPath/.env wurde auf dem Server nicht gefunden."
+    }
+
+    if ($checkResult -ne "OK") {
+        throw "Deploy abgebrochen: $ErrorMessage"
+    }
+}
+
 function Get-RepoRoot {
     $root = git rev-parse --show-toplevel 2>$null
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($root)) {
@@ -195,6 +219,13 @@ function Invoke-Deploy {
     $dirtyStatusCommand = "cd '$ServerPath' && git status --short"
 
     if (-not $DryRun) {
+        Write-Info "Pruefe benoetigte Server-Konfiguration"
+        Assert-ServerEnvValue `
+            -SshTarget $sshTarget `
+            -ServerPath $ServerPath `
+            -VariableName "OPENAI_API_KEY" `
+            -ErrorMessage "OPENAI_API_KEY fehlt oder ist leer in $ServerPath/.env. Bitte zuerst den OpenAI-Schluessel auf dem Server setzen."
+
         Write-Info "Pruefe Server-Repository auf lokale Aenderungen"
         $dirtyStatusOutput = (& ssh $sshTarget $dirtyStatusCommand | Out-String).Trim()
 
