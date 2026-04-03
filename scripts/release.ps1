@@ -222,7 +222,8 @@ function Invoke-Deploy {
         "cp /repo/package.json /repo/package-lock.json /tmp/prisma-work/",
         "cp -r /repo/prisma /tmp/prisma-work/prisma",
         "cd /tmp/prisma-work",
-        "npm ci --ignore-scripts >/dev/null 2>&1"
+        "npm ci --ignore-scripts >/dev/null 2>&1",
+        "npx prisma generate"
     ) -join " && "
     $prismaHelperPrefix = "docker run --rm --network belegscanner_default --env-file .env -e DATABASE_URL='postgresql://belegbox:belegbox@db:5432/belegbox' -v '${ServerPath}:/repo:ro' -w /tmp/prisma-work node:20-alpine sh -lc"
 
