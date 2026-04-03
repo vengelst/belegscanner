@@ -43,7 +43,7 @@ export default async function ReceiptsPage({ searchParams }: Props) {
     where.OR = [
       { supplier: { contains: search, mode: "insensitive" } },
       { remark: { contains: search, mode: "insensitive" } },
-      { ocrRawText: { contains: search, mode: "insensitive" } },
+      { aiRawText: { contains: search, mode: "insensitive" } },
     ];
   }
 

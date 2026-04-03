@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -39,11 +39,67 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [purposeId, setPurposeId] = useState(receipt.purposeId);
+  const [currency, setCurrency] = useState(receipt.currency);
+  const [amount, setAmount] = useState(String(receipt.amount).replace(".", ","));
+  const [exchangeRate, setExchangeRate] = useState(receipt.exchangeRate ? formatLocalizedNumber(receipt.exchangeRate, 4) : "");
+  const [exchangeRateDate, setExchangeRateDate] = useState(receipt.exchangeRateDate ?? "");
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exchangeRateInfo, setExchangeRateInfo] = useState<string | null>(null);
+  const [exchangeRateLoading, setExchangeRateLoading] = useState(false);
 
   const selectedPurpose = purposes.find((p) => p.id === purposeId);
   const isHospitality = selectedPurpose?.isHospitality ?? false;
+  const requiresExchangeRate = currency.trim().toUpperCase() !== "EUR";
+  const amountEurPreview = useMemo(() => {
+    const parsedAmount = parseLocalizedNumber(amount);
+    const parsedRate = parseLocalizedNumber(exchangeRate);
+    if (parsedAmount === null) return "";
+    if (!requiresExchangeRate) return formatLocalizedNumber(parsedAmount);
+    if (parsedRate === null || parsedRate <= 0) return "";
+    return formatLocalizedNumber(parsedAmount / parsedRate);
+  }, [amount, exchangeRate, requiresExchangeRate]);
+
+  useEffect(() => {
+    if (!requiresExchangeRate) {
+      setExchangeRate("");
+      setExchangeRateDate("");
+      setExchangeRateInfo(null);
+      setExchangeRateLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setExchangeRateLoading(true);
+    setExchangeRateInfo(null);
+
+    fetch(`/api/exchange-rate?currency=${encodeURIComponent(currency.trim().toUpperCase())}`)
+      .then(async (response) => {
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+          const message = data && typeof data === "object" && "error" in data ? String(data.error) : "Wechselkurs konnte nicht geladen werden.";
+          throw new Error(message);
+        }
+        if (cancelled) return;
+        const nextRate = typeof data.rate === "number" ? data.rate : null;
+        const nextDate = typeof data.rateDate === "string" ? data.rateDate : "";
+        if (nextRate !== null) setExchangeRate(formatLocalizedNumber(nextRate, 4));
+        setExchangeRateDate(nextDate);
+        setExchangeRateInfo(`Aktueller Wechselkurs fuer ${currency.trim().toUpperCase()} automatisch geladen.`);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : "Wechselkurs konnte nicht geladen werden.";
+        setExchangeRateInfo(message);
+      })
+      .finally(() => {
+        if (!cancelled) setExchangeRateLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currency, requiresExchangeRate]);
 
   function handleSubmit(formData: FormData) {
     setError(null);
@@ -51,17 +107,17 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
     const amount = parseFloat((formData.get("amount") as string).replace(",", "."));
     const currency = (formData.get("currency") as string) || "EUR";
 
-    let exchangeRate: number | null = null;
-    const erVal = formData.get("exchangeRate") as string;
-    if (erVal) exchangeRate = parseFloat(erVal.replace(",", "."));
+    let parsedExchangeRate: number | null = null;
+    const erVal = (formData.get("exchangeRate") as string) || exchangeRate;
+    if (erVal) parsedExchangeRate = parseFloat(erVal.replace(",", "."));
 
     const body: Record<string, unknown> = {
       date: formData.get("date"),
       supplier: formData.get("supplier") || null,
       amount: isNaN(amount) ? 0 : amount,
       currency,
-      exchangeRate,
-      exchangeRateDate: formData.get("exchangeRateDate") || null,
+      exchangeRate: parsedExchangeRate,
+      exchangeRateDate: formData.get("exchangeRateDate") || exchangeRateDate || null,
       countryId: formData.get("countryId") || null,
       vehicleId: formData.get("vehicleId") || null,
       purposeId: formData.get("purposeId"),
@@ -88,7 +144,7 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
 
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error ?? "Fehler beim Speichern.");
+        setError(getApiErrorMessage(data, "Fehler beim Speichern."));
         return;
       }
 
@@ -116,12 +172,50 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
         <h2 className="text-lg font-semibold tracking-tight">Belegdaten</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Input label="Belegdatum" name="date" type="date" required defaultValue={receipt.date} />
-          <Input label="Betrag" name="amount" type="text" inputMode="decimal" required defaultValue={String(receipt.amount).replace(".", ",")} />
-          <Input label="Waehrung" name="currency" type="text" maxLength={3} defaultValue={receipt.currency} />
+          <Input
+            label="Kaufpreis Originalwaehrung"
+            name="amount"
+            type="text"
+            inputMode="decimal"
+            required
+            value={amount}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => setAmount(event.target.value)}
+          />
+          <Input
+            label="Waehrung"
+            name="currency"
+            type="text"
+            maxLength={3}
+            value={currency}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => setCurrency(event.target.value)}
+          />
+          <Input label="Kaufpreis in EUR" name="amountEurPreview" type="text" value={amountEurPreview} readOnly />
           <Input label="Lieferant" name="supplier" defaultValue={receipt.supplier ?? ""} />
-          <Input label="Wechselkurs" name="exchangeRate" type="text" inputMode="decimal" defaultValue={receipt.exchangeRate ? String(receipt.exchangeRate).replace(".", ",") : ""} />
-          <Input label="Kursdatum" name="exchangeRateDate" type="date" defaultValue={receipt.exchangeRateDate ?? ""} />
+          <Input
+            label={requiresExchangeRate ? "Wechselkurs *" : "Wechselkurs (optional)"}
+            name="exchangeRate"
+            type="text"
+            inputMode="decimal"
+            value={exchangeRate}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => setExchangeRate(event.target.value)}
+            required={requiresExchangeRate}
+          />
+          <Input
+            label={requiresExchangeRate ? "Kursdatum *" : "Kursdatum (optional)"}
+            name="exchangeRateDate"
+            type="date"
+            value={exchangeRateDate}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => setExchangeRateDate(event.target.value)}
+            required={requiresExchangeRate}
+          />
         </div>
+        {requiresExchangeRate ? (
+          <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+            <p>Fuer Fremdwaehrungsbelege wird der aktuelle Wechselkurs automatisch geladen und beim Speichern verwendet.</p>
+            {exchangeRateLoading ? <p>Wechselkurs wird geladen...</p> : null}
+            {exchangeRateInfo ? <p>{exchangeRateInfo}</p> : null}
+          </div>
+        ) : null}
       </Card>
 
       <Card>
@@ -206,4 +300,31 @@ function SelectField({ label, name, required, value, onChange, defaultValue, chi
       </select>
     </label>
   );
+}
+
+function getApiErrorMessage(data: unknown, fallback: string): string {
+  if (!data || typeof data !== "object") return fallback;
+
+  const error = "error" in data && typeof data.error === "string" ? data.error : fallback;
+  const details = "details" in data && data.details && typeof data.details === "object"
+    ? Object.values(data.details as Record<string, unknown>)
+        .flatMap((value) => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [])
+    : [];
+
+  if (details.length === 0) return error;
+  return `${error} ${details.join(" ")}`.trim();
+}
+
+function parseLocalizedNumber(value: string): number | null {
+  const normalized = value.trim().replace(",", ".");
+  if (!normalized) return null;
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatLocalizedNumber(value: number, maximumFractionDigits = 2): string {
+  return value.toLocaleString("de-DE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits,
+  });
 }

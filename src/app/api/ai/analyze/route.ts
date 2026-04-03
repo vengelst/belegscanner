@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       error: error instanceof Error ? { name: error.name, message: error.message } : { message: String(error) },
     });
     return NextResponse.json(
-      { error: "Die KI-Auslese konnte derzeit nicht ausgefuehrt werden. Bitte Datei pruefen oder die Daten manuell eintragen." },
+      { error: "Die KI-Auslese konnte derzeit nicht ausgefuehrt werden. Bitte Datei pruefen und fehlende Angaben manuell ergaenzen." },
       { status: 500 },
     );
   }

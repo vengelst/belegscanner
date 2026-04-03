@@ -244,13 +244,14 @@ function Invoke-Deploy {
     $remoteSteps += "git fetch --tags $RemoteName"
     $remoteSteps += "git checkout $Branch"
     $remoteSteps += "git pull --ff-only $RemoteName $Branch"
-    $remoteSteps += "docker compose -f $ComposeFile up -d --build"
+    $remoteSteps += "docker compose -f $ComposeFile up -d --build --remove-orphans"
 
     # Prisma helper: copy only the needed files into a temp dir inside the container
     # so that npm ci never touches the server repo. The server path is mounted read-only.
     $prismaHelperSetup = @(
         "mkdir -p /tmp/prisma-work",
         "cp /repo/package.json /repo/package-lock.json /tmp/prisma-work/",
+        "if [ -f /repo/prisma.config.ts ]; then cp /repo/prisma.config.ts /tmp/prisma-work/; fi",
         "cp -r /repo/prisma /tmp/prisma-work/prisma",
         "cd /tmp/prisma-work",
         "npm ci --ignore-scripts >/dev/null 2>&1",

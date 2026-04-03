@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { receiptSchema } from "@/lib/validation";
 import { Prisma } from "@prisma/client";
+import { calculateAmountEur, fetchLatestExchangeRate } from "@/lib/exchange-rates";
 
 export async function GET(request: NextRequest) {
   const { session, error } = await requireAuth();
@@ -22,13 +23,13 @@ export async function GET(request: NextRequest) {
     if (userId) where.userId = userId;
   }
 
-  // Fulltext search across supplier, remark, ocrRawText
+  // Fulltext search across supplier, remark, aiRawText
   const search = url.searchParams.get("search")?.trim();
   if (search) {
     where.OR = [
       { supplier: { contains: search, mode: "insensitive" } },
       { remark: { contains: search, mode: "insensitive" } },
-      { ocrRawText: { contains: search, mode: "insensitive" } },
+      { aiRawText: { contains: search, mode: "insensitive" } },
     ];
   }
 
@@ -127,10 +128,23 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  let amountEur = d.amount;
-  if (d.currency !== "EUR" && d.exchangeRate) {
-    amountEur = Math.round((d.amount / d.exchangeRate) * 100) / 100;
+  let exchangeRate = d.exchangeRate ?? null;
+  let exchangeRateDate = d.exchangeRateDate ?? null;
+
+  if (d.currency !== "EUR" && !exchangeRate) {
+    try {
+      const latestRate = await fetchLatestExchangeRate(d.currency);
+      exchangeRate = latestRate.rate;
+      exchangeRateDate = latestRate.rateDate;
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Wechselkurs konnte nicht geladen werden." },
+        { status: 502 },
+      );
+    }
   }
+
+  const amountEur = calculateAmountEur(d.amount, d.currency, exchangeRate);
 
   const receipt = await prisma.receipt.create({
     data: {
@@ -139,17 +153,17 @@ export async function POST(request: NextRequest) {
       supplier: d.supplier ?? null,
       amount: d.amount,
       currency: d.currency,
-      exchangeRate: d.exchangeRate ?? null,
-      exchangeRateDate: d.exchangeRateDate ? new Date(d.exchangeRateDate) : null,
+      exchangeRate: exchangeRate,
+      exchangeRateDate: exchangeRateDate ? new Date(exchangeRateDate) : null,
       amountEur,
       countryId: d.countryId ?? null,
       vehicleId: d.vehicleId ?? null,
       purposeId: d.purposeId,
       categoryId: d.categoryId,
       remark: d.remark ?? null,
-      ocrRawText: d.ocrRawText ?? null,
-      detectedDocumentType: d.detectedDocumentType ?? null,
-      ocrStructuredData: d.ocrStructuredData === undefined ? undefined : d.ocrStructuredData === null ? Prisma.JsonNull : d.ocrStructuredData,
+      aiRawText: d.aiRawText ?? null,
+      aiDocumentType: d.aiDocumentType ?? null,
+      aiStructuredData: d.aiStructuredData === undefined ? undefined : d.aiStructuredData === null ? Prisma.JsonNull : d.aiStructuredData,
       sendStatus: "OPEN",
       ...(d.hospitality ? {
         hospitality: {

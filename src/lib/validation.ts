@@ -129,40 +129,40 @@ const hospitalitySchema = z.object({
   location: z.string().min(1, "Ort ist fuer Bewirtung erforderlich."),
 });
 
-const ocrConfidenceSchema = z.enum(OCR_CONFIDENCE_LEVELS);
-const ocrDocumentTypeSchema = z.enum(OCR_DOCUMENT_TYPES);
+const aiConfidenceSchema = z.enum(OCR_CONFIDENCE_LEVELS);
+const aiDocumentTypeSchema = z.enum(OCR_DOCUMENT_TYPES);
 const receiptDocumentTypeSchema = z.enum(RECEIPT_DOCUMENT_TYPE_VALUES);
 const paymentMethodSchema = z.enum(OCR_PAYMENT_METHODS);
 const fieldReviewStatusSchema = z.enum(OCR_FIELD_REVIEW_STATUSES);
 
-const ocrLineItemSchema = z.object({
+const aiLineItemSchema = z.object({
   label: z.string().min(1).max(120),
   amount: z.number().nullable(),
 });
 
-const ocrLodgingSchema = z.object({
+const aiLodgingSchema = z.object({
   location: z.string().max(255).nullable(),
   nights: z.number().int().min(0).nullable(),
   subtotal: z.number().nullable(),
   tax: z.number().nullable(),
   fees: z.number().nullable(),
-  lineItems: z.array(ocrLineItemSchema).max(10),
+  lineItems: z.array(aiLineItemSchema).max(10),
 });
 
-const ocrParkingSchema = z.object({
+const aiParkingSchema = z.object({
   location: z.string().max(255).nullable(),
   durationText: z.string().max(80).nullable(),
   entryTime: z.string().nullable(),
   exitTime: z.string().nullable(),
 });
 
-const ocrTollSchema = z.object({
+const aiTollSchema = z.object({
   station: z.string().max(255).nullable(),
   routeHint: z.string().max(255).nullable(),
   vehicleClass: z.string().max(80).nullable(),
 });
 
-const ocrInvoiceLineItemSchema = z.object({
+const aiInvoiceLineItemSchema = z.object({
   lineNumber: z.number().int().positive().nullable(),
   description: z.string().max(180),
   quantity: z.number().nullable(),
@@ -170,11 +170,11 @@ const ocrInvoiceLineItemSchema = z.object({
   unitPrice: z.number().nullable(),
   totalPrice: z.number().nullable(),
   taxHint: z.string().max(10).nullable(),
-  confidence: ocrConfidenceSchema,
+  confidence: aiConfidenceSchema,
   status: z.enum(["confident", "uncertain", "partial"]),
 });
 
-export const ocrStructuredDataSchema = z.object({
+export const aiStructuredDataSchema = z.object({
   sourceType: z.enum(["image", "pdf"]).optional(),
   extracted: z.object({
     date: z.string().nullable(),
@@ -194,26 +194,26 @@ export const ocrStructuredDataSchema = z.object({
     cardLastDigits: z.string().regex(/^\d{2,4}$/).nullable(),
     countryCode: z.string().max(3).nullable(),
     countryName: z.string().max(100).nullable(),
-    documentType: ocrDocumentTypeSchema.nullable(),
+    documentType: aiDocumentTypeSchema.nullable(),
   }),
   fieldConfidence: z.object({
-    date: ocrConfidenceSchema,
-    invoiceDate: ocrConfidenceSchema,
-    dueDate: ocrConfidenceSchema,
-    serviceDate: ocrConfidenceSchema,
-    time: ocrConfidenceSchema,
-    amount: ocrConfidenceSchema,
-    grossAmount: ocrConfidenceSchema,
-    netAmount: ocrConfidenceSchema,
-    taxAmount: ocrConfidenceSchema,
-    currency: ocrConfidenceSchema,
-    supplier: ocrConfidenceSchema,
-    invoiceNumber: ocrConfidenceSchema,
-    location: ocrConfidenceSchema,
-    paymentMethod: ocrConfidenceSchema,
-    cardLastDigits: ocrConfidenceSchema,
-    country: ocrConfidenceSchema,
-    documentType: ocrConfidenceSchema,
+    date: aiConfidenceSchema,
+    invoiceDate: aiConfidenceSchema,
+    dueDate: aiConfidenceSchema,
+    serviceDate: aiConfidenceSchema,
+    time: aiConfidenceSchema,
+    amount: aiConfidenceSchema,
+    grossAmount: aiConfidenceSchema,
+    netAmount: aiConfidenceSchema,
+    taxAmount: aiConfidenceSchema,
+    currency: aiConfidenceSchema,
+    supplier: aiConfidenceSchema,
+    invoiceNumber: aiConfidenceSchema,
+    location: aiConfidenceSchema,
+    paymentMethod: aiConfidenceSchema,
+    cardLastDigits: aiConfidenceSchema,
+    country: aiConfidenceSchema,
+    documentType: aiConfidenceSchema,
   }),
   special: z.object({
     fuel: z.object({
@@ -225,49 +225,49 @@ export const ocrStructuredDataSchema = z.object({
       location: z.string().max(255).nullable(),
       subtotal: z.number().nullable(),
       tip: z.number().nullable(),
-      lineItems: z.array(ocrLineItemSchema).max(10),
+      lineItems: z.array(aiLineItemSchema).max(10),
     }).nullable(),
-    lodging: ocrLodgingSchema.nullable(),
-    parking: ocrParkingSchema.nullable(),
-    toll: ocrTollSchema.nullable(),
+    lodging: aiLodgingSchema.nullable(),
+    parking: aiParkingSchema.nullable(),
+    toll: aiTollSchema.nullable(),
     invoice: z.object({
-      lineItems: z.array(ocrInvoiceLineItemSchema).max(20),
+      lineItems: z.array(aiInvoiceLineItemSchema).max(20),
     }).nullable(),
   }),
   fieldReviewStates: z.record(fieldReviewStatusSchema).optional(),
   specialConfidence: z.object({
     fuel: z.object({
-      liters: ocrConfidenceSchema,
-      pricePerLiter: ocrConfidenceSchema,
-      fuelType: ocrConfidenceSchema,
+      liters: aiConfidenceSchema,
+      pricePerLiter: aiConfidenceSchema,
+      fuelType: aiConfidenceSchema,
     }).nullable(),
     hospitality: z.object({
-      location: ocrConfidenceSchema,
-      subtotal: ocrConfidenceSchema,
-      tip: ocrConfidenceSchema,
-      lineItems: ocrConfidenceSchema,
+      location: aiConfidenceSchema,
+      subtotal: aiConfidenceSchema,
+      tip: aiConfidenceSchema,
+      lineItems: aiConfidenceSchema,
     }).nullable(),
     lodging: z.object({
-      location: ocrConfidenceSchema,
-      nights: ocrConfidenceSchema,
-      subtotal: ocrConfidenceSchema,
-      tax: ocrConfidenceSchema,
-      fees: ocrConfidenceSchema,
-      lineItems: ocrConfidenceSchema,
+      location: aiConfidenceSchema,
+      nights: aiConfidenceSchema,
+      subtotal: aiConfidenceSchema,
+      tax: aiConfidenceSchema,
+      fees: aiConfidenceSchema,
+      lineItems: aiConfidenceSchema,
     }).nullable(),
     parking: z.object({
-      location: ocrConfidenceSchema,
-      durationText: ocrConfidenceSchema,
-      entryTime: ocrConfidenceSchema,
-      exitTime: ocrConfidenceSchema,
+      location: aiConfidenceSchema,
+      durationText: aiConfidenceSchema,
+      entryTime: aiConfidenceSchema,
+      exitTime: aiConfidenceSchema,
     }).nullable(),
     toll: z.object({
-      station: ocrConfidenceSchema,
-      routeHint: ocrConfidenceSchema,
-      vehicleClass: ocrConfidenceSchema,
+      station: aiConfidenceSchema,
+      routeHint: aiConfidenceSchema,
+      vehicleClass: aiConfidenceSchema,
     }).nullable(),
     invoice: z.object({
-      lineItems: ocrConfidenceSchema,
+      lineItems: aiConfidenceSchema,
     }).nullable(),
   }),
 }).nullable();
@@ -288,13 +288,13 @@ const receiptSchemaBase = z.object({
   purposeId: z.string().min(1),
   categoryId: z.string().min(1),
   remark: z.string().max(2000).nullable().optional(),
-  ocrRawText: z.string().nullable().optional(),
-  detectedDocumentType: receiptDocumentTypeSchema.nullable().optional(),
-  ocrStructuredData: ocrStructuredDataSchema.optional(),
+  aiRawText: z.string().nullable().optional(),
+  aiDocumentType: receiptDocumentTypeSchema.nullable().optional(),
+  aiStructuredData: aiStructuredDataSchema.optional(),
   hospitality: hospitalitySchema.nullable().optional(),
 });
 
-const currencyRefinement = (
+const sendCurrencyRefinement = (
   value: { currency?: string; exchangeRate?: number | null; exchangeRateDate?: string | null },
   ctx: z.RefinementCtx,
 ) => {
@@ -319,9 +319,9 @@ const currencyRefinement = (
   }
 };
 
-export const receiptSchema = receiptSchemaBase.superRefine(currencyRefinement);
+export const receiptSchema = receiptSchemaBase;
 
-export const receiptUpdateSchema = receiptSchemaBase.partial().superRefine(currencyRefinement);
+export const receiptUpdateSchema = receiptSchemaBase.partial();
 
 export const sendReadySchema = z
   .object({
@@ -342,4 +342,4 @@ export const sendReadySchema = z
     remark: z.string().max(2000).nullable().optional(),
     hospitality: hospitalitySchema.nullable().optional(),
   })
-  .superRefine(currencyRefinement);
+  .superRefine(sendCurrencyRefinement);

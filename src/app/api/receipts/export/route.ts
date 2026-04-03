@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     where.OR = [
       { supplier: { contains: search, mode: "insensitive" } },
       { remark: { contains: search, mode: "insensitive" } },
-      { ocrRawText: { contains: search, mode: "insensitive" } },
+      { aiRawText: { contains: search, mode: "insensitive" } },
     ];
   }
 

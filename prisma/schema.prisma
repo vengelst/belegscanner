@@ -193,10 +193,10 @@ model Receipt {
   // Freitext
   remark              String?    @db.Text
 
-  // OCR-Rohdaten
-  ocrRawText          String?    @db.Text
-  detectedDocumentType DocumentType?
-  ocrStructuredData   Json?
+  // KI-Rohdaten
+  aiRawText           String?       @map("ocrRawText") @db.Text
+  aiDocumentType      DocumentType? @map("detectedDocumentType")
+  aiStructuredData    Json?         @map("ocrStructuredData")
 
   // Relationen
   hospitality         Hospitality?
@@ -215,7 +215,7 @@ model Receipt {
   @@index([categoryId])
   @@index([countryId])
   @@index([datevProfileId])
-  @@index([detectedDocumentType])
+  @@index([aiDocumentType], map: "Receipt_detectedDocumentType_idx")
   @@index([createdAt])
 }
 

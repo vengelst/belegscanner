@@ -61,8 +61,8 @@ export default async function ReceiptDetailPage({ params }: Props) {
   };
 
   const lastLog = receipt.sendLogs[0] ?? null;
-  const structuredData = parseStructuredData(receipt.ocrStructuredData);
-  const detectedDocumentType = fromReceiptDocumentType(receipt.detectedDocumentType);
+  const structuredData = parseStructuredData(receipt.aiStructuredData);
+  const detectedDocumentType = fromReceiptDocumentType(receipt.aiDocumentType);
 
   return (
     <div className="space-y-6">
@@ -206,10 +206,10 @@ export default async function ReceiptDetailPage({ params }: Props) {
         <h2 className="text-lg font-semibold tracking-tight">Belegdaten</h2>
         <div className="mt-4 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Belegdatum" value={fmtDate(receipt.date)} />
-          <Field label="Betrag" value={`${fmtAmount(receipt.amount)} ${receipt.currency}`} />
+          <Field label="Kaufpreis Originalwaehrung" value={`${fmtAmount(receipt.amount)} ${receipt.currency}`} />
+          <Field label="Kaufpreis in EUR" value={`${fmtAmount(receipt.amountEur)} EUR`} />
           {receipt.currency !== "EUR" ? (
             <>
-              <Field label="EUR-Betrag" value={`${fmtAmount(receipt.amountEur)} EUR`} />
               <Field label="Wechselkurs" value={receipt.exchangeRate ? `1 EUR = ${Number(receipt.exchangeRate)} ${receipt.currency}` : "—"} />
               <Field label="Kursdatum" value={receipt.exchangeRateDate ? fmtDate(receipt.exchangeRateDate) : "—"} />
             </>
@@ -400,11 +400,11 @@ export default async function ReceiptDetailPage({ params }: Props) {
       ) : null}
 
       {/* KI-Rohtext */}
-      {receipt.ocrRawText ? (
+      {receipt.aiRawText ? (
         <Card>
           <h2 className="text-lg font-semibold tracking-tight">KI-Rohtext</h2>
           <pre className="mt-4 max-h-48 overflow-auto whitespace-pre-wrap rounded-xl bg-muted p-4 text-xs text-muted-foreground">
-            {receipt.ocrRawText}
+            {receipt.aiRawText}
           </pre>
         </Card>
       ) : null}

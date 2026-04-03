@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { receiptUpdateSchema } from "@/lib/validation";
 import { Prisma } from "@prisma/client";
+import { calculateAmountEur, fetchLatestExchangeRate } from "@/lib/exchange-rates";
 
 export async function GET(
   _request: NextRequest,
@@ -87,20 +88,40 @@ export async function PUT(
   if (input.purposeId !== undefined) data.purposeId = input.purposeId;
   if (input.categoryId !== undefined) data.categoryId = input.categoryId;
   if (input.remark !== undefined) data.remark = input.remark ?? null;
-  if (input.ocrRawText !== undefined) data.ocrRawText = input.ocrRawText ?? null;
-  if (input.detectedDocumentType !== undefined) data.detectedDocumentType = input.detectedDocumentType ?? null;
-  if (input.ocrStructuredData !== undefined) data.ocrStructuredData = input.ocrStructuredData === null ? Prisma.JsonNull : input.ocrStructuredData;
+  if (input.aiRawText !== undefined) data.aiRawText = input.aiRawText ?? null;
+  if (input.aiDocumentType !== undefined) data.aiDocumentType = input.aiDocumentType ?? null;
+  if (input.aiStructuredData !== undefined) data.aiStructuredData = input.aiStructuredData === null ? Prisma.JsonNull : input.aiStructuredData;
 
   const amount = input.amount ?? Number(existing.amount);
   const currency = input.currency ?? existing.currency;
-  const exchangeRate = input.exchangeRate !== undefined
+  let exchangeRate = input.exchangeRate !== undefined
     ? input.exchangeRate ?? null
     : existing.exchangeRate
       ? Number(existing.exchangeRate)
       : null;
+  let exchangeRateDate = input.exchangeRateDate !== undefined
+    ? input.exchangeRateDate ?? null
+    : existing.exchangeRateDate
+      ? existing.exchangeRateDate.toISOString().split("T")[0]
+      : null;
+
+  if (currency !== "EUR" && (!exchangeRate || exchangeRate <= 0)) {
+    try {
+      const latestRate = await fetchLatestExchangeRate(currency);
+      exchangeRate = latestRate.rate;
+      exchangeRateDate = latestRate.rateDate;
+      data.exchangeRate = exchangeRate;
+      data.exchangeRateDate = new Date(exchangeRateDate);
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Wechselkurs konnte nicht geladen werden." },
+        { status: 502 },
+      );
+    }
+  }
 
   if (currency !== "EUR" && exchangeRate && exchangeRate > 0) {
-    data.amountEur = Math.round((amount / exchangeRate) * 100) / 100;
+    data.amountEur = calculateAmountEur(amount, currency, exchangeRate);
   } else if (currency === "EUR") {
     data.amountEur = amount;
     data.exchangeRate = null;

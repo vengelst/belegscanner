@@ -65,6 +65,8 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
   const [dueDate, setDueDate] = useState("");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("EUR");
+  const [exchangeRate, setExchangeRate] = useState("");
+  const [exchangeRateDate, setExchangeRateDate] = useState("");
   const [supplier, setSupplier] = useState("");
   const [purposeId, setPurposeId] = useState(userDefaults.defaultPurposeId ?? "");
   const [categoryId, setCategoryId] = useState(userDefaults.defaultCategoryId ?? "");
@@ -76,6 +78,8 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
   const [hospitalityLocation, setHospitalityLocation] = useState("");
   const [prefillSource, setPrefillSource] = useState<PrefillSource>("none");
   const [error, setError] = useState<string | null>(null);
+  const [exchangeRateInfo, setExchangeRateInfo] = useState<string | null>(null);
+  const [exchangeRateLoading, setExchangeRateLoading] = useState(false);
   const [manualOverrides, setManualOverrides] = useState<Record<OcrFieldKey, boolean>>({
     date: false,
     dueDate: false,
@@ -94,6 +98,15 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
 
   const selectedPurpose = purposes.find((purpose) => purpose.id === purposeId);
   const isHospitality = selectedPurpose?.isHospitality ?? false;
+  const requiresExchangeRate = currency.trim().toUpperCase() !== "EUR";
+  const amountEurPreview = useMemo(() => {
+    const parsedAmount = parseLocalizedNumber(amount);
+    const parsedRate = parseLocalizedNumber(exchangeRate);
+    if (parsedAmount === null) return "";
+    if (!requiresExchangeRate) return formatLocalizedNumber(parsedAmount);
+    if (parsedRate === null || parsedRate <= 0) return "";
+    return formatLocalizedNumber(parsedAmount / parsedRate);
+  }, [amount, exchangeRate, requiresExchangeRate]);
   const suggestedCountry = useMemo(() => {
     const code = ocrResult?.extracted.countryCode?.toUpperCase();
     const name = ocrResult?.extracted.countryName?.toLowerCase();
@@ -193,6 +206,47 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
       setCurrency(suggestedCountry.currencyCode);
     }
   }, [currency, manualOverrides.currency, ocrResult?.extracted.currency, suggestedCountry]);
+
+  useEffect(() => {
+    if (!requiresExchangeRate) {
+      setExchangeRate("");
+      setExchangeRateDate("");
+      setExchangeRateInfo(null);
+      setExchangeRateLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setExchangeRateLoading(true);
+    setExchangeRateInfo(null);
+
+    fetch(`/api/exchange-rate?currency=${encodeURIComponent(currency.trim().toUpperCase())}`)
+      .then(async (response) => {
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+          const message = data && typeof data === "object" && "error" in data ? String(data.error) : "Wechselkurs konnte nicht geladen werden.";
+          throw new Error(message);
+        }
+        if (cancelled) return;
+        const nextRate = typeof data.rate === "number" ? data.rate : null;
+        const nextDate = typeof data.rateDate === "string" ? data.rateDate : "";
+        if (nextRate !== null) setExchangeRate(formatLocalizedNumber(nextRate, 4));
+        setExchangeRateDate(nextDate);
+        setExchangeRateInfo(`Aktueller Wechselkurs fuer ${currency.trim().toUpperCase()} automatisch geladen.`);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : "Wechselkurs konnte nicht geladen werden.";
+        setExchangeRateInfo(message);
+      })
+      .finally(() => {
+        if (!cancelled) setExchangeRateLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currency, requiresExchangeRate]);
 
   useEffect(() => {
     if (!ocrResult || !isHospitality || hospitalityLocationManual) return;
@@ -297,20 +351,20 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
       if (!response.ok) {
         const serverError = data && typeof data === "object" && "error" in data ? String(data.error) : null;
         const fallbackMessage = response.status === 504
-          ? "Die KI-Auslese dauerte zu lange. Bitte kleinere Bilder oder einfachere PDFs verwenden; manuelle Erfassung bleibt moeglich."
+          ? "Die KI-Auslese dauerte zu lange. Bitte kleinere Bilder oder einfachere PDFs verwenden und fehlende Angaben manuell ergaenzen."
           : `Die KI-Auslese konnte nicht ausgefuehrt werden (HTTP ${response.status}).`;
         throw new Error(serverError ?? fallbackMessage);
       }
 
       if (!data || typeof data !== "object" || !("rawText" in data)) {
-        throw new Error("Die KI-Auslese lieferte keine gueltige Antwort. Bitte Datei oder Serverprotokoll pruefen.");
+        throw new Error("Die KI-Auslese lieferte keine gueltige Antwort. Bitte Datei pruefen und fehlende Angaben manuell ergaenzen.");
       }
 
       setOcrResult(data as OcrResult);
     } catch (requestError: unknown) {
       const message = requestError instanceof Error
         ? requestError.message
-        : "Die KI-Auslese konnte nicht ausgefuehrt werden.";
+        : "Die KI-Auslese konnte nicht ausgefuehrt werden. Bitte fehlende Angaben manuell ergaenzen.";
       setError(message);
     } finally {
       setOcrRunning(false);
@@ -345,7 +399,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
 
       if (!receiptResponse.ok) {
         const data = await receiptResponse.json();
-        setError(data.error ?? "Fehler beim Speichern.");
+        setError(getApiErrorMessage(data, "Fehler beim Speichern."));
         return;
       }
 
@@ -391,25 +445,25 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     const amountValue = parseFloat((formData.get("amount") as string).replace(",", "."));
     const selectedCurrency = (formData.get("currency") as string) || "EUR";
 
-    let exchangeRate: number | null = null;
-    const exchangeRateValue = formData.get("exchangeRate") as string;
-    if (exchangeRateValue) exchangeRate = parseFloat(exchangeRateValue.replace(",", "."));
+    let parsedExchangeRate: number | null = null;
+    const exchangeRateValue = (formData.get("exchangeRate") as string) || exchangeRate;
+    if (exchangeRateValue) parsedExchangeRate = parseFloat(exchangeRateValue.replace(",", "."));
 
     const body: Record<string, unknown> = {
       date: formData.get("date"),
       supplier: formData.get("supplier") || null,
       amount: isNaN(amountValue) ? 0 : amountValue,
       currency: selectedCurrency,
-      exchangeRate,
-      exchangeRateDate: formData.get("exchangeRateDate") || null,
+      exchangeRate: parsedExchangeRate,
+      exchangeRateDate: formData.get("exchangeRateDate") || exchangeRateDate || null,
       countryId: formData.get("countryId") || null,
       vehicleId: formData.get("vehicleId") || null,
       purposeId: formData.get("purposeId"),
       categoryId: formData.get("categoryId"),
       remark: formData.get("remark") || null,
-      ocrRawText: ocrResult?.rawText ?? null,
-      detectedDocumentType: toReceiptDocumentType(ocrResult?.extracted.documentType),
-      ocrStructuredData: ocrResult ? buildStructuredData(ocrResult, buildFieldReviewStates({ result: ocrResult, manualOverrides, countryManuallyChanged, hospitalityLocationManual, selectedCountryId: String(formData.get("countryId") || ""), suggestedCountryId: suggestedCountry?.id ?? null, submitted: true }), { dueDate }) : null,
+      aiRawText: ocrResult?.rawText ?? null,
+      aiDocumentType: toReceiptDocumentType(ocrResult?.extracted.documentType),
+      aiStructuredData: ocrResult ? buildStructuredData(ocrResult, buildFieldReviewStates({ result: ocrResult, manualOverrides, countryManuallyChanged, hospitalityLocationManual, selectedCountryId: String(formData.get("countryId") || ""), suggestedCountryId: suggestedCountry?.id ?? null, submitted: true }), { dueDate }) : null,
     };
 
     if (isHospitality) {
@@ -554,7 +608,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
               }}
             />
             <Input
-              label="Betrag"
+              label="Kaufpreis Originalwaehrung"
               name="amount"
               type="text"
               inputMode="decimal"
@@ -579,6 +633,13 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
               }}
             />
             <Input
+              label="Kaufpreis in EUR"
+              name="amountEurPreview"
+              type="text"
+              value={amountEurPreview}
+              readOnly
+            />
+            <Input
               label="Lieferant / Haendler"
               name="supplier"
               placeholder="optional"
@@ -589,18 +650,33 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
               }}
             />
             <Input
-              label="Wechselkurs (optional)"
+              label={requiresExchangeRate ? "Wechselkurs *" : "Wechselkurs (optional)"}
               name="exchangeRate"
               type="text"
               inputMode="decimal"
               placeholder="1 EUR = ?"
+              required={requiresExchangeRate}
+              value={exchangeRate}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => setExchangeRate(event.target.value)}
             />
             <Input
-              label="Kursdatum (optional)"
+              label={requiresExchangeRate ? "Kursdatum *" : "Kursdatum (optional)"}
               name="exchangeRateDate"
               type="date"
+              required={requiresExchangeRate}
+              value={exchangeRateDate}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => setExchangeRateDate(event.target.value)}
             />
           </div>
+          {requiresExchangeRate ? (
+            <div className="mt-3 space-y-1 text-sm text-muted-foreground">
+              <p>
+                Fuer Fremdwaehrungsbelege wird der aktuelle Wechselkurs automatisch geladen und beim Speichern verwendet.
+              </p>
+              {exchangeRateLoading ? <p>Wechselkurs wird geladen...</p> : null}
+              {exchangeRateInfo ? <p>{exchangeRateInfo}</p> : null}
+            </div>
+          ) : null}
         </Card>
 
         <Card>
@@ -922,6 +998,33 @@ function getAnalysisHeadline(sourceType: OcrResult["sourceType"]): string {
     default:
       return "ChatGPT hat den Beleg analysiert und strukturierte Vorschlaege vorbelegt; manuelle Eingaben bleiben jederzeit moeglich";
   }
+}
+
+function getApiErrorMessage(data: unknown, fallback: string): string {
+  if (!data || typeof data !== "object") return fallback;
+
+  const error = "error" in data && typeof data.error === "string" ? data.error : fallback;
+  const details = "details" in data && data.details && typeof data.details === "object"
+    ? Object.values(data.details as Record<string, unknown>)
+        .flatMap((value) => Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [])
+    : [];
+
+  if (details.length === 0) return error;
+  return `${error} ${details.join(" ")}`.trim();
+}
+
+function parseLocalizedNumber(value: string): number | null {
+  const normalized = value.trim().replace(",", ".");
+  if (!normalized) return null;
+  const parsed = Number.parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatLocalizedNumber(value: number, maximumFractionDigits = 2): string {
+  return value.toLocaleString("de-DE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits,
+  });
 }
 
 function SelectField({
