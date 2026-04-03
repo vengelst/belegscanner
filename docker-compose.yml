@@ -50,13 +50,21 @@ services:
       - "3000:3000"
     volumes:
       - storage:/app/storage
+      - ./secrets:/app/secrets:ro
     environment:
       DATABASE_URL: "postgresql://belegbox:belegbox@db:5432/belegbox"
       AUTH_SECRET: "${AUTH_SECRET:-change-me-generate-with-openssl-rand-base64-48}"
       AUTH_URL: "http://localhost:3000"
       STORAGE_PATH: "/app/storage"
+      OCR_PROVIDER: "${OCR_PROVIDER:-paddle}"
       OCR_LANGUAGE: "german"
       OCR_SERVICE_URL: "http://ocr:8868"
+      GOOGLE_APPLICATION_CREDENTIALS: "${GOOGLE_APPLICATION_CREDENTIALS:-}"
+      GOOGLE_PROJECT_ID: "${GOOGLE_PROJECT_ID:-}"
+      GOOGLE_DOCUMENT_AI_LOCATION: "${GOOGLE_DOCUMENT_AI_LOCATION:-}"
+      GOOGLE_PROCESSOR_ID: "${GOOGLE_PROCESSOR_ID:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OPENAI_MODEL: "${OPENAI_MODEL:-}"
       SMTP_ENCRYPTION_KEY: "${SMTP_ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}"
       ADMIN_EMAIL: "${ADMIN_EMAIL:-admin@belegbox.local}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-admin1234}"

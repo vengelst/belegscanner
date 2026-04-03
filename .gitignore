@@ -2,12 +2,15 @@ node_modules
 .next
 dist
 coverage
+tsconfig.tsbuildinfo
 .env
 .env.local
 .env.production
 prisma/dev.db
 storage/*
 !storage/.gitkeep
+secrets/
+test-ocr/google-api
 *.log
 .dockerignore
 

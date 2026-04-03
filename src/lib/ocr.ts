@@ -147,6 +147,14 @@ export type OcrResult = {
     } | null;
   };
   message: string | null;
+  /** Structured warnings for UI display. Each entry identifies the field and competing values. */
+  warnings?: Array<{
+    field: string;
+    type: "mismatch" | "plausibility" | "info";
+    message: string;
+    openaiValue?: string | number | null;
+    localValue?: string | number | null;
+  }>;
 };
 
 type FieldResult<T> = { value: T | null; confidence: OcrConfidenceLevel };
@@ -308,7 +316,48 @@ const LINE_ITEM_SKIP = /(?:summe|gesamt|subtotal|zwischensumme|trinkgeld|tip|kar
 
 export async function analyzeDocument(buffer: Buffer, mimeType: string): Promise<OcrResult> {
   const startedAt = Date.now();
+  const { env } = await import("@/lib/env");
 
+  // --- OpenAI provider ---
+  if (env.OCR_PROVIDER === "openai") {
+    try {
+      const { analyzeWithOpenAI, isTransientError } = await import("@/lib/openai-document-ai");
+      return await measureStep("analyzeDocument.openai", { mimeType, sizeBytes: buffer.length }, () =>
+        analyzeWithOpenAI(buffer, mimeType),
+      );
+    } catch (err) {
+      const { isTransientError } = await import("@/lib/openai-document-ai");
+      if (isTransientError(err)) {
+        console.warn("OpenAI transient error, falling back to PaddleOCR:", toLoggableError(err));
+        // Fall through to PaddleOCR below
+      } else {
+        console.error("OpenAI failed (non-transient):", toLoggableError(err));
+        throw err;
+      }
+    }
+  }
+
+  // --- Google Document AI provider ---
+  if (env.OCR_PROVIDER === "google") {
+    try {
+      const { analyzeWithGoogle, isTransientError } = await import("@/lib/google-document-ai");
+      return await measureStep("analyzeDocument.google", { mimeType, sizeBytes: buffer.length }, () =>
+        analyzeWithGoogle(buffer, mimeType),
+      );
+    } catch (err) {
+      const { isTransientError } = await import("@/lib/google-document-ai");
+      if (isTransientError(err)) {
+        console.warn("Google Document AI transient error, falling back to PaddleOCR:", toLoggableError(err));
+        // Fall through to PaddleOCR below
+      } else {
+        // Config/auth/permanent error — do NOT fall back or hide the failure.
+        console.error("Google Document AI failed (non-transient):", toLoggableError(err));
+        throw err;
+      }
+    }
+  }
+
+  // --- PaddleOCR provider (default + fallback) ---
   if (mimeType === "application/pdf") {
     return measureStep("analyzeDocument.pdf", { mimeType, sizeBytes: buffer.length }, () => analyzePdf(buffer));
   }
@@ -524,6 +573,25 @@ async function recognizeImageText(buffer: Buffer): Promise<{ rawText: string; co
 //   return Buffer.from(resized);
 // }
 
+/**
+ * Extract raw text from a PDF buffer using pdf-parse (no OCR).
+ * Returns the extracted text or empty string if extraction fails.
+ * Exported for use by external providers (OpenAI, Google) as local fallback text.
+ */
+export async function extractPdfText(buffer: Buffer): Promise<string> {
+  let parser: { destroy(): Promise<void>; getText(o: { pageJoiner: string; lineEnforce: boolean }): Promise<{ text: string }> } | null = null;
+  try {
+    const { PDFParse } = await import("pdf-parse");
+    parser = new PDFParse({ data: new Uint8Array(buffer) });
+    const result = await parser.getText({ pageJoiner: "\n\n", lineEnforce: true });
+    return normalizeText(result.text);
+  } catch {
+    return "";
+  } finally {
+    await parser?.destroy().catch(() => undefined);
+  }
+}
+
 async function measureStep(step: string, meta: Record<string, unknown>, fn: () => Promise<any>) {
   const startedAt = Date.now();
   try {
@@ -619,7 +687,7 @@ function toLoggableError(error: unknown) {
   };
 }
 
-function buildResult(rawText: string, confidence: number, sourceType: OcrSourceType): OcrResult {
+export function buildResult(rawText: string, confidence: number, sourceType: OcrSourceType): OcrResult {
   const parsed = parseReceiptText(rawText, sourceType);
 
   return {
