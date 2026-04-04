@@ -311,6 +311,8 @@ export function ReportingDashboard() {
               onChange={handleDayChange}
               options={visibleDayRows.map((row) => ({ value: row.day, label: fmtDay(row.day) }))}
               summary={selectedDaySummary}
+              rows={visibleDayRows.map((row) => ({ key: row.day, label: fmtDay(row.day), count: row.count, sumEur: row.sumEur }))}
+              listTitle={activePeriod === "month" ? "Tage im gewaehlten Monat" : "Tage in der gewaehlten Woche"}
             />
             <PeriodSelectorCard
               title="Nach Woche"
@@ -319,6 +321,8 @@ export function ReportingDashboard() {
               onChange={handleWeekChange}
               options={monthWeekRows.map((row) => ({ value: row.weekStart, label: row.weekLabel }))}
               summary={selectedWeekSummary}
+              rows={monthWeekRows.map((row) => ({ key: row.weekStart, label: row.weekLabel, count: row.count, sumEur: row.sumEur }))}
+              listTitle="Wochen im gewaehlten Monat"
             />
             <PeriodSelectorCard
               title="Nach Monat"
@@ -450,6 +454,8 @@ function PeriodSelectorCard({
   onChange,
   options,
   summary,
+  rows,
+  listTitle,
 }: {
   title: string;
   label: string;
@@ -457,6 +463,8 @@ function PeriodSelectorCard({
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
   summary: { count: number; sumEur: number } | null;
+  rows?: { key: string; label: string; count: number; sumEur: number }[];
+  listTitle?: string;
 }) {
   return (
     <Card className="space-y-4 p-4">
@@ -492,6 +500,31 @@ function PeriodSelectorCard({
       ) : (
         <p className="text-sm text-muted-foreground">Keine Daten fuer diese Auswahl.</p>
       )}
+      {rows && rows.length > 0 ? (
+        <div className="overflow-hidden rounded-2xl border border-border/80">
+          <div className="border-b border-border bg-muted/20 px-4 py-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{listTitle ?? "Eintraege"}</h4>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border/70 text-left text-muted-foreground">
+                <th className="px-4 py-2 font-medium">{label}</th>
+                <th className="px-4 py-2 text-right font-medium">Anzahl</th>
+                <th className="px-4 py-2 text-right font-medium">Summe EUR</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.key} className={row.key === value ? "bg-primary/5" : undefined}>
+                  <td className="px-4 py-2">{row.label}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{row.count}</td>
+                  <td className="px-4 py-2 text-right tabular-nums">{fmtEur(row.sumEur)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </Card>
   );
 }
