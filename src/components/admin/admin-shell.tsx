@@ -8,7 +8,7 @@ type NavGroup = {
 
 const navGroups: NavGroup[] = [
   {
-    title: "Verwaltung",
+    title: "Allgemein",
     links: [
       { href: "/admin/dashboard", label: "Dashboard" },
       { href: "/admin/users", label: "Benutzer" },
