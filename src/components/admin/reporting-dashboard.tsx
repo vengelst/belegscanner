@@ -29,8 +29,6 @@ type SummaryData = {
   };
 };
 
-type PeriodMode = "day" | "week" | "month";
-
 const STATUS_LABELS: Record<string, string> = {
   OPEN: "Offen", READY: "Bereit", SENT: "Gesendet", FAILED: "Fehlgeschlagen", RETRY: "Erneut",
 };
@@ -60,7 +58,9 @@ export function ReportingDashboard() {
   const [dateTo, setDateTo] = useState("");
   const [data, setData] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [periodMode, setPeriodMode] = useState<PeriodMode>("month");
+  const [selectedDay, setSelectedDay] = useState("");
+  const [selectedWeek, setSelectedWeek] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,14 +73,18 @@ export function ReportingDashboard() {
   }, [dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
-
-  const periodRows = data
-    ? periodMode === "day"
-      ? data.byDay.map((d) => ({ key: d.day, label: fmtDay(d.day), count: d.count, sumEur: d.sumEur }))
-      : periodMode === "week"
-        ? data.byWeek.map((w) => ({ key: w.weekStart, label: w.weekLabel, count: w.count, sumEur: w.sumEur }))
-        : data.byMonth.map((m) => ({ key: m.month, label: fmtMonth(m.month), count: m.count, sumEur: m.sumEur }))
-    : [];
+  useEffect(() => {
+    if (!data) return;
+    if (data.byDay.length > 0 && !data.byDay.some((row) => row.day === selectedDay)) {
+      setSelectedDay(data.byDay[data.byDay.length - 1]?.day ?? "");
+    }
+    if (data.byWeek.length > 0 && !data.byWeek.some((row) => row.weekStart === selectedWeek)) {
+      setSelectedWeek(data.byWeek[data.byWeek.length - 1]?.weekStart ?? "");
+    }
+    if (data.byMonth.length > 0 && !data.byMonth.some((row) => row.month === selectedMonth)) {
+      setSelectedMonth(data.byMonth[data.byMonth.length - 1]?.month ?? "");
+    }
+  }, [data, selectedDay, selectedMonth, selectedWeek]);
 
   return (
     <div className="space-y-8">
@@ -154,24 +158,32 @@ export function ReportingDashboard() {
             </Card>
           )}
 
-          <Card className="space-y-4 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold">Zeit-Auswertung</h3>
-                <p className="text-xs text-muted-foreground">Summiert nach der gewaelten Periode.</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <PeriodModeButton active={periodMode === "day"} onClick={() => setPeriodMode("day")} label="Tag" />
-                <PeriodModeButton active={periodMode === "week"} onClick={() => setPeriodMode("week")} label="Woche" />
-                <PeriodModeButton active={periodMode === "month"} onClick={() => setPeriodMode("month")} label="Monat" />
-              </div>
-            </div>
-            <PeriodTable
-              title={periodMode === "day" ? "Nach Tag" : periodMode === "week" ? "Nach Woche" : "Nach Monat"}
-              label={periodMode === "day" ? "Tag" : periodMode === "week" ? "Woche" : "Monat"}
-              rows={periodRows}
+          <div className="grid gap-6 xl:grid-cols-3">
+            <PeriodSelectorCard
+              title="Nach Tag"
+              label="Tag"
+              value={selectedDay}
+              onChange={setSelectedDay}
+              options={data.byDay.map((row) => ({ value: row.day, label: fmtDay(row.day) }))}
+              summary={data.byDay.find((row) => row.day === selectedDay) ?? null}
             />
-          </Card>
+            <PeriodSelectorCard
+              title="Nach Woche"
+              label="Woche"
+              value={selectedWeek}
+              onChange={setSelectedWeek}
+              options={data.byWeek.map((row) => ({ value: row.weekStart, label: row.weekLabel }))}
+              summary={data.byWeek.find((row) => row.weekStart === selectedWeek) ?? null}
+            />
+            <PeriodSelectorCard
+              title="Nach Monat"
+              label="Monat"
+              value={selectedMonth}
+              onChange={setSelectedMonth}
+              options={data.byMonth.map((row) => ({ value: row.month, label: fmtMonth(row.month) }))}
+              summary={data.byMonth.find((row) => row.month === selectedMonth) ?? null}
+            />
+          </div>
 
           {/* Status tables */}
           <div className="grid gap-6 lg:grid-cols-2">
@@ -241,77 +253,56 @@ function GroupTable({ title, rows, showSum }: { title: string; rows: { name: str
   );
 }
 
-function PeriodTable({
+function PeriodSelectorCard({
   title,
   label,
-  rows,
+  value,
+  onChange,
+  options,
+  summary,
 }: {
   title: string;
   label: string;
-  rows: { key: string; label: string; count: number; sumEur: number }[];
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  summary: { count: number; sumEur: number } | null;
 }) {
-  const totalCount = rows.reduce((sum, row) => sum + row.count, 0);
-  const totalSumEur = rows.reduce((sum, row) => sum + row.sumEur, 0);
-
   return (
-    <Card className="overflow-hidden p-0">
-      <div className="border-b border-border px-4 py-3">
+    <Card className="space-y-4 p-4">
+      <div className="space-y-3">
         <h3 className="text-sm font-semibold">{title}</h3>
+        <label className="grid gap-1 text-sm font-medium">
+          <span className="text-xs text-muted-foreground">{label} waehlen</span>
+          <select
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            className="h-10 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+          >
+            {options.length === 0 ? <option value="">Keine Daten</option> : null}
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border text-left text-muted-foreground">
-            <th className="px-4 py-2 font-medium">{label}</th>
-            <th className="px-4 py-2 font-medium text-right">Anzahl</th>
-            <th className="px-4 py-2 font-medium text-right">Summe EUR</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <tr><td colSpan={3} className="px-4 py-3 text-muted-foreground">Keine Daten</td></tr>
-          ) : rows.map((row) => (
-            <tr key={row.key} className="border-b border-border/50">
-              <td className="px-4 py-2">{row.label}</td>
-              <td className="px-4 py-2 text-right tabular-nums">{row.count}</td>
-              <td className="px-4 py-2 text-right tabular-nums">{fmtEur(row.sumEur)}</td>
-            </tr>
-          ))}
-        </tbody>
-        {rows.length > 0 ? (
-          <tfoot>
-            <tr className="border-t-2 border-border bg-muted/20 font-semibold">
-              <td className="px-4 py-2">Gesamtsumme</td>
-              <td className="px-4 py-2 text-right tabular-nums">{totalCount}</td>
-              <td className="px-4 py-2 text-right tabular-nums">{fmtEur(totalSumEur)}</td>
-            </tr>
-          </tfoot>
-        ) : null}
-      </table>
+      {summary ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-2xl border border-border bg-muted/20 p-4">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Anzahl</p>
+            <p className="mt-2 text-2xl font-semibold tabular-nums">{summary.count}</p>
+          </div>
+          <div className="rounded-2xl border border-border bg-muted/20 p-4">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Gesamtsumme</p>
+            <p className="mt-2 text-2xl font-semibold tabular-nums">{fmtEur(summary.sumEur)}</p>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">Keine Daten fuer diese Auswahl.</p>
+      )}
     </Card>
-  );
-}
-
-function PeriodModeButton({
-  active,
-  onClick,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-xl border px-3 py-1.5 text-sm font-medium transition ${
-        active
-          ? "border-primary/40 bg-primary/10 text-primary"
-          : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-primary"
-      }`}
-    >
-      {label}
-    </button>
   );
 }
 
