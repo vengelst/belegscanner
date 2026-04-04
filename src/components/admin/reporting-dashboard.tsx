@@ -120,7 +120,7 @@ export function ReportingDashboard() {
     () => (selectedWeek ? dayRows.filter((row) => row.weekStart === selectedWeek) : []),
     [dayRows, selectedWeek],
   );
-  const visibleDayRows = activePeriod === "month" ? monthDayRows : weekDayRows;
+  const visibleDayRows = selectedMonth ? monthDayRows : weekDayRows;
 
   const selectedDaySummary = dayRows.find((row) => row.day === selectedDay) ?? null;
   const selectedWeekSummary = weekRows.find((row) => row.weekStart === selectedWeek) ?? null;
@@ -307,7 +307,7 @@ export function ReportingDashboard() {
               options={visibleDayRows.map((row) => ({ value: row.day, label: fmtDay(row.day) }))}
               summary={selectedDaySummary}
               rows={visibleDayRows.map((row) => ({ key: row.day, label: fmtDay(row.day), count: row.count, sumEur: row.sumEur }))}
-              listTitle={activePeriod === "month" ? "Tage im gewaehlten Monat" : "Tage in der gewaehlten Woche"}
+              listTitle={selectedMonth ? "Tage im gewaehlten Monat" : "Tage in der gewaehlten Woche"}
             />
             <PeriodSelectorCard
               title="Nach Woche"
