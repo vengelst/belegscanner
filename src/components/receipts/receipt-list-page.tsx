@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { ReceiptFilterBar } from "@/components/receipts/receipt-filter-bar";
@@ -52,6 +52,8 @@ type Filters = {
   userId: string;
   dateFrom: string;
   dateTo: string;
+  sortBy: string;
+  sortDir: string;
 };
 
 type FilterOptions = {
@@ -90,6 +92,73 @@ const STATUS_LABELS: Record<string, string> = {
   RETRY: "erneut",
 };
 
+type ColumnKey =
+  | "date"
+  | "supplier"
+  | "amount"
+  | "purpose"
+  | "category"
+  | "country"
+  | "user"
+  | "reviewStatus"
+  | "sendStatus"
+  | "sentAt";
+
+const DEFAULT_VISIBLE_COLUMNS: ColumnKey[] = [
+  "date",
+  "supplier",
+  "amount",
+  "purpose",
+  "category",
+  "country",
+  "user",
+  "reviewStatus",
+  "sendStatus",
+  "sentAt",
+];
+
+const COLUMN_OPTIONS: { key: ColumnKey; label: string }[] = [
+  { key: "date", label: "Datum" },
+  { key: "supplier", label: "Lieferant" },
+  { key: "amount", label: "Betrag" },
+  { key: "purpose", label: "Zweck" },
+  { key: "category", label: "Kategorie" },
+  { key: "country", label: "Land" },
+  { key: "user", label: "Benutzer" },
+  { key: "reviewStatus", label: "Pruefung" },
+  { key: "sendStatus", label: "Versand" },
+  { key: "sentAt", label: "Gesendet" },
+];
+
+const SORT_OPTIONS = [
+  { value: "date", label: "Datum" },
+  { value: "supplier", label: "Lieferant" },
+  { value: "amount", label: "Betrag" },
+  { value: "amountEur", label: "Betrag EUR" },
+  { value: "purpose", label: "Zweck" },
+  { value: "category", label: "Kategorie" },
+  { value: "country", label: "Land" },
+  { value: "user", label: "Benutzer" },
+  { value: "reviewStatus", label: "Pruefung" },
+  { value: "sendStatus", label: "Versand" },
+  { value: "createdAt", label: "Erfasst am" },
+];
+
+const COLUMN_STORAGE_KEY = "receipt-list-visible-columns";
+
+const COLUMN_SORT_MAP: Partial<Record<ColumnKey, string>> = {
+  date: "date",
+  supplier: "supplier",
+  amount: "amount",
+  purpose: "purpose",
+  category: "category",
+  country: "country",
+  user: "user",
+  reviewStatus: "reviewStatus",
+  sendStatus: "sendStatus",
+  sentAt: "date",
+};
+
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
@@ -110,6 +179,8 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
   const router = useRouter();
   const searchParams = useSearchParams();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(DEFAULT_VISIBLE_COLUMNS);
+  const [columnMenuOpen, setColumnMenuOpen] = useState(false);
 
   const setParams = useCallback((updates: Record<string, string>) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -128,6 +199,46 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
   }, [router, searchParams]);
 
   const hasActiveFilters = !!(filters.search || filters.sendStatus || filters.reviewStatus || filters.purposeId || filters.categoryId || filters.countryId || filters.vehicleId || filters.userId || filters.dateFrom || filters.dateTo);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(COLUMN_STORAGE_KEY);
+    if (!saved) return;
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        const next = parsed.filter((value): value is ColumnKey => COLUMN_OPTIONS.some((column) => column.key === value));
+        if (next.length > 0) {
+          setVisibleColumns(next);
+        }
+      }
+    } catch {
+      // Ignore invalid saved preferences.
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem(COLUMN_STORAGE_KEY, JSON.stringify(visibleColumns));
+  }, [visibleColumns]);
+
+  const toggleColumn = useCallback((columnKey: ColumnKey) => {
+    setVisibleColumns((current) => {
+      if (current.includes(columnKey)) {
+        return current.length > 1 ? current.filter((key) => key !== columnKey) : current;
+      }
+      return [...current, columnKey];
+    });
+  }, []);
+
+  const resetColumns = useCallback(() => {
+    setVisibleColumns(DEFAULT_VISIBLE_COLUMNS);
+  }, []);
+
+  const isColumnVisible = useCallback((columnKey: ColumnKey) => visibleColumns.includes(columnKey), [visibleColumns]);
+
+  const handleSortClick = useCallback((sortBy: string) => {
+    const nextDir = filters.sortBy === sortBy && filters.sortDir === "asc" ? "desc" : "asc";
+    setParams({ sortBy, sortDir: nextDir });
+  }, [filters.sortBy, filters.sortDir, setParams]);
 
   const handleDelete = useCallback(async (receiptId: string) => {
     const confirmed = window.confirm("Diesen Beleg wirklich loeschen?");
@@ -149,43 +260,95 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
   }, [router]);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="space-y-1">
-          <p className="text-sm font-medium uppercase tracking-[0.24em] text-muted-foreground">
-            Belegliste
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight">Belege verwalten</h1>
-          <p className="text-sm text-muted-foreground">
-            {pagination.total} {pagination.total === 1 ? "Beleg" : "Belege"}
-            {hasActiveFilters ? " (gefiltert)" : ""}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {isAdmin ? (
-            <a
-              href={`/api/receipts/export?${searchParams.toString()}`}
-              className="rounded-2xl border border-border bg-card px-4 py-3 text-sm font-semibold transition hover:border-primary/40 hover:text-primary"
-            >
-              CSV-Export
-            </a>
-          ) : null}
-          <Link
-            href="/receipts/new"
-            className="rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
-          >
-            Neuer Beleg
-          </Link>
-        </div>
-      </div>
-
+    <div className="space-y-4">
       {/* Filters */}
       <ReceiptFilterBar
         filters={filters}
         filterOptions={filterOptions}
         isAdmin={isAdmin}
         onFilterChange={setParams}
+        eyebrow="Belegliste"
+        title="Belege verwalten"
+        subtitle={`${pagination.total} ${pagination.total === 1 ? "Beleg" : "Belege"}${hasActiveFilters ? " (gefiltert)" : ""}`}
+        exportHref={`/api/receipts/export?${searchParams.toString()}`}
+        footerContent={(
+          <>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>Sortieren</span>
+              <select
+                value={filters.sortBy}
+                onChange={(e) => setParams({ sortBy: e.target.value })}
+                className="h-9 rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>Richtung</span>
+              <select
+                value={filters.sortDir}
+                onChange={(e) => setParams({ sortDir: e.target.value })}
+                className="h-9 rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+              >
+                <option value="desc">absteigend</option>
+                <option value="asc">aufsteigend</option>
+              </select>
+            </label>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setColumnMenuOpen((current) => !current)}
+                className={`flex h-9 items-center rounded-xl border px-3 text-sm font-medium transition ${
+                  columnMenuOpen
+                    ? "border-primary/40 bg-primary/5 text-primary"
+                    : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-primary"
+                }`}
+              >
+                Spalten
+              </button>
+              {columnMenuOpen ? (
+                <div className="absolute right-0 z-10 mt-2 w-64 rounded-2xl border border-border bg-popover p-3 shadow-soft">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-foreground">Spalten anzeigen</p>
+                    <button
+                      type="button"
+                      onClick={resetColumns}
+                      className="text-xs font-medium text-muted-foreground transition hover:text-primary"
+                    >
+                      Standard
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {COLUMN_OPTIONS.map((column) => (
+                      <label key={column.key} className="flex items-center gap-2 rounded-xl px-1 py-1 text-sm text-foreground hover:bg-muted/50">
+                        <input
+                          type="checkbox"
+                          checked={isColumnVisible(column.key)}
+                          onChange={() => toggleColumn(column.key)}
+                          className="h-4 w-4 rounded border-border"
+                        />
+                        <span>{column.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setColumnMenuOpen(false)}
+                      className="rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:border-primary/40 hover:text-primary"
+                    >
+                      Schliessen
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </>
+        )}
       />
 
       {/* Results */}
@@ -273,50 +436,62 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-muted-foreground">
-                  <th className="px-4 py-3 font-medium">Datum</th>
-                  <th className="px-4 py-3 font-medium">Lieferant</th>
-                  <th className="px-4 py-3 font-medium">Betrag</th>
-                  <th className="px-4 py-3 font-medium">Zweck</th>
-                  <th className="px-4 py-3 font-medium">Kategorie</th>
-                  <th className="px-4 py-3 font-medium">Land</th>
-                  <th className="px-4 py-3 font-medium">Benutzer</th>
-                  <th className="px-4 py-3 font-medium">Pruefung</th>
-                  <th className="px-4 py-3 font-medium">Versand</th>
-                  <th className="px-4 py-3 font-medium">Gesendet</th>
+                  {isColumnVisible("date") ? <SortableHeader label="Datum" columnKey="date" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
+                  {isColumnVisible("supplier") ? <SortableHeader label="Lieferant" columnKey="supplier" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
+                  {isColumnVisible("amount") ? <SortableHeader label="Betrag" columnKey="amount" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
+                  {isColumnVisible("purpose") ? <SortableHeader label="Zweck" columnKey="purpose" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
+                  {isColumnVisible("category") ? <SortableHeader label="Kategorie" columnKey="category" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
+                  {isColumnVisible("country") ? <SortableHeader label="Land" columnKey="country" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
+                  {isColumnVisible("user") ? <SortableHeader label="Benutzer" columnKey="user" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
+                  {isColumnVisible("reviewStatus") ? <SortableHeader label="Pruefung" columnKey="reviewStatus" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
+                  {isColumnVisible("sendStatus") ? <SortableHeader label="Versand" columnKey="sendStatus" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
+                  {isColumnVisible("sentAt") ? <SortableHeader label="Gesendet" columnKey="sentAt" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
                   <th className="px-4 py-3 font-medium">Aktionen</th>
                 </tr>
               </thead>
               <tbody>
                 {receipts.map((r) => (
                   <tr key={r.id} className="border-b border-border/50 transition hover:bg-muted/30">
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <Link href={`/receipts/${r.id}`} className="hover:text-primary hover:underline">
-                        {fmtDate(r.date)}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 max-w-[160px] truncate">
-                      {r.supplier ?? "—"}
-                      {r.hasHospitality ? <span className="ml-1 rounded bg-accent/20 px-1 py-0.5 text-[10px] font-semibold text-accent-foreground">B</span> : null}
-                    </td>
-                    <td className="px-4 py-3 tabular-nums whitespace-nowrap">
-                      {fmtAmount(r.amount)} {r.currency}
-                      {r.currency !== "EUR" ? (
-                        <span className="ml-1 text-xs text-muted-foreground">({fmtAmount(r.amountEur)} EUR)</span>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3">{r.purposeName}</td>
-                    <td className="px-4 py-3">{r.categoryName}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{r.countryName ?? "—"}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{r.userName}</td>
-                    <td className="px-4 py-3">
-                      <ReviewBadge status={r.reviewStatus} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={r.sendStatus} />
-                    </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
-                      {r.sendStatus === "SENT" && r.sendStatusUpdatedAt ? fmtDateTime(r.sendStatusUpdatedAt) : "—"}
-                    </td>
+                    {isColumnVisible("date") ? (
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <Link href={`/receipts/${r.id}`} className="hover:text-primary hover:underline">
+                          {fmtDate(r.date)}
+                        </Link>
+                      </td>
+                    ) : null}
+                    {isColumnVisible("supplier") ? (
+                      <td className="max-w-[160px] px-4 py-3 truncate">
+                        {r.supplier ?? "—"}
+                        {r.hasHospitality ? <span className="ml-1 rounded bg-accent/20 px-1 py-0.5 text-[10px] font-semibold text-accent-foreground">B</span> : null}
+                      </td>
+                    ) : null}
+                    {isColumnVisible("amount") ? (
+                      <td className="px-4 py-3 tabular-nums whitespace-nowrap">
+                        {fmtAmount(r.amount)} {r.currency}
+                        {r.currency !== "EUR" ? (
+                          <span className="ml-1 text-xs text-muted-foreground">({fmtAmount(r.amountEur)} EUR)</span>
+                        ) : null}
+                      </td>
+                    ) : null}
+                    {isColumnVisible("purpose") ? <td className="px-4 py-3">{r.purposeName}</td> : null}
+                    {isColumnVisible("category") ? <td className="px-4 py-3">{r.categoryName}</td> : null}
+                    {isColumnVisible("country") ? <td className="px-4 py-3 text-muted-foreground">{r.countryName ?? "—"}</td> : null}
+                    {isColumnVisible("user") ? <td className="px-4 py-3 text-muted-foreground">{r.userName}</td> : null}
+                    {isColumnVisible("reviewStatus") ? (
+                      <td className="px-4 py-3">
+                        <ReviewBadge status={r.reviewStatus} />
+                      </td>
+                    ) : null}
+                    {isColumnVisible("sendStatus") ? (
+                      <td className="px-4 py-3">
+                        <StatusBadge status={r.sendStatus} />
+                      </td>
+                    ) : null}
+                    {isColumnVisible("sentAt") ? (
+                      <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                        {r.sendStatus === "SENT" && r.sendStatusUpdatedAt ? fmtDateTime(r.sendStatusUpdatedAt) : "—"}
+                      </td>
+                    ) : null}
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2">
                         <ActionLink href={`/receipts/${r.id}`} title="Oeffnen">👁</ActionLink>
@@ -442,5 +617,40 @@ function PaginationButton({ disabled, onClick, label }: { disabled: boolean; onC
     >
       {label}
     </button>
+  );
+}
+
+function SortableHeader({
+  label,
+  columnKey,
+  activeSortBy,
+  activeSortDir,
+  onClick,
+}: {
+  label: string;
+  columnKey: ColumnKey;
+  activeSortBy: string;
+  activeSortDir: string;
+  onClick: (sortBy: string) => void;
+}) {
+  const mappedSortBy = COLUMN_SORT_MAP[columnKey];
+  const active = mappedSortBy === activeSortBy;
+  const directionIcon = active ? (activeSortDir === "asc" ? "▲" : "▼") : "↕";
+
+  if (!mappedSortBy) {
+    return <th className="px-4 py-3 font-medium">{label}</th>;
+  }
+
+  return (
+    <th className="px-4 py-3 font-medium">
+      <button
+        type="button"
+        onClick={() => onClick(mappedSortBy)}
+        className={`inline-flex items-center gap-1 transition hover:text-foreground ${active ? "text-foreground" : ""}`}
+      >
+        <span>{label}</span>
+        <span className="text-[10px]">{directionIcon}</span>
+      </button>
+    </th>
   );
 }

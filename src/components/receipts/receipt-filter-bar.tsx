@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { REVIEW_STATUS_OPTIONS } from "@/lib/receipts/review-status";
 
@@ -15,6 +15,8 @@ type Filters = {
   userId: string;
   dateFrom: string;
   dateTo: string;
+  sortBy: string;
+  sortDir: string;
 };
 
 type FilterOptions = {
@@ -30,6 +32,11 @@ type Props = {
   filterOptions: FilterOptions;
   isAdmin: boolean;
   onFilterChange: (updates: Record<string, string>) => void;
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  exportHref?: string;
+  footerContent?: ReactNode;
 };
 
 const SEND_STATUSES = [
@@ -40,7 +47,17 @@ const SEND_STATUSES = [
   { value: "RETRY", label: "erneut senden" },
 ];
 
-export function ReceiptFilterBar({ filters, filterOptions, isAdmin, onFilterChange }: Props) {
+export function ReceiptFilterBar({
+  filters,
+  filterOptions,
+  isAdmin,
+  onFilterChange,
+  eyebrow,
+  title,
+  subtitle,
+  exportHref,
+  footerContent,
+}: Props) {
   const [expanded, setExpanded] = useState(false);
   const [searchValue, setSearchValue] = useState(filters.search);
 
@@ -69,6 +86,12 @@ export function ReceiptFilterBar({ filters, filterOptions, isAdmin, onFilterChan
 
   return (
     <Card className="space-y-4 p-4">
+      <div className="space-y-1">
+        <p className="text-sm font-medium uppercase tracking-[0.24em] text-muted-foreground">{eyebrow}</p>
+        <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
+        <p className="text-sm text-muted-foreground">{subtitle}</p>
+      </div>
+
       {/* Search + expand toggle */}
       <div className="flex gap-2">
         <form onSubmit={handleSearchSubmit} className="flex flex-1 gap-2">
@@ -97,6 +120,26 @@ export function ReceiptFilterBar({ filters, filterOptions, isAdmin, onFilterChan
         >
           Filter{hasFilters ? " aktiv" : ""}
         </button>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {isAdmin && exportHref ? (
+            <a
+              href={exportHref}
+              className="rounded-2xl border border-border bg-card px-4 py-2 text-sm font-semibold transition hover:border-primary/40 hover:text-primary"
+            >
+              Export
+            </a>
+          ) : null}
+          <a
+            href="/receipts/new"
+            className="rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+          >
+            Neuer Beleg
+          </a>
+        </div>
+        {footerContent ? <div className="flex flex-wrap items-center gap-2">{footerContent}</div> : null}
       </div>
 
       {/* Status quick-filter chips */}

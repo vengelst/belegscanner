@@ -30,6 +30,8 @@ export default async function ReceiptsPage({ searchParams }: Props) {
   const dateFrom = typeof sp.dateFrom === "string" ? sp.dateFrom : "";
   const dateTo = typeof sp.dateTo === "string" ? sp.dateTo : "";
   const reviewStatus = typeof sp.reviewStatus === "string" ? sp.reviewStatus : "";
+  const sortBy = typeof sp.sortBy === "string" ? sp.sortBy : "date";
+  const sortDir = sp.sortDir === "asc" ? "asc" : "desc";
 
   // Build where clause
   const where: Prisma.ReceiptWhereInput = {};
@@ -69,6 +71,19 @@ export default async function ReceiptsPage({ searchParams }: Props) {
     if (dateTo) where.date.lte = new Date(dateTo);
   }
 
+  const orderBy: Prisma.ReceiptOrderByWithRelationInput =
+    sortBy === "supplier" ? { supplier: sortDir }
+      : sortBy === "amount" ? { amount: sortDir }
+      : sortBy === "amountEur" ? { amountEur: sortDir }
+      : sortBy === "purpose" ? { purpose: { name: sortDir } }
+      : sortBy === "category" ? { category: { name: sortDir } }
+      : sortBy === "country" ? { country: { name: sortDir } }
+      : sortBy === "user" ? { user: { name: sortDir } }
+      : sortBy === "reviewStatus" ? { reviewStatus: sortDir }
+      : sortBy === "sendStatus" ? { sendStatus: sortDir }
+      : sortBy === "createdAt" ? { createdAt: sortDir }
+      : { date: sortDir };
+
   // Load data
   const [receipts, total, purposes, categories, countries, vehicles, users] = await Promise.all([
     prisma.receipt.findMany({
@@ -82,7 +97,7 @@ export default async function ReceiptsPage({ searchParams }: Props) {
         hospitality: { select: { id: true } },
         files: { where: { type: "ORIGINAL" }, select: { id: true, mimeType: true }, take: 1 },
       },
-      orderBy: { date: "desc" },
+      orderBy,
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
@@ -121,7 +136,7 @@ export default async function ReceiptsPage({ searchParams }: Props) {
     <ReceiptListPage
       receipts={mapped}
       pagination={{ page, pageSize, total, totalPages: Math.ceil(total / pageSize) }}
-      filters={{ search, sendStatus, reviewStatus, purposeId, categoryId, countryId, vehicleId, userId, dateFrom, dateTo }}
+      filters={{ search, sendStatus, reviewStatus, purposeId, categoryId, countryId, vehicleId, userId, dateFrom, dateTo, sortBy, sortDir }}
       filterOptions={{
         purposes: purposes,
         categories: categories,
