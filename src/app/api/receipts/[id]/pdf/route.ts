@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { readFile } from "@/lib/storage";
-import { generateReceiptPdf } from "@/lib/pdf";
+import { appendReceiptMetadataToPdf, generateReceiptPdf } from "@/lib/pdf";
 import type { PdfReceiptData } from "@/lib/pdf";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -45,23 +45,24 @@ export async function GET(
     return NextResponse.json({ error: "Kein Zugriff." }, { status: 403 });
   }
 
-  // Load original image as base64 (only for images, not PDFs)
+  // Load original file. Images are embedded directly; original PDFs are merged
+  // into the output PDF and receive the metadata page at the end.
   const originalFile = receipt.files[0] ?? null;
+  let originalPdfBuffer: Buffer | null = null;
   let imageBase64: string | null = null;
   let imageMimeType: string | null = null;
-  let pdfOriginalNote: string | null = null;
 
   if (originalFile) {
-    if (originalFile.mimeType.startsWith("image/")) {
-      try {
-        const buffer = await readFile(originalFile.storagePath);
+    try {
+      const buffer = await readFile(originalFile.storagePath);
+      if (originalFile.mimeType.startsWith("image/")) {
         imageBase64 = buffer.toString("base64");
         imageMimeType = originalFile.mimeType;
-      } catch {
-        // Image load failed — continue without it
+      } else if (originalFile.mimeType === "application/pdf") {
+        originalPdfBuffer = buffer;
       }
-    } else {
-      pdfOriginalNote = originalFile.filename;
+    } catch {
+      // Continue without original preview if the file cannot be read.
     }
   }
 
@@ -100,10 +101,11 @@ export async function GET(
       : null,
     imageBase64,
     imageMimeType,
-    pdfOriginalNote,
   };
 
-  const pdfBuffer = await generateReceiptPdf(data);
+  const pdfBuffer = originalPdfBuffer
+    ? await appendReceiptMetadataToPdf(originalPdfBuffer, data)
+    : await generateReceiptPdf(data);
 
   const dateStr = fmtDate(receipt.date).replace(/\./g, "-");
   const supplierStr = (receipt.supplier ?? "Beleg").replace(/[^a-zA-Z0-9äöüÄÖÜß\-_ ]/g, "").slice(0, 30);

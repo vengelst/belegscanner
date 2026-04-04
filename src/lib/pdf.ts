@@ -8,6 +8,7 @@ import {
   StyleSheet,
   renderToBuffer,
 } from "@react-pdf/renderer";
+import { PDFDocument } from "pdf-lib";
 
 // ============================================================
 // Types
@@ -39,7 +40,6 @@ export type PdfReceiptData = {
   } | null;
   imageBase64: string | null;
   imageMimeType: string | null;
-  pdfOriginalNote: string | null;
 };
 
 // ============================================================
@@ -286,4 +286,28 @@ export async function generateReceiptPdf(data: PdfReceiptData): Promise<Buffer> 
   const element = buildReceiptDocument(data);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return renderToBuffer(element as any);
+}
+
+export async function appendReceiptMetadataToPdf(originalPdfBuffer: Buffer, data: PdfReceiptData): Promise<Buffer> {
+  const metadataOnly = await generateReceiptPdf({
+    ...data,
+    imageBase64: null,
+    imageMimeType: null,
+  });
+
+  const target = await PDFDocument.create();
+  const originalPdf = await PDFDocument.load(originalPdfBuffer);
+  const metadataPdf = await PDFDocument.load(metadataOnly);
+
+  const originalPages = await target.copyPages(originalPdf, originalPdf.getPageIndices());
+  for (const page of originalPages) {
+    target.addPage(page);
+  }
+
+  const metadataPages = await target.copyPages(metadataPdf, metadataPdf.getPageIndices());
+  for (const page of metadataPages) {
+    target.addPage(page);
+  }
+
+  return Buffer.from(await target.save());
 }

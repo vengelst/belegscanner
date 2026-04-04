@@ -140,11 +140,11 @@ export function ReceiptPrintView({ receipt }: { receipt: PrintReceipt }) {
                 style={{ maxWidth: "100%", maxHeight: "250mm", objectFit: "contain" }}
               />
             ) : (
-              <div style={{ padding: "24px", color: "#666", fontSize: "10pt" }}>
-                <div>
-                  Das Original-PDF wird ueber den PDF-Download unveraendert bereitgestellt.
-                </div>
-              </div>
+              <iframe
+                src={`/api/files/${receipt.file.id}`}
+                title="Originalbeleg PDF"
+                style={{ width: "100%", height: "250mm", border: "none" }}
+              />
             )}
           </div>
         ) : (
