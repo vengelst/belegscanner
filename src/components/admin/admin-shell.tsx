@@ -1,5 +1,8 @@
+"use client";
+
 import type { Route } from "next";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 type NavGroup = {
   title?: string;
@@ -34,30 +37,35 @@ const navGroups: NavGroup[] = [
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const hideSidebar = pathname === "/admin/reports";
+
   return (
-    <div className="grid gap-6 xl:grid-cols-[16rem_minmax(0,1fr)]">
-      <aside className="rounded-[calc(var(--radius)+0.5rem)] border border-border bg-card p-4 shadow-soft">
-        {navGroups.map((group, index) => (
-          <div key={group.title ?? `group-${index}`} className="mb-5 last:mb-0">
-            {group.title ? (
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-                {group.title}
-              </p>
-            ) : null}
-            <div className="space-y-1">
-              {group.links.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="block rounded-xl px-3 py-2 text-sm font-medium transition hover:bg-primary/5 hover:text-primary"
-                >
-                  {link.label}
-                </Link>
-              ))}
+    <div className={hideSidebar ? "" : "grid gap-6 xl:grid-cols-[16rem_minmax(0,1fr)]"}>
+      {!hideSidebar ? (
+        <aside className="rounded-[calc(var(--radius)+0.5rem)] border border-border bg-card p-4 shadow-soft">
+          {navGroups.map((group, index) => (
+            <div key={group.title ?? `group-${index}`} className="mb-5 last:mb-0">
+              {group.title ? (
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+                  {group.title}
+                </p>
+              ) : null}
+              <div className="space-y-1">
+                {group.links.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="block rounded-xl px-3 py-2 text-sm font-medium transition hover:bg-primary/5 hover:text-primary"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </aside>
+          ))}
+        </aside>
+      ) : null}
       <section>{children}</section>
     </div>
   );
