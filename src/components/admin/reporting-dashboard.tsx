@@ -238,6 +238,9 @@ function PeriodTable({
   label: string;
   rows: { key: string; label: string; count: number; sumEur: number }[];
 }) {
+  const totalCount = rows.reduce((sum, row) => sum + row.count, 0);
+  const totalSumEur = rows.reduce((sum, row) => sum + row.sumEur, 0);
+
   return (
     <Card className="overflow-hidden p-0">
       <div className="border-b border-border px-4 py-3">
@@ -262,6 +265,15 @@ function PeriodTable({
             </tr>
           ))}
         </tbody>
+        {rows.length > 0 ? (
+          <tfoot>
+            <tr className="border-t-2 border-border bg-muted/20 font-semibold">
+              <td className="px-4 py-2">Gesamtsumme</td>
+              <td className="px-4 py-2 text-right tabular-nums">{totalCount}</td>
+              <td className="px-4 py-2 text-right tabular-nums">{fmtEur(totalSumEur)}</td>
+            </tr>
+          </tfoot>
+        ) : null}
       </table>
     </Card>
   );
