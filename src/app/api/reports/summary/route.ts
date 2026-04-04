@@ -18,16 +18,23 @@ export async function GET(request: NextRequest) {
     if (dateTo) where.date.lte = new Date(dateTo);
   }
 
+  const dateConditions: Prisma.Sql[] = [];
+  if (dateFrom) dateConditions.push(Prisma.sql`date >= ${new Date(dateFrom)}`);
+  if (dateTo) dateConditions.push(Prisma.sql`date <= ${new Date(dateTo)}`);
+  const rawWhere = dateConditions.length > 0
+    ? Prisma.sql`WHERE ${Prisma.join(dateConditions, " AND ")}`
+    : Prisma.empty;
+
   const [
     totalReceipts,
     byStatus,
     byUser,
     byCountry,
     byPurpose,
-    byCategory,
     byCurrency,
     foreignCurrencyReceipts,
     totals,
+    paymentMethodReceipts,
   ] = await Promise.all([
     prisma.receipt.count({ where }),
 
@@ -96,25 +103,6 @@ export async function GET(request: NextRequest) {
     }),
 
     prisma.receipt.groupBy({
-      by: ["categoryId"],
-      where,
-      _count: true,
-      _sum: { amountEur: true },
-    }).then(async (groups) => {
-      const ids = groups.map((g) => g.categoryId);
-      const categories = await prisma.category.findMany({
-        where: { id: { in: ids } },
-        select: { id: true, name: true },
-      });
-      const map = new Map(categories.map((c) => [c.id, c.name]));
-      return groups.map((g) => ({
-        name: map.get(g.categoryId) ?? "Unbekannt",
-        count: g._count,
-        sumEur: Number(g._sum.amountEur ?? 0),
-      })).sort((a, b) => b.count - a.count);
-    }),
-
-    prisma.receipt.groupBy({
       by: ["currency"],
       where,
       _count: true,
@@ -136,27 +124,81 @@ export async function GET(request: NextRequest) {
       _sum: { amountEur: true },
       _count: true,
     }),
+
+    prisma.receipt.findMany({
+      where,
+      select: {
+        amountEur: true,
+        aiStructuredData: true,
+      },
+    }),
   ]);
 
   const failedSends = await prisma.sendLog.count({
     where: { success: false, ...(dateFrom || dateTo ? { createdAt: { ...(dateFrom ? { gte: new Date(dateFrom) } : {}), ...(dateTo ? { lte: new Date(dateTo) } : {}) } } : {}) },
   });
 
-  // --- Monthly breakdown (database-level aggregation via raw SQL) ---
-  const dateFilter = dateFrom || dateTo
-    ? `WHERE ${[dateFrom ? `date >= '${dateFrom}'` : "", dateTo ? `date <= '${dateTo}'` : ""].filter(Boolean).join(" AND ")}`
-    : "";
-  const byMonthRaw: Array<{ month: string; count: bigint; sum_eur: Prisma.Decimal | null }> = await prisma.$queryRawUnsafe(
-    `SELECT to_char(date, 'YYYY-MM') AS month, COUNT(*)::bigint AS count, SUM("amountEur") AS sum_eur
-     FROM "Receipt" ${dateFilter}
-     GROUP BY to_char(date, 'YYYY-MM')
-     ORDER BY month ASC`,
+  // --- Time breakdowns (database-level aggregation) ---
+  const byDayRaw: Array<{ day: string; count: bigint; sum_eur: Prisma.Decimal | null }> = await prisma.$queryRaw(
+    Prisma.sql`
+      SELECT to_char(date, 'YYYY-MM-DD') AS day, COUNT(*)::bigint AS count, SUM("amountEur") AS sum_eur
+      FROM "Receipt"
+      ${rawWhere}
+      GROUP BY to_char(date, 'YYYY-MM-DD')
+      ORDER BY day ASC
+    `,
   );
+  const byWeekRaw: Array<{ week_start: string; week_label: string; count: bigint; sum_eur: Prisma.Decimal | null }> = await prisma.$queryRaw(
+    Prisma.sql`
+      SELECT
+        to_char(date_trunc('week', date), 'YYYY-MM-DD') AS week_start,
+        to_char(date_trunc('week', date), 'IYYY') || '-KW' || to_char(date_trunc('week', date), 'IW') AS week_label,
+        COUNT(*)::bigint AS count,
+        SUM("amountEur") AS sum_eur
+      FROM "Receipt"
+      ${rawWhere}
+      GROUP BY date_trunc('week', date)
+      ORDER BY date_trunc('week', date) ASC
+    `,
+  );
+  const byMonthRaw: Array<{ month: string; count: bigint; sum_eur: Prisma.Decimal | null }> = await prisma.$queryRaw(
+    Prisma.sql`
+      SELECT to_char(date, 'YYYY-MM') AS month, COUNT(*)::bigint AS count, SUM("amountEur") AS sum_eur
+      FROM "Receipt"
+      ${rawWhere}
+      GROUP BY to_char(date, 'YYYY-MM')
+      ORDER BY month ASC
+    `,
+  );
+  const byDay = byDayRaw.map((r) => ({
+    day: r.day,
+    count: Number(r.count),
+    sumEur: Number(r.sum_eur ?? 0),
+  }));
+  const byWeek = byWeekRaw.map((r) => ({
+    weekStart: r.week_start,
+    weekLabel: r.week_label,
+    count: Number(r.count),
+    sumEur: Number(r.sum_eur ?? 0),
+  }));
   const byMonth = byMonthRaw.map((r) => ({
     month: r.month,
     count: Number(r.count),
     sumEur: Number(r.sum_eur ?? 0),
   }));
+
+  const paymentMethodMap = new Map<string, { name: string; count: number; sumEur: number }>();
+  for (const receipt of paymentMethodReceipts) {
+    const method = extractPaymentMethod(receipt.aiStructuredData);
+    const label = paymentMethodLabel(method);
+    const current = paymentMethodMap.get(label) ?? { name: label, count: 0, sumEur: 0 };
+    current.count += 1;
+    current.sumEur += Number(receipt.amountEur ?? 0);
+    paymentMethodMap.set(label, current);
+  }
+  const byPaymentMethod = Array.from(paymentMethodMap.values())
+    .map((item) => ({ ...item, sumEur: Number(item.sumEur.toFixed(2)) }))
+    .sort((a, b) => b.count - a.count);
 
   // --- Review status breakdown ---
   const byReviewStatus = await prisma.receipt.groupBy({
@@ -236,12 +278,47 @@ export async function GET(request: NextRequest) {
     foreignCurrencyReceipts,
     byStatus: byStatus.map((s) => ({ status: s.sendStatus, count: s._count })),
     byReviewStatus: byReviewStatus.map((s) => ({ status: s.reviewStatus, count: s._count })),
+    byDay,
+    byWeek,
     byMonth,
     byUser,
     byCountry,
     byPurpose,
-    byCategory,
+    byPaymentMethod,
     byCurrency,
     problems,
   });
+}
+
+function extractPaymentMethod(value: Prisma.JsonValue | null): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const extracted = "extracted" in value ? value.extracted : null;
+  if (!extracted || typeof extracted !== "object" || Array.isArray(extracted)) return null;
+  const paymentMethod = "paymentMethod" in extracted ? extracted.paymentMethod : null;
+  return typeof paymentMethod === "string" ? paymentMethod : null;
+}
+
+function paymentMethodLabel(method: string | null): string {
+  switch (method) {
+    case "cash":
+      return "Barzahlung";
+    case "visa":
+      return "Visa";
+    case "mastercard":
+      return "Mastercard";
+    case "credit_card":
+      return "Kreditkarte";
+    case "debit_card":
+      return "Debitkarte";
+    case "paypal":
+      return "PayPal";
+    case "sepa":
+      return "SEPA-Lastschrift";
+    case "bank_transfer":
+      return "Ueberweisung";
+    case "unknown":
+      return "Unklare Kartenzahlung";
+    default:
+      return "Nicht erkannt";
+  }
 }

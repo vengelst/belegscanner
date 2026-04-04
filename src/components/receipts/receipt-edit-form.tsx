@@ -362,11 +362,10 @@ function formatLocalizedNumber(value: number, maximumFractionDigits = 2): string
 }
 
 function buildCurrencyOptions(countries: Country[]) {
-  const commonCurrencies = ["EUR", "USD", "CHF", "GBP", "RSD", "PLN", "CZK", "HUF", "RON", "SEK", "NOK", "DKK"];
-  const unique = new Set<string>(commonCurrencies);
+  const unique = new Set<string>();
 
   for (const country of countries) {
-    if (country.currencyCode) unique.add(country.currencyCode.toUpperCase());
+    if (country.currencyCode?.trim()) unique.add(country.currencyCode.trim().toUpperCase());
   }
 
   return Array.from(unique)

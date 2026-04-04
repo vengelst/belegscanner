@@ -88,27 +88,58 @@ function SettingsIcon() {
   );
 }
 
-export const commonNav: NavItem[] = [
-  {
-    href: "/receipts",
-    label: "Belege",
-    shortLabel: "Belege",
-    icon: <ReceiptStackIcon />,
-    accentClassName: "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300",
-  },
+function ReportsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4">
+      <path
+        d="M6.75 18.25h10.5A1.75 1.75 0 0 0 19 16.5v-9A1.75 1.75 0 0 0 17.25 5.75H6.75A1.75 1.75 0 0 0 5 7.5v9c0 .97.78 1.75 1.75 1.75Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M8.5 15.5V12.5M12 15.5v-6M15.5 15.5v-4"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+export const primaryNav: NavItem[] = [
   {
     href: "/receipts/new",
-    label: "Erfassen",
-    shortLabel: "Erfassen",
+    label: "Belegerfassung",
+    shortLabel: "Erfassung",
     icon: <CaptureIcon />,
     accentClassName: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
   },
   {
-    href: "/settings",
-    label: "Einstellungen",
-    shortLabel: "Settings",
-    icon: <SettingsIcon />,
-    accentClassName: "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300",
-    adminHint: "inkl. Admin",
+    href: "/receipts",
+    label: "Beleguebersicht",
+    shortLabel: "Uebersicht",
+    icon: <ReceiptStackIcon />,
+    accentClassName: "bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300",
   },
 ];
+
+export const adminNav: NavItem[] = [
+  {
+    href: "/admin/reports",
+    label: "Auswertung",
+    shortLabel: "Auswertung",
+    icon: <ReportsIcon />,
+    accentClassName: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+  },
+];
+
+export const settingsNavItem: NavItem = {
+  href: "/settings",
+  label: "Einstellungen",
+  shortLabel: "Settings",
+  icon: <SettingsIcon />,
+  accentClassName: "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300",
+  adminHint: "inkl. Admin",
+};

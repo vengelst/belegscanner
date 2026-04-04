@@ -4,9 +4,12 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
-  commonNav,
+  adminNav,
   NAVIGATION_DISPLAY_STORAGE_KEY,
+  type NavItem,
   type NavigationDisplayMode,
+  primaryNav,
+  settingsNavItem,
 } from "@/components/layout/navigation-config";
 
 type AppNavigationProps = {
@@ -36,49 +39,68 @@ export function AppNavigation({ userRole }: AppNavigationProps) {
   }, []);
 
   const iconOnly = displayMode === "icons";
+  const leftItems = userRole === "ADMIN" ? [...primaryNav, ...adminNav] : primaryNav;
 
   return (
-    <nav className={cn("mt-4 gap-2", iconOnly ? "flex flex-wrap" : "grid grid-cols-2 sm:flex sm:flex-wrap")}>
-      {commonNav.map((item) => (
-        <Link
-          key={item.href}
-          href={item.href}
-          aria-label={item.label}
-          title={item.label}
+    <nav className={cn("mt-4 flex items-start gap-2", iconOnly ? "flex-wrap" : "flex-wrap")}>
+      <div className={cn("gap-2", iconOnly ? "flex flex-wrap" : "grid grid-cols-2 sm:flex sm:flex-wrap")}>
+        {leftItems.map((item) => (
+          <NavLink key={item.href} item={item} iconOnly={iconOnly} userRole={userRole} />
+        ))}
+      </div>
+      <div className="ml-auto">
+        <NavLink item={settingsNavItem} iconOnly={iconOnly} userRole={userRole} />
+      </div>
+    </nav>
+  );
+}
+
+function NavLink({
+  item,
+  iconOnly,
+  userRole,
+}: {
+  item: NavItem;
+  iconOnly: boolean;
+  userRole: "ADMIN" | "USER";
+}) {
+  return (
+    <Link
+      href={item.href}
+      aria-label={item.label}
+      title={item.label}
+      className={cn(
+        "rounded-2xl border border-border/80 bg-background/80 text-sm font-medium transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary",
+        iconOnly ? "block px-3 py-3" : "block px-4 py-3 text-left",
+      )}
+    >
+      {iconOnly ? (
+        <span
           className={cn(
-            "rounded-2xl border border-border/80 bg-background/80 text-sm font-medium transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary",
-            iconOnly ? "px-3 py-3" : "px-4 py-3 text-left",
+            "inline-flex h-9 w-9 items-center justify-center rounded-2xl",
+            item.accentClassName,
           )}
         >
-          {iconOnly ? (
-            <span
-              className={cn(
-                "inline-flex h-9 w-9 items-center justify-center rounded-2xl",
-                item.accentClassName,
-              )}
-            >
-              {item.icon}
-            </span>
-          ) : (
-            <span className="flex items-center gap-3">
-              <span
-                className={cn(
-                  "inline-flex h-9 w-9 items-center justify-center rounded-2xl",
-                  item.accentClassName,
-                )}
-              >
-                {item.icon}
-              </span>
-              <span className="flex flex-col">
-                <span>{item.label}</span>
-                {item.href === "/settings" && userRole === "ADMIN" && item.adminHint ? (
-                  <span className="text-xs text-muted-foreground">{item.adminHint}</span>
-                ) : null}
-              </span>
-            </span>
-          )}
-        </Link>
-      ))}
-    </nav>
+          {item.icon}
+        </span>
+      ) : (
+        <span className="flex items-center gap-3">
+          <span
+            className={cn(
+              "inline-flex h-9 w-9 items-center justify-center rounded-2xl",
+              item.accentClassName,
+            )}
+          >
+            {item.icon}
+          </span>
+          <span className="flex flex-col">
+            <span>{item.label}</span>
+            {item.href === "/settings" && userRole === "ADMIN" && item.adminHint ? (
+              <span className="text-xs text-muted-foreground">{item.adminHint}</span>
+            ) : null}
+          </span>
+        </span>
+      )}
+    </Link>
   );
 }

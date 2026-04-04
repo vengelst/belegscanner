@@ -10,11 +10,13 @@ type SummaryData = {
   foreignCurrencyReceipts: number;
   byStatus: { status: string; count: number }[];
   byReviewStatus: { status: string; count: number }[];
+  byDay: { day: string; count: number; sumEur: number }[];
+  byWeek: { weekStart: string; weekLabel: string; count: number; sumEur: number }[];
   byMonth: { month: string; count: number; sumEur: number }[];
   byUser: { userName: string; count: number; sumEur: number }[];
   byCountry: { name: string; count: number; sumEur: number }[];
   byPurpose: { name: string; count: number; sumEur: number }[];
-  byCategory: { name: string; count: number; sumEur: number }[];
+  byPaymentMethod: { name: string; count: number; sumEur: number }[];
   byCurrency: { currency: string; count: number; sumOriginal: number }[];
   problems: {
     missingFile: number;
@@ -44,6 +46,11 @@ function fmtMonth(key: string) {
   const [year, month] = key.split("-");
   const idx = parseInt(month, 10) - 1;
   return `${MONTH_NAMES[idx] ?? month} ${year}`;
+}
+
+function fmtDay(key: string) {
+  const [year, month, day] = key.split("-");
+  return `${day}.${month}.${year}`;
 }
 
 export function ReportingDashboard() {
@@ -136,32 +143,23 @@ export function ReportingDashboard() {
             </Card>
           )}
 
-          {/* Monthly breakdown */}
-          {data.byMonth.length > 0 ? (
-            <Card className="overflow-hidden p-0">
-              <div className="border-b border-border px-4 py-3">
-                <h3 className="text-sm font-semibold">Nach Monat</h3>
-              </div>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="px-4 py-2 font-medium">Monat</th>
-                    <th className="px-4 py-2 font-medium text-right">Anzahl</th>
-                    <th className="px-4 py-2 font-medium text-right">Summe EUR</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.byMonth.map((m) => (
-                    <tr key={m.month} className="border-b border-border/50">
-                      <td className="px-4 py-2">{fmtMonth(m.month)}</td>
-                      <td className="px-4 py-2 text-right tabular-nums">{m.count}</td>
-                      <td className="px-4 py-2 text-right tabular-nums">{fmtEur(m.sumEur)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
-          ) : null}
+          <div className="grid gap-6 xl:grid-cols-3">
+            <PeriodTable
+              title="Nach Tag"
+              label="Tag"
+              rows={data.byDay.map((d) => ({ key: d.day, label: fmtDay(d.day), count: d.count, sumEur: d.sumEur }))}
+            />
+            <PeriodTable
+              title="Nach Woche"
+              label="Woche"
+              rows={data.byWeek.map((w) => ({ key: w.weekStart, label: w.weekLabel, count: w.count, sumEur: w.sumEur }))}
+            />
+            <PeriodTable
+              title="Nach Monat"
+              label="Monat"
+              rows={data.byMonth.map((m) => ({ key: m.month, label: fmtMonth(m.month), count: m.count, sumEur: m.sumEur }))}
+            />
+          </div>
 
           {/* Status tables */}
           <div className="grid gap-6 lg:grid-cols-2">
@@ -170,7 +168,7 @@ export function ReportingDashboard() {
             <CurrencyTable rows={data.byCurrency} />
             <GroupTable title="Nach Benutzer" rows={data.byUser.map((u) => ({ name: u.userName, count: u.count, sumEur: u.sumEur }))} showSum />
             <GroupTable title="Nach Zweck" rows={data.byPurpose.map((p) => ({ name: p.name, count: p.count, sumEur: p.sumEur }))} showSum />
-            <GroupTable title="Nach Kategorie" rows={data.byCategory.map((c) => ({ name: c.name, count: c.count, sumEur: c.sumEur }))} showSum />
+            <GroupTable title="Nach Zahlungsweise" rows={data.byPaymentMethod.map((c) => ({ name: c.name, count: c.count, sumEur: c.sumEur }))} showSum />
             <GroupTable title="Nach Land" rows={data.byCountry.map((c) => ({ name: c.name, count: c.count, sumEur: c.sumEur }))} showSum />
           </div>
         </>
@@ -223,6 +221,44 @@ function GroupTable({ title, rows, showSum }: { title: string; rows: { name: str
               <td className="px-4 py-2">{r.name}</td>
               <td className="px-4 py-2 text-right tabular-nums">{r.count}</td>
               {showSum ? <td className="px-4 py-2 text-right tabular-nums">{fmtEur(r.sumEur ?? 0)}</td> : null}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Card>
+  );
+}
+
+function PeriodTable({
+  title,
+  label,
+  rows,
+}: {
+  title: string;
+  label: string;
+  rows: { key: string; label: string; count: number; sumEur: number }[];
+}) {
+  return (
+    <Card className="overflow-hidden p-0">
+      <div className="border-b border-border px-4 py-3">
+        <h3 className="text-sm font-semibold">{title}</h3>
+      </div>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border text-left text-muted-foreground">
+            <th className="px-4 py-2 font-medium">{label}</th>
+            <th className="px-4 py-2 font-medium text-right">Anzahl</th>
+            <th className="px-4 py-2 font-medium text-right">Summe EUR</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr><td colSpan={3} className="px-4 py-3 text-muted-foreground">Keine Daten</td></tr>
+          ) : rows.map((row) => (
+            <tr key={row.key} className="border-b border-border/50">
+              <td className="px-4 py-2">{row.label}</td>
+              <td className="px-4 py-2 text-right tabular-nums">{row.count}</td>
+              <td className="px-4 py-2 text-right tabular-nums">{fmtEur(row.sumEur)}</td>
             </tr>
           ))}
         </tbody>
