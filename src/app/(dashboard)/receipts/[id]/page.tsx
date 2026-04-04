@@ -230,13 +230,13 @@ export default async function ReceiptDetailPage({ params }: Props) {
         <h2 className="text-lg font-semibold tracking-tight">Belegdaten</h2>
         <div className="mt-4 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Belegdatum" value={fmtDate(receipt.date)} />
-          {receipt.dueDate ? <Field label="Faelligkeitsdatum" value={fmtDate(receipt.dueDate)} /> : null}
-          {receipt.serviceDate ? <Field label="Leistungsdatum" value={fmtDate(receipt.serviceDate)} /> : null}
           {receipt.invoiceNumber ? <Field label="Rechnungsnummer" value={receipt.invoiceNumber} /> : null}
-          <Field label="Kaufpreis / Brutto" value={`${fmtAmount(receipt.amount)} ${receipt.currency}`} />
+          {receipt.currency !== "EUR" ? (
+            <Field label={`Bruttobetrag (${receipt.currency})`} value={`${fmtAmount(receipt.amount)} ${receipt.currency}`} />
+          ) : null}
           {receipt.netAmount ? <Field label="Nettobetrag" value={`${fmtAmount(receipt.netAmount)} ${receipt.currency}`} /> : null}
           {receipt.taxAmount ? <Field label="Steuerbetrag" value={`${fmtAmount(receipt.taxAmount)} ${receipt.currency}`} /> : null}
-          <Field label="Kaufpreis in EUR" value={`${fmtAmount(receipt.amountEur)} EUR`} />
+          <Field label="Rechnungsbetrag (EUR)" value={`${fmtAmount(receipt.amountEur)} EUR`} />
           {receipt.currency !== "EUR" ? (
             <>
               <Field label="Wechselkurs" value={receipt.exchangeRate ? `1 EUR = ${Number(receipt.exchangeRate)} ${receipt.currency}` : "—"} />
@@ -308,8 +308,6 @@ export default async function ReceiptDetailPage({ params }: Props) {
                 <div className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
                   {structuredData.extracted.time ? <Field label="Uhrzeit" value={formatSuggestedValue(structuredData.extracted.time, structuredData.fieldReviewStates?.time, structuredData.fieldConfidence.time)} /> : null}
                   {structuredData.extracted.invoiceDate ? <Field label="Rechnungsdatum" value={formatSuggestedValue(structuredData.extracted.invoiceDate, structuredData.fieldReviewStates?.invoiceDate, structuredData.fieldConfidence.invoiceDate)} /> : null}
-                  {structuredData.extracted.dueDate ? <Field label="Faelligkeitsdatum" value={formatSuggestedValue(structuredData.extracted.dueDate, structuredData.fieldReviewStates?.dueDate, structuredData.fieldConfidence.dueDate)} /> : null}
-                  {structuredData.extracted.serviceDate ? <Field label="Leistungsdatum" value={formatSuggestedValue(structuredData.extracted.serviceDate, structuredData.fieldReviewStates?.serviceDate, structuredData.fieldConfidence.serviceDate)} /> : null}
                   {structuredData.extracted.invoiceNumber ? <Field label="Rechnungsnummer" value={formatSuggestedValue(structuredData.extracted.invoiceNumber, structuredData.fieldReviewStates?.invoiceNumber, structuredData.fieldConfidence.invoiceNumber)} /> : null}
                   {structuredData.extracted.grossAmount !== null ? <Field label="Bruttobetrag" value={formatSuggestedValue(structuredData.extracted.grossAmount.toFixed(2), structuredData.fieldReviewStates?.grossAmount, structuredData.fieldConfidence.grossAmount)} /> : null}
                   {structuredData.extracted.netAmount !== null ? <Field label="Nettobetrag" value={formatSuggestedValue(structuredData.extracted.netAmount.toFixed(2), structuredData.fieldReviewStates?.netAmount, structuredData.fieldConfidence.netAmount)} /> : null}

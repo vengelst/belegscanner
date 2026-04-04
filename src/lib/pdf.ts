@@ -207,14 +207,14 @@ function buildReceiptDocument(data: PdfReceiptData) {
     // Core data
     row("Belegdatum", data.date),
     row("Lieferant", data.supplier ?? "\u2014"),
-    row("Betrag", `${data.amount} ${data.currency}`),
     ...(data.currency !== "EUR"
       ? [
-          row("EUR-Betrag", `${data.amountEur} EUR`),
+          row(`Bruttobetrag (${data.currency})`, `${data.amount} ${data.currency}`),
+          row("Rechnungsbetrag (EUR)", `${data.amountEur} EUR`),
           row("Wechselkurs", data.exchangeRate ? `1 EUR = ${data.exchangeRate} ${data.currency}` : "\u2014"),
           row("Kursdatum", data.exchangeRateDate ?? "\u2014"),
         ]
-      : []),
+      : [row("Rechnungsbetrag (EUR)", `${data.amountEur} EUR`)]),
     row("Zweck", data.purposeName),
     row("Kategorie", data.categoryName),
     row("Land", data.countryName ?? "\u2014"),
@@ -234,10 +234,10 @@ function buildReceiptDocument(data: PdfReceiptData) {
             View,
             { style: s.sectionBlock, key: "curr" },
             React.createElement(Text, { style: s.sectionTitle }, "Waehrung"),
-            row("Originalbetrag", `${data.amount} ${data.currency}`),
+            row(`Bruttobetrag (${data.currency})`, `${data.amount} ${data.currency}`),
             row("Wechselkurs", data.exchangeRate ? `1 EUR = ${data.exchangeRate} ${data.currency}` : "\u2014"),
             row("Kursdatum", data.exchangeRateDate ?? "\u2014"),
-            row("EUR-Betrag", `${data.amountEur} EUR`),
+            row("Rechnungsbetrag (EUR)", `${data.amountEur} EUR`),
           ),
         ]
       : []),

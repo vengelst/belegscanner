@@ -108,6 +108,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
   const selectedPurpose = purposes.find((purpose) => purpose.id === purposeId);
   const isHospitality = selectedPurpose?.isHospitality ?? false;
   const requiresExchangeRate = currency.trim().toUpperCase() !== "EUR";
+  const normalizedCurrency = currency.trim().toUpperCase() || "EUR";
   const amountEurPreview = useMemo(() => {
     const parsedAmount = parseLocalizedNumber(amount);
     const parsedRate = parseLocalizedNumber(exchangeRate);
@@ -469,8 +470,8 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
       date: formData.get("date"),
       supplier: formData.get("supplier") || null,
       invoiceNumber: formData.get("invoiceNumber") || null,
-      serviceDate: formData.get("serviceDate") || null,
-      dueDate: formData.get("dueDate") || null,
+      serviceDate: null,
+      dueDate: null,
       amount: isNaN(amountValue) ? 0 : amountValue,
       currency: selectedCurrency,
       netAmount: parsedNet !== null && !isNaN(parsedNet) ? parsedNet : null,
@@ -619,26 +620,6 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
               max={today}
             />
             <Input
-              label="Faelligkeitsdatum"
-              name="dueDate"
-              type="date"
-              value={dueDate}
-              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-                markManualOverride("dueDate");
-                setDueDate(event.target.value);
-              }}
-            />
-            <Input
-              label="Leistungsdatum"
-              name="serviceDate"
-              type="date"
-              value={serviceDate}
-              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-                markManualOverride("serviceDate");
-                setServiceDate(event.target.value);
-              }}
-            />
-            <Input
               label="Rechnungsnummer"
               name="invoiceNumber"
               placeholder="optional"
@@ -650,7 +631,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
               }}
             />
             <Input
-              label="Kaufpreis / Bruttobetrag"
+              label={requiresExchangeRate ? `Bruttobetrag (${normalizedCurrency})` : `Rechnungsbetrag (${normalizedCurrency})`}
               name="amount"
               type="text"
               inputMode="decimal"
@@ -698,13 +679,15 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
                 setCurrency(event.target.value);
               }}
             />
-            <Input
-              label="Kaufpreis in EUR"
-              name="amountEurPreview"
-              type="text"
-              value={amountEurPreview}
-              readOnly
-            />
+            {requiresExchangeRate ? (
+              <Input
+                label="Rechnungsbetrag (EUR)"
+                name="amountEurPreview"
+                type="text"
+                value={amountEurPreview}
+                readOnly
+              />
+            ) : null}
             <Input
               label="Lieferant / Haendler"
               name="supplier"

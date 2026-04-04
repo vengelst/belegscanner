@@ -101,13 +101,15 @@ const s = StyleSheet.create({
 function buildDatevDocument(data: DatevPdfData) {
   const cells: Array<{ label: string; value: string }> = [
     { label: "Datum", value: data.date },
-    { label: "Betrag", value: `${data.amount} ${data.currency}` },
   ];
 
   if (data.currency !== "EUR") {
-    cells.push({ label: "EUR-Betrag", value: `${data.amountEur} EUR` });
+    cells.push({ label: `Bruttobetrag (${data.currency})`, value: `${data.amount} ${data.currency}` });
+    cells.push({ label: "Rechnungsbetrag (EUR)", value: `${data.amountEur} EUR` });
     if (data.exchangeRate) cells.push({ label: "Wechselkurs", value: `1 EUR = ${data.exchangeRate} ${data.currency}` });
     if (data.exchangeRateDate) cells.push({ label: "Kursdatum", value: data.exchangeRateDate });
+  } else {
+    cells.push({ label: "Rechnungsbetrag (EUR)", value: `${data.amountEur} EUR` });
   }
 
   if (data.supplier) cells.push({ label: "Lieferant", value: data.supplier });

@@ -56,6 +56,7 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
   const selectedPurpose = purposes.find((p) => p.id === purposeId);
   const isHospitality = selectedPurpose?.isHospitality ?? false;
   const requiresExchangeRate = currency.trim().toUpperCase() !== "EUR";
+  const normalizedCurrency = currency.trim().toUpperCase() || "EUR";
   const amountEurPreview = useMemo(() => {
     const parsedAmount = parseLocalizedNumber(amount);
     const parsedRate = parseLocalizedNumber(exchangeRate);
@@ -125,8 +126,8 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
       date: formData.get("date"),
       supplier: formData.get("supplier") || null,
       invoiceNumber: formData.get("invoiceNumber") || null,
-      serviceDate: formData.get("serviceDate") || null,
-      dueDate: formData.get("dueDate") || null,
+      serviceDate: receipt.serviceDate,
+      dueDate: receipt.dueDate,
       amount: isNaN(amount) ? 0 : amount,
       currency,
       netAmount: parsedNet !== null && !isNaN(parsedNet) ? parsedNet : null,
@@ -187,11 +188,9 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
         <h2 className="text-lg font-semibold tracking-tight">Belegdaten</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Input label="Belegdatum" name="date" type="date" required defaultValue={receipt.date} />
-          <Input label="Faelligkeitsdatum" name="dueDate" type="date" defaultValue={receipt.dueDate ?? ""} />
-          <Input label="Leistungsdatum" name="serviceDate" type="date" defaultValue={receipt.serviceDate ?? ""} />
           <Input label="Rechnungsnummer" name="invoiceNumber" maxLength={80} defaultValue={receipt.invoiceNumber ?? ""} />
           <Input
-            label="Kaufpreis / Bruttobetrag"
+            label={requiresExchangeRate ? `Bruttobetrag (${normalizedCurrency})` : `Rechnungsbetrag (${normalizedCurrency})`}
             name="amount"
             type="text"
             inputMode="decimal"
@@ -209,7 +208,9 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
             value={currency}
             onChange={(event: React.ChangeEvent<HTMLInputElement>) => setCurrency(event.target.value)}
           />
-          <Input label="Kaufpreis in EUR" name="amountEurPreview" type="text" value={amountEurPreview} readOnly />
+          {requiresExchangeRate ? (
+            <Input label="Rechnungsbetrag (EUR)" name="amountEurPreview" type="text" value={amountEurPreview} readOnly />
+          ) : null}
           <Input label="Lieferant" name="supplier" defaultValue={receipt.supplier ?? ""} />
           <Input
             label={requiresExchangeRate ? "Wechselkurs *" : "Wechselkurs (optional)"}

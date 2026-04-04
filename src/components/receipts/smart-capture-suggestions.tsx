@@ -51,8 +51,6 @@ export function SmartCaptureSuggestions({
     { key: "documentType", label: "Belegtyp", value: ocrResult.extracted.documentType ? documentTypeLabels[ocrResult.extracted.documentType] : null, confidence: ocrResult.fieldConfidence.documentType },
     { key: "date", label: "Datum", value: ocrResult.extracted.date, confidence: ocrResult.fieldConfidence.date },
     { key: "invoiceDate", label: "Rechnungsdatum", value: ocrResult.extracted.invoiceDate, confidence: ocrResult.fieldConfidence.invoiceDate },
-    { key: "dueDate", label: "Faelligkeitsdatum", value: ocrResult.extracted.dueDate, confidence: ocrResult.fieldConfidence.dueDate },
-    { key: "serviceDate", label: "Leistungsdatum", value: ocrResult.extracted.serviceDate, confidence: ocrResult.fieldConfidence.serviceDate },
     { key: "time", label: "Uhrzeit", value: ocrResult.extracted.time, confidence: ocrResult.fieldConfidence.time },
     { key: "supplier", label: "Lieferant", value: ocrResult.extracted.supplier, confidence: ocrResult.fieldConfidence.supplier },
     { key: "invoiceNumber", label: "Rechnungsnummer", value: ocrResult.extracted.invoiceNumber, confidence: ocrResult.fieldConfidence.invoiceNumber },
