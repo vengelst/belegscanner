@@ -237,7 +237,7 @@ function Test-HasChanges {
 function Set-ProjectVersion {
     $targetVersion = Resolve-TargetVersion
     if (-not [string]::IsNullOrWhiteSpace($targetVersion)) {
-        Run-Command -Label "Setze Release-Version auf $targetVersion" -Command "npm version $targetVersion --no-git-tag-version"
+        $null = Run-Command -Label "Setze Release-Version auf $targetVersion" -Command "npm version $targetVersion --no-git-tag-version"
         return $targetVersion
     }
 
