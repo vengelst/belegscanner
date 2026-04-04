@@ -70,6 +70,14 @@ export async function readFile(storagePath: string): Promise<Buffer> {
   return fs.readFile(fullPath);
 }
 
+export async function deleteReceiptFiles(receiptId: string): Promise<void> {
+  try {
+    await fs.rm(receiptDir(receiptId), { recursive: true, force: true });
+  } catch {
+    // Best-effort cleanup. Database state should not be blocked by orphaned files.
+  }
+}
+
 export async function fileExists(storagePath: string): Promise<boolean> {
   try {
     await fs.access(path.join(STORAGE_ROOT, storagePath));

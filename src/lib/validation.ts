@@ -169,7 +169,7 @@ const aiInvoiceLineItemSchema = z.object({
   unit: z.string().max(20).nullable(),
   unitPrice: z.number().nullable(),
   totalPrice: z.number().nullable(),
-  taxHint: z.string().max(10).nullable(),
+  taxHint: z.string().max(40).nullable(),
   confidence: aiConfidenceSchema,
   status: z.enum(["confident", "uncertain", "partial"]),
 });

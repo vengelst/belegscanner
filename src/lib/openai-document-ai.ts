@@ -145,7 +145,7 @@ function mapLineItems(items: ExtractionResult["lineItems"]): OcrInvoiceLineItem[
     unit: item.unit,
     unitPrice: item.unitPrice,
     totalPrice: item.totalPrice,
-    taxHint: item.taxHint,
+    taxHint: item.taxHint ? item.taxHint.slice(0, 40) : null,
     confidence: "high",
     status: "confident",
   }));

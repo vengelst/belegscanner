@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { ReceiptFilterBar } from "@/components/receipts/receipt-filter-bar";
@@ -109,6 +109,7 @@ function fmtAmount(n: number) {
 export function ReceiptListPage({ receipts, pagination, filters, filterOptions, isAdmin }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const setParams = useCallback((updates: Record<string, string>) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -127,6 +128,25 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
   }, [router, searchParams]);
 
   const hasActiveFilters = !!(filters.search || filters.sendStatus || filters.reviewStatus || filters.purposeId || filters.categoryId || filters.countryId || filters.vehicleId || filters.userId || filters.dateFrom || filters.dateTo);
+
+  const handleDelete = useCallback(async (receiptId: string) => {
+    const confirmed = window.confirm("Diesen Beleg wirklich loeschen?");
+    if (!confirmed) return;
+
+    setDeletingId(receiptId);
+    try {
+      const response = await fetch(`/api/receipts/${receiptId}`, { method: "DELETE" });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = data && typeof data === "object" && "error" in data ? String(data.error) : "Beleg konnte nicht geloescht werden.";
+        window.alert(message);
+        return;
+      }
+      router.refresh();
+    } finally {
+      setDeletingId(null);
+    }
+  }, [router]);
 
   return (
     <div className="space-y-6">
@@ -200,11 +220,13 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
           {/* Mobile cards */}
           <div className="space-y-3 lg:hidden">
             {receipts.map((r) => (
-              <Link key={r.id} href={`/receipts/${r.id}`}>
-                <Card className="space-y-2 p-4">
+              <Card key={r.id} className="space-y-3 p-4">
+                <div className="space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{r.supplier ?? "Beleg"}</p>
+                      <Link href={`/receipts/${r.id}`} className="truncate font-medium hover:text-primary hover:underline">
+                        {r.supplier ?? "Beleg"}
+                      </Link>
                       <p className="text-xs text-muted-foreground">
                         {fmtDate(r.date)} — {r.userName}
                       </p>
@@ -228,8 +250,20 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                     {r.sendStatus === "OPEN" && (!r.countryName || !r.supplier) ? <Tag accent>pruefen</Tag> : null}
                     {r.isHospitality && !r.hasHospitality ? <Tag accent>Bewirtung pruefen</Tag> : null}
                   </div>
-                </Card>
-              </Link>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <ActionLink href={`/receipts/${r.id}`}>Oeffnen</ActionLink>
+                  <ActionLink href={`/receipts/${r.id}/edit`}>Bearbeiten</ActionLink>
+                  <ActionLink href={`/receipts/${r.id}/print`} target="_blank">Drucken</ActionLink>
+                  <ActionButton
+                    danger
+                    disabled={deletingId === r.id}
+                    onClick={() => void handleDelete(r.id)}
+                  >
+                    {deletingId === r.id ? "Loeschen..." : "Loeschen"}
+                  </ActionButton>
+                </div>
+              </Card>
             ))}
           </div>
 
@@ -248,6 +282,7 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                   <th className="px-4 py-3 font-medium">Pruefung</th>
                   <th className="px-4 py-3 font-medium">Versand</th>
                   <th className="px-4 py-3 font-medium">Gesendet</th>
+                  <th className="px-4 py-3 font-medium">Aktionen</th>
                 </tr>
               </thead>
               <tbody>
@@ -280,6 +315,20 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
                       {r.sendStatus === "SENT" && r.sendStatusUpdatedAt ? fmtDateTime(r.sendStatusUpdatedAt) : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        <ActionLink href={`/receipts/${r.id}`}>Oeffnen</ActionLink>
+                        <ActionLink href={`/receipts/${r.id}/edit`}>Bearbeiten</ActionLink>
+                        <ActionLink href={`/receipts/${r.id}/print`} target="_blank">Drucken</ActionLink>
+                        <ActionButton
+                          danger
+                          disabled={deletingId === r.id}
+                          onClick={() => void handleDelete(r.id)}
+                        >
+                          {deletingId === r.id ? "Loeschen..." : "Loeschen"}
+                        </ActionButton>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -330,6 +379,41 @@ function ReviewBadge({ status }: { status: string }) {
     <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${getReviewStatusBadgeClass(status)}`}>
       {getReviewStatusLabel(status)}
     </span>
+  );
+}
+
+function ActionLink({ href, children, target }: { href: string; children: React.ReactNode; target?: string }) {
+  return (
+    <a
+      href={href}
+      target={target}
+      className="rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-semibold transition hover:border-primary/40 hover:text-primary"
+    >
+      {children}
+    </a>
+  );
+}
+
+function ActionButton({
+  children,
+  onClick,
+  disabled,
+  danger,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${danger ? "border-danger/30 bg-danger/5 text-danger hover:bg-danger/10" : "border-border bg-card hover:border-primary/40 hover:text-primary"}`}
+    >
+      {children}
+    </button>
   );
 }
 

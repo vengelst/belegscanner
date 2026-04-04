@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { receiptUpdateSchema } from "@/lib/validation";
 import { Prisma } from "@prisma/client";
 import { calculateAmountEur, fetchLatestExchangeRate } from "@/lib/exchange-rates";
+import { deleteReceiptFiles } from "@/lib/storage";
 
 export async function GET(
   _request: NextRequest,
@@ -181,4 +182,31 @@ export async function PUT(
   });
 
   return NextResponse.json(receipt);
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { session, error } = await requireAuth();
+  if (error) return error;
+
+  const { id } = await params;
+
+  const receipt = await prisma.receipt.findUnique({
+    where: { id },
+    select: { id: true, userId: true },
+  });
+  if (!receipt) {
+    return NextResponse.json({ error: "Beleg nicht gefunden." }, { status: 404 });
+  }
+
+  if (session.role !== "ADMIN" && receipt.userId !== session.userId) {
+    return NextResponse.json({ error: "Kein Zugriff." }, { status: 403 });
+  }
+
+  await prisma.receipt.delete({ where: { id } });
+  await deleteReceiptFiles(id);
+
+  return NextResponse.json({ ok: true });
 }
