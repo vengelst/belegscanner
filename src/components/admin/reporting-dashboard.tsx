@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 
 type SummaryData = {
@@ -29,6 +29,8 @@ type SummaryData = {
   };
 };
 
+type PeriodMode = "day" | "week" | "month";
+
 const STATUS_LABELS: Record<string, string> = {
   OPEN: "Offen", READY: "Bereit", SENT: "Gesendet", FAILED: "Fehlgeschlagen", RETRY: "Erneut",
 };
@@ -53,6 +55,32 @@ function fmtDay(key: string) {
   return `${day}.${month}.${year}`;
 }
 
+function getWeekStart(day: string) {
+  const [year, month, date] = day.split("-").map(Number);
+  const current = new Date(Date.UTC(year, month - 1, date));
+  const jsDay = current.getUTCDay();
+  const diffToMonday = jsDay === 0 ? -6 : 1 - jsDay;
+  current.setUTCDate(current.getUTCDate() + diffToMonday);
+  return current.toISOString().slice(0, 10);
+}
+
+function resolveMonthFromWeek(weekStart: string, weekDays: Array<{ day: string }>, monthRows: Array<{ month: string }>) {
+  const inferred = weekDays[weekDays.length - 1]?.day.slice(0, 7) ?? weekStart.slice(0, 7);
+  return monthRows.some((row) => row.month === inferred)
+    ? inferred
+    : monthRows[monthRows.length - 1]?.month ?? "";
+}
+
+function fmtPrintTimestamp() {
+  return new Date().toLocaleString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function ReportingDashboard() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -61,6 +89,8 @@ export function ReportingDashboard() {
   const [selectedDay, setSelectedDay] = useState("");
   const [selectedWeek, setSelectedWeek] = useState("");
   const [selectedMonth, setSelectedMonth] = useState("");
+  const [activePeriod, setActivePeriod] = useState<PeriodMode>("month");
+  const [printTimestamp, setPrintTimestamp] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -74,27 +104,139 @@ export function ReportingDashboard() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    if (!data) return;
-    if (data.byDay.length > 0 && !data.byDay.some((row) => row.day === selectedDay)) {
-      setSelectedDay(data.byDay[data.byDay.length - 1]?.day ?? "");
+    const updateTimestamp = () => setPrintTimestamp(fmtPrintTimestamp());
+    updateTimestamp();
+    window.addEventListener("beforeprint", updateTimestamp);
+    return () => window.removeEventListener("beforeprint", updateTimestamp);
+  }, []);
+  const dayRows = data?.byDay ?? [];
+  const weekRows = data?.byWeek ?? [];
+  const monthRows = data?.byMonth ?? [];
+
+  const monthDayRows = useMemo(
+    () => (selectedMonth ? dayRows.filter((row) => row.day.startsWith(`${selectedMonth}-`)) : dayRows),
+    [dayRows, selectedMonth],
+  );
+  const monthWeekRows = useMemo(() => {
+    const weekStarts = new Set(monthDayRows.map((row) => getWeekStart(row.day)));
+    return weekRows.filter((row) => weekStarts.has(row.weekStart));
+  }, [monthDayRows, weekRows]);
+  const weekDayRows = useMemo(
+    () => (selectedWeek ? dayRows.filter((row) => getWeekStart(row.day) === selectedWeek) : []),
+    [dayRows, selectedWeek],
+  );
+  const visibleDayRows = activePeriod === "month" ? monthDayRows : weekDayRows;
+
+  const selectedDaySummary = dayRows.find((row) => row.day === selectedDay) ?? null;
+  const selectedWeekSummary = weekRows.find((row) => row.weekStart === selectedWeek) ?? null;
+  const selectedMonthSummary = monthRows.find((row) => row.month === selectedMonth) ?? null;
+
+  const handleMonthChange = useCallback((value: string) => {
+    setActivePeriod("month");
+    setSelectedMonth(value);
+    const nextMonthDays = dayRows.filter((row) => row.day.startsWith(`${value}-`));
+    const weekStarts = new Set(nextMonthDays.map((row) => getWeekStart(row.day)));
+    const nextMonthWeeks = weekRows.filter((row) => weekStarts.has(row.weekStart));
+    setSelectedWeek(nextMonthWeeks[nextMonthWeeks.length - 1]?.weekStart ?? "");
+    setSelectedDay(nextMonthDays[nextMonthDays.length - 1]?.day ?? "");
+  }, [dayRows, weekRows]);
+
+  const handleWeekChange = useCallback((value: string) => {
+    setActivePeriod("week");
+    setSelectedWeek(value);
+    const nextWeekDays = dayRows.filter((row) => getWeekStart(row.day) === value);
+    setSelectedDay(nextWeekDays[nextWeekDays.length - 1]?.day ?? "");
+    setSelectedMonth(resolveMonthFromWeek(value, nextWeekDays, monthRows));
+  }, [dayRows, monthRows]);
+
+  const handleDayChange = useCallback((value: string) => {
+    setActivePeriod("day");
+    setSelectedDay(value);
+    setSelectedWeek(getWeekStart(value));
+    setSelectedMonth(value.slice(0, 7));
+  }, []);
+
+  useEffect(() => {
+    if (!data || monthRows.length === 0 || selectedMonth) return;
+    handleMonthChange(monthRows[monthRows.length - 1].month);
+  }, [data, handleMonthChange, monthRows, selectedMonth]);
+
+  useEffect(() => {
+    if (!data || monthRows.length === 0) return;
+
+    if (!selectedMonth || !monthRows.some((row) => row.month === selectedMonth)) {
+      handleMonthChange(monthRows[monthRows.length - 1].month);
+      return;
     }
-    if (data.byWeek.length > 0 && !data.byWeek.some((row) => row.weekStart === selectedWeek)) {
-      setSelectedWeek(data.byWeek[data.byWeek.length - 1]?.weekStart ?? "");
+
+    if (activePeriod !== "month" && (!selectedWeek || !weekRows.some((row) => row.weekStart === selectedWeek))) {
+      const fallbackWeek = monthWeekRows[monthWeekRows.length - 1]?.weekStart ?? weekRows[weekRows.length - 1]?.weekStart;
+      if (fallbackWeek) handleWeekChange(fallbackWeek);
+      return;
     }
-    if (data.byMonth.length > 0 && !data.byMonth.some((row) => row.month === selectedMonth)) {
-      setSelectedMonth(data.byMonth[data.byMonth.length - 1]?.month ?? "");
+
+    if (activePeriod === "day" && (!selectedDay || !dayRows.some((row) => row.day === selectedDay))) {
+      const fallbackDay = weekDayRows[weekDayRows.length - 1]?.day ?? dayRows[dayRows.length - 1]?.day;
+      if (fallbackDay) handleDayChange(fallbackDay);
     }
-  }, [data, selectedDay, selectedMonth, selectedWeek]);
+  }, [
+    activePeriod,
+    data,
+    dayRows,
+    handleDayChange,
+    handleMonthChange,
+    handleWeekChange,
+    monthRows,
+    monthWeekRows,
+    selectedDay,
+    selectedMonth,
+    selectedWeek,
+    weekDayRows,
+    weekRows,
+  ]);
+
+  const printDayRows = activePeriod === "month"
+    ? monthDayRows
+    : activePeriod === "week"
+      ? weekDayRows
+      : selectedDaySummary ? [selectedDaySummary] : [];
+  const printWeekRows = activePeriod === "month"
+    ? monthWeekRows
+    : activePeriod === "week"
+      ? (selectedWeekSummary ? [selectedWeekSummary] : [])
+      : [];
+  const printMonthRows = activePeriod === "month" && selectedMonthSummary ? [selectedMonthSummary] : [];
+  const printScopeLabel = activePeriod === "day"
+    ? `Tag: ${selectedDay ? fmtDay(selectedDay) : "-"}`
+    : activePeriod === "week"
+      ? `Woche: ${selectedWeekSummary?.weekLabel ?? "-"}`
+      : `Monat: ${selectedMonth ? fmtMonth(selectedMonth) : "-"}`;
+  const printRangeLabel = [
+    dateFrom ? `von ${fmtDay(dateFrom)}` : "",
+    dateTo ? `bis ${fmtDay(dateTo)}` : "",
+  ].filter(Boolean).join(" ");
 
   return (
     <div className="space-y-8">
-      <div className="space-y-2">
+      <style>{`
+        @media print {
+          @page { size: A4 portrait; margin: 14mm; }
+          .report-screen-only { display: none !important; }
+          .report-print-only { display: block !important; }
+          .report-print-section { break-inside: avoid; page-break-inside: avoid; }
+          body { background: white !important; color: black !important; }
+        }
+        @media screen {
+          .report-print-only { display: none !important; }
+        }
+      `}</style>
+      <div className="report-screen-only space-y-2">
         <p className="text-sm font-medium uppercase tracking-[0.24em] text-muted-foreground">Auswertung</p>
         <h1 className="text-3xl font-semibold tracking-tight">Reporting</h1>
       </div>
 
       {/* Date filter */}
-      <Card className="flex flex-wrap items-end gap-4 p-4">
+      <Card className="report-screen-only flex flex-wrap items-end gap-4 p-4">
         <label className="grid gap-1 text-sm font-medium">
           <span className="text-xs text-muted-foreground">Von</span>
           <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary" />
@@ -108,6 +250,9 @@ export function ReportingDashboard() {
             Zuruecksetzen
           </button>
         ) : null}
+        <button type="button" onClick={() => window.print()} className="h-9 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90">
+          Drucken
+        </button>
       </Card>
 
       {loading ? (
@@ -115,7 +260,7 @@ export function ReportingDashboard() {
       ) : data ? (
         <>
           {/* KPIs */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="report-screen-only grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <KpiCard label="Belege gesamt" value={String(data.totalReceipts)} />
             <KpiCard label="Summe EUR" value={fmtEur(data.totalAmountEur)} />
             <KpiCard label="Versandfehler" value={String(data.failedSends)} danger={data.failedSends > 0} />
@@ -124,7 +269,7 @@ export function ReportingDashboard() {
 
           {/* Problem overview */}
           {data.problems.total > 0 ? (
-            <Card className="border-danger/30 bg-danger/5">
+            <Card className="report-screen-only border-danger/30 bg-danger/5">
               <h3 className="text-sm font-semibold text-danger">
                 Offene Belege mit Handlungsbedarf ({data.problems.total} {data.problems.total === 1 ? "Beleg" : "Belege"})
               </h3>
@@ -153,40 +298,85 @@ export function ReportingDashboard() {
               </div>
             </Card>
           ) : (
-            <Card className="border-primary/20 bg-primary/5">
+            <Card className="report-screen-only border-primary/20 bg-primary/5">
               <p className="text-sm font-medium text-primary">Keine offenen Belege mit Handlungsbedarf.</p>
             </Card>
           )}
 
-          <div className="grid gap-6 xl:grid-cols-3">
+          <div className="report-screen-only grid gap-6 xl:grid-cols-3">
             <PeriodSelectorCard
               title="Nach Tag"
               label="Tag"
               value={selectedDay}
-              onChange={setSelectedDay}
-              options={data.byDay.map((row) => ({ value: row.day, label: fmtDay(row.day) }))}
-              summary={data.byDay.find((row) => row.day === selectedDay) ?? null}
+              onChange={handleDayChange}
+              options={visibleDayRows.map((row) => ({ value: row.day, label: fmtDay(row.day) }))}
+              summary={selectedDaySummary}
             />
             <PeriodSelectorCard
               title="Nach Woche"
               label="Woche"
               value={selectedWeek}
-              onChange={setSelectedWeek}
-              options={data.byWeek.map((row) => ({ value: row.weekStart, label: row.weekLabel }))}
-              summary={data.byWeek.find((row) => row.weekStart === selectedWeek) ?? null}
+              onChange={handleWeekChange}
+              options={monthWeekRows.map((row) => ({ value: row.weekStart, label: row.weekLabel }))}
+              summary={selectedWeekSummary}
             />
             <PeriodSelectorCard
               title="Nach Monat"
               label="Monat"
               value={selectedMonth}
-              onChange={setSelectedMonth}
-              options={data.byMonth.map((row) => ({ value: row.month, label: fmtMonth(row.month) }))}
-              summary={data.byMonth.find((row) => row.month === selectedMonth) ?? null}
+              onChange={handleMonthChange}
+              options={monthRows.map((row) => ({ value: row.month, label: fmtMonth(row.month) }))}
+              summary={selectedMonthSummary}
             />
           </div>
 
+          <div className="report-print-only space-y-6">
+            <div className="report-print-section border-b border-slate-300 pb-4">
+              <div className="flex items-start justify-between gap-6">
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Auswertung</p>
+                  <h1 className="text-2xl font-semibold text-black">Druckansicht Reporting</h1>
+                </div>
+                <p className="text-xs text-slate-500">Erstellt am {printTimestamp}</p>
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                <div className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Auswahl</p>
+                  <p className="text-sm font-medium">{printScopeLabel}</p>
+                </div>
+                <div className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Monat</p>
+                  <p className="text-sm font-medium">{selectedMonth ? fmtMonth(selectedMonth) : "-"}</p>
+                </div>
+                <div className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Zeitraumfilter</p>
+                  <p className="text-sm font-medium">{printRangeLabel || "Kein zusaetzlicher Filter"}</p>
+                </div>
+              </div>
+            </div>
+            <PrintSummarySection
+              title={activePeriod === "day" ? "Gewaehlter Tag" : activePeriod === "week" ? "Tage der gewaelten Woche" : "Tage des gewaehlten Monats"}
+              label="Tag"
+              rows={printDayRows.map((row) => ({ key: row.day, label: fmtDay(row.day), count: row.count, sumEur: row.sumEur }))}
+            />
+            {printWeekRows.length > 0 ? (
+              <PrintSummarySection
+                title={activePeriod === "month" ? "Wochen des gewaehlten Monats" : "Gewaehlte Woche"}
+                label="Woche"
+                rows={printWeekRows.map((row) => ({ key: row.weekStart, label: row.weekLabel, count: row.count, sumEur: row.sumEur }))}
+              />
+            ) : null}
+            {printMonthRows.length > 0 ? (
+              <PrintSummarySection
+                title="Gewaehlter Monat"
+                label="Monat"
+                rows={printMonthRows.map((row) => ({ key: row.month, label: fmtMonth(row.month), count: row.count, sumEur: row.sumEur }))}
+              />
+            ) : null}
+          </div>
+
           {/* Status tables */}
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="report-screen-only grid gap-6 lg:grid-cols-2">
             <GroupTable title="Versandstatus" rows={data.byStatus.map((s) => ({ name: STATUS_LABELS[s.status] ?? s.status, count: s.count }))} />
             <GroupTable title="Pruefstatus" rows={data.byReviewStatus.map((s) => ({ name: REVIEW_LABELS[s.status] ?? s.status, count: s.count }))} />
             <CurrencyTable rows={data.byCurrency} />
@@ -303,6 +493,50 @@ function PeriodSelectorCard({
         <p className="text-sm text-muted-foreground">Keine Daten fuer diese Auswahl.</p>
       )}
     </Card>
+  );
+}
+
+function PrintSummarySection({
+  title,
+  label,
+  rows,
+}: {
+  title: string;
+  label: string;
+  rows: { key: string; label: string; count: number; sumEur: number }[];
+}) {
+  const totalCount = rows.reduce((sum, row) => sum + row.count, 0);
+  const totalSumEur = rows.reduce((sum, row) => sum + row.sumEur, 0);
+
+  return (
+    <div className="report-print-section rounded-2xl border border-border bg-white p-5 text-black">
+      <h2 className="text-base font-semibold">{title}</h2>
+      <table className="mt-3 w-full text-sm">
+        <thead>
+          <tr className="border-b border-slate-300 text-left">
+            <th className="px-2 py-1.5 font-medium">{label}</th>
+            <th className="px-2 py-1.5 text-right font-medium">Anzahl</th>
+            <th className="px-2 py-1.5 text-right font-medium">Summe EUR</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.key} className="border-b border-slate-200">
+              <td className="px-2 py-1.5">{row.label}</td>
+              <td className="px-2 py-1.5 text-right tabular-nums">{row.count}</td>
+              <td className="px-2 py-1.5 text-right tabular-nums">{fmtEur(row.sumEur)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="border-t-2 border-slate-400 font-semibold">
+            <td className="px-2 py-1.5">Gesamtsumme</td>
+            <td className="px-2 py-1.5 text-right tabular-nums">{totalCount}</td>
+            <td className="px-2 py-1.5 text-right tabular-nums">{fmtEur(totalSumEur)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
   );
 }
 
