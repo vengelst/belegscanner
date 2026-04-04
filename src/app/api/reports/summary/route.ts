@@ -139,12 +139,16 @@ export async function GET(request: NextRequest) {
   });
 
   // --- Time breakdowns (database-level aggregation) ---
-  const byDayRaw: Array<{ day: string; count: bigint; sum_eur: Prisma.Decimal | null }> = await prisma.$queryRaw(
+  const byDayRaw: Array<{ day: string; week_start: string; count: bigint; sum_eur: Prisma.Decimal | null }> = await prisma.$queryRaw(
     Prisma.sql`
-      SELECT to_char(date, 'YYYY-MM-DD') AS day, COUNT(*)::bigint AS count, SUM("amountEur") AS sum_eur
+      SELECT
+        to_char(date, 'YYYY-MM-DD') AS day,
+        to_char(date_trunc('week', date), 'YYYY-MM-DD') AS week_start,
+        COUNT(*)::bigint AS count,
+        SUM("amountEur") AS sum_eur
       FROM "Receipt"
       ${rawWhere}
-      GROUP BY to_char(date, 'YYYY-MM-DD')
+      GROUP BY to_char(date, 'YYYY-MM-DD'), date_trunc('week', date)
       ORDER BY day ASC
     `,
   );
@@ -172,6 +176,7 @@ export async function GET(request: NextRequest) {
   );
   const byDay = byDayRaw.map((r) => ({
     day: r.day,
+    weekStart: r.week_start,
     count: Number(r.count),
     sumEur: Number(r.sum_eur ?? 0),
   }));

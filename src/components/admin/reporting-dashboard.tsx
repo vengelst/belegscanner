@@ -10,7 +10,7 @@ type SummaryData = {
   foreignCurrencyReceipts: number;
   byStatus: { status: string; count: number }[];
   byReviewStatus: { status: string; count: number }[];
-  byDay: { day: string; count: number; sumEur: number }[];
+  byDay: { day: string; weekStart: string; count: number; sumEur: number }[];
   byWeek: { weekStart: string; weekLabel: string; count: number; sumEur: number }[];
   byMonth: { month: string; count: number; sumEur: number }[];
   byUser: { userName: string; count: number; sumEur: number }[];
@@ -55,20 +55,8 @@ function fmtDay(key: string) {
   return `${day}.${month}.${year}`;
 }
 
-function addDaysToIsoDate(value: string, days: number) {
-  const [year, month, day] = value.split("-").map(Number);
-  const current = new Date(Date.UTC(year, month - 1, day));
-  current.setUTCDate(current.getUTCDate() + days);
-  return current.toISOString().slice(0, 10);
-}
-
-function isDayInWeek(day: string, weekStart: string) {
-  const weekEnd = addDaysToIsoDate(weekStart, 6);
-  return day >= weekStart && day <= weekEnd;
-}
-
-function findWeekStartForDay(day: string, weeks: Array<{ weekStart: string }>) {
-  return weeks.find((week) => isDayInWeek(day, week.weekStart))?.weekStart ?? "";
+function findWeekStartForDay(day: string, days: Array<{ day: string; weekStart: string }>) {
+  return days.find((entry) => entry.day === day)?.weekStart ?? "";
 }
 
 function resolveMonthFromWeek(weekStart: string, weekDays: Array<{ day: string }>, monthRows: Array<{ month: string }>) {
@@ -125,10 +113,11 @@ export function ReportingDashboard() {
     [dayRows, selectedMonth],
   );
   const monthWeekRows = useMemo(() => {
-    return weekRows.filter((week) => monthDayRows.some((day) => isDayInWeek(day.day, week.weekStart)));
+    const weekStarts = new Set(monthDayRows.map((row) => row.weekStart));
+    return weekRows.filter((week) => weekStarts.has(week.weekStart));
   }, [monthDayRows, weekRows]);
   const weekDayRows = useMemo(
-    () => (selectedWeek ? dayRows.filter((row) => isDayInWeek(row.day, selectedWeek)) : []),
+    () => (selectedWeek ? dayRows.filter((row) => row.weekStart === selectedWeek) : []),
     [dayRows, selectedWeek],
   );
   const visibleDayRows = activePeriod === "month" ? monthDayRows : weekDayRows;
@@ -141,7 +130,8 @@ export function ReportingDashboard() {
     setActivePeriod("month");
     setSelectedMonth(value);
     const nextMonthDays = dayRows.filter((row) => row.day.startsWith(`${value}-`));
-    const nextMonthWeeks = weekRows.filter((week) => nextMonthDays.some((day) => isDayInWeek(day.day, week.weekStart)));
+    const weekStarts = new Set(nextMonthDays.map((row) => row.weekStart));
+    const nextMonthWeeks = weekRows.filter((week) => weekStarts.has(week.weekStart));
     setSelectedWeek(nextMonthWeeks[nextMonthWeeks.length - 1]?.weekStart ?? "");
     setSelectedDay(nextMonthDays[nextMonthDays.length - 1]?.day ?? "");
   }, [dayRows, weekRows]);
@@ -149,7 +139,7 @@ export function ReportingDashboard() {
   const handleWeekChange = useCallback((value: string) => {
     setActivePeriod("week");
     setSelectedWeek(value);
-    const nextWeekDays = dayRows.filter((row) => isDayInWeek(row.day, value));
+    const nextWeekDays = dayRows.filter((row) => row.weekStart === value);
     setSelectedDay(nextWeekDays[nextWeekDays.length - 1]?.day ?? "");
     setSelectedMonth(resolveMonthFromWeek(value, nextWeekDays, monthRows));
   }, [dayRows, monthRows]);
@@ -157,9 +147,9 @@ export function ReportingDashboard() {
   const handleDayChange = useCallback((value: string) => {
     setActivePeriod("day");
     setSelectedDay(value);
-    setSelectedWeek(findWeekStartForDay(value, weekRows));
+    setSelectedWeek(findWeekStartForDay(value, dayRows));
     setSelectedMonth(value.slice(0, 7));
-  }, [weekRows]);
+  }, [dayRows]);
 
   useEffect(() => {
     if (!data || monthRows.length === 0 || selectedMonth) return;
