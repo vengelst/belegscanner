@@ -29,6 +29,8 @@ type SummaryData = {
   };
 };
 
+type PeriodMode = "day" | "week" | "month";
+
 const STATUS_LABELS: Record<string, string> = {
   OPEN: "Offen", READY: "Bereit", SENT: "Gesendet", FAILED: "Fehlgeschlagen", RETRY: "Erneut",
 };
@@ -58,6 +60,7 @@ export function ReportingDashboard() {
   const [dateTo, setDateTo] = useState("");
   const [data, setData] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [periodMode, setPeriodMode] = useState<PeriodMode>("month");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -70,6 +73,14 @@ export function ReportingDashboard() {
   }, [dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
+
+  const periodRows = data
+    ? periodMode === "day"
+      ? data.byDay.map((d) => ({ key: d.day, label: fmtDay(d.day), count: d.count, sumEur: d.sumEur }))
+      : periodMode === "week"
+        ? data.byWeek.map((w) => ({ key: w.weekStart, label: w.weekLabel, count: w.count, sumEur: w.sumEur }))
+        : data.byMonth.map((m) => ({ key: m.month, label: fmtMonth(m.month), count: m.count, sumEur: m.sumEur }))
+    : [];
 
   return (
     <div className="space-y-8">
@@ -143,23 +154,24 @@ export function ReportingDashboard() {
             </Card>
           )}
 
-          <div className="grid gap-6 xl:grid-cols-3">
+          <Card className="space-y-4 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold">Zeit-Auswertung</h3>
+                <p className="text-xs text-muted-foreground">Summiert nach der gewaelten Periode.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <PeriodModeButton active={periodMode === "day"} onClick={() => setPeriodMode("day")} label="Tag" />
+                <PeriodModeButton active={periodMode === "week"} onClick={() => setPeriodMode("week")} label="Woche" />
+                <PeriodModeButton active={periodMode === "month"} onClick={() => setPeriodMode("month")} label="Monat" />
+              </div>
+            </div>
             <PeriodTable
-              title="Nach Tag"
-              label="Tag"
-              rows={data.byDay.map((d) => ({ key: d.day, label: fmtDay(d.day), count: d.count, sumEur: d.sumEur }))}
+              title={periodMode === "day" ? "Nach Tag" : periodMode === "week" ? "Nach Woche" : "Nach Monat"}
+              label={periodMode === "day" ? "Tag" : periodMode === "week" ? "Woche" : "Monat"}
+              rows={periodRows}
             />
-            <PeriodTable
-              title="Nach Woche"
-              label="Woche"
-              rows={data.byWeek.map((w) => ({ key: w.weekStart, label: w.weekLabel, count: w.count, sumEur: w.sumEur }))}
-            />
-            <PeriodTable
-              title="Nach Monat"
-              label="Monat"
-              rows={data.byMonth.map((m) => ({ key: m.month, label: fmtMonth(m.month), count: m.count, sumEur: m.sumEur }))}
-            />
-          </div>
+          </Card>
 
           {/* Status tables */}
           <div className="grid gap-6 lg:grid-cols-2">
@@ -276,6 +288,30 @@ function PeriodTable({
         ) : null}
       </table>
     </Card>
+  );
+}
+
+function PeriodModeButton({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-xl border px-3 py-1.5 text-sm font-medium transition ${
+        active
+          ? "border-primary/40 bg-primary/10 text-primary"
+          : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-primary"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 
