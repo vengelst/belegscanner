@@ -118,6 +118,113 @@ function Get-CurrentVersion {
     return [string]$packageJson.version
 }
 
+function ConvertTo-SemVersion {
+    param(
+        [string]$Value,
+        [string]$Name = "Version"
+    )
+
+    try {
+        return [version]$Value
+    }
+    catch {
+        throw "$Name ist keine gueltige SemVer-Version im Format X.Y.Z: $Value"
+    }
+}
+
+function Get-LatestReleaseTag {
+    $tags = git tag --list "v*"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Git-Tags konnten nicht gelesen werden."
+    }
+
+    $releaseTags = @()
+
+    foreach ($tag in $tags) {
+        $trimmedTag = [string]$tag
+        if ($trimmedTag -match '^v(\d+\.\d+\.\d+)$') {
+            $releaseTags += [pscustomobject]@{
+                Tag = $trimmedTag
+                Version = ConvertTo-SemVersion -Value $Matches[1] -Name "Git-Tag"
+            }
+        }
+    }
+
+    if ($releaseTags.Count -eq 0) {
+        return $null
+    }
+
+    return $releaseTags | Sort-Object Version -Descending | Select-Object -First 1
+}
+
+function Get-NextVersion {
+    param(
+        [version]$BaseVersion,
+        [ValidateSet("patch", "minor", "major")]
+        [string]$Bump
+    )
+
+    switch ($Bump) {
+        "patch" {
+            return [version]::new($BaseVersion.Major, $BaseVersion.Minor, $BaseVersion.Build + 1)
+        }
+        "minor" {
+            return [version]::new($BaseVersion.Major, $BaseVersion.Minor + 1, 0)
+        }
+        "major" {
+            return [version]::new($BaseVersion.Major + 1, 0, 0)
+        }
+    }
+}
+
+function Assert-TagDoesNotExist {
+    param([string]$TagName)
+
+    $existingTag = (git tag --list $TagName | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) {
+        throw "Git-Tag $TagName konnte nicht geprueft werden."
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($existingTag)) {
+        throw "Release abgebrochen: Git-Tag $TagName existiert bereits."
+    }
+}
+
+function Resolve-TargetVersion {
+    if (-not [string]::IsNullOrWhiteSpace($Version) -and $VersionBump -ne "none") {
+        throw "Bitte entweder -Version oder -VersionBump verwenden, nicht beides."
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Version) -and $VersionBump -eq "none") {
+        return $null
+    }
+
+    $packageVersion = ConvertTo-SemVersion -Value (Get-CurrentVersion) -Name "package.json-Version"
+    $latestReleaseTag = Get-LatestReleaseTag
+    $baseVersion = $packageVersion
+
+    if ($null -ne $latestReleaseTag -and $packageVersion -lt $latestReleaseTag.Version) {
+        Write-WarnLine "package.json-Version $packageVersion liegt hinter dem letzten Release-Tag $($latestReleaseTag.Tag). Nutze $($latestReleaseTag.Tag) als Basis."
+        $baseVersion = $latestReleaseTag.Version
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Version)) {
+        $targetVersion = ConvertTo-SemVersion -Value $Version -Name "Version"
+    }
+    else {
+        $targetVersion = Get-NextVersion -BaseVersion $baseVersion -Bump $VersionBump
+    }
+
+    if ($null -ne $latestReleaseTag -and $targetVersion -le $latestReleaseTag.Version) {
+        throw "Release abgebrochen: Zielversion v$targetVersion ist nicht groesser als der letzte Release-Tag $($latestReleaseTag.Tag)."
+    }
+
+    $targetVersionString = $targetVersion.ToString()
+    Assert-TagDoesNotExist -TagName "v$targetVersionString"
+
+    return $targetVersionString
+}
+
 function Test-HasChanges {
     $status = git status --porcelain
     if ($LASTEXITCODE -ne 0) {
@@ -128,25 +235,25 @@ function Test-HasChanges {
 }
 
 function Set-ProjectVersion {
-    if (-not [string]::IsNullOrWhiteSpace($Version) -and $VersionBump -ne "none") {
-        throw "Bitte entweder -Version oder -VersionBump verwenden, nicht beides."
+    $targetVersion = Resolve-TargetVersion
+    if (-not [string]::IsNullOrWhiteSpace($targetVersion)) {
+        Run-Command -Label "Setze Release-Version auf $targetVersion" -Command "npm version $targetVersion --no-git-tag-version"
+        return $targetVersion
     }
 
-    if (-not [string]::IsNullOrWhiteSpace($Version)) {
-        Run-Command -Label "Setze Version auf $Version" -Command "npm version $Version --no-git-tag-version"
-        return
-    }
-
-    if ($VersionBump -ne "none") {
-        Run-Command -Label "Erhoehe Version per $VersionBump" -Command "npm version $VersionBump --no-git-tag-version"
-    }
+    return $null
 }
 
 function Show-Status {
+    $latestReleaseTag = Get-LatestReleaseTag
     Write-Info "Repository-Status"
     git status --short --branch
     Write-Host ""
     Write-Info "Aktuelle Version: $(Get-CurrentVersion)"
+    if ($null -ne $latestReleaseTag) {
+        Write-Host ""
+        Write-Info "Letzter Release-Tag: $($latestReleaseTag.Tag)"
+    }
     Write-Host ""
     Write-Info "Letzter Commit"
     git log -1 --oneline
@@ -163,7 +270,7 @@ function Invoke-Add {
 }
 
 function Invoke-Release {
-    Set-ProjectVersion
+    $targetVersion = Set-ProjectVersion
 
     if (-not (Test-HasChanges)) {
         Write-WarnLine "Keine Aenderungen zum Committen gefunden."
@@ -172,7 +279,7 @@ function Invoke-Release {
 
     Invoke-Add
 
-    $currentVersion = Get-CurrentVersion
+    $currentVersion = if (-not [string]::IsNullOrWhiteSpace($targetVersion)) { $targetVersion } else { Get-CurrentVersion }
     $effectiveCommitMessage = $CommitMessage
 
     if ([string]::IsNullOrWhiteSpace($effectiveCommitMessage)) {
