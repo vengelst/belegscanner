@@ -224,6 +224,9 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                     {r.vehiclePlate ? <Tag>{r.vehiclePlate}</Tag> : null}
                     {r.hasHospitality ? <Tag accent>Bewirtung</Tag> : null}
                     {r.sendStatus === "FAILED" ? <Tag danger>Fehler</Tag> : null}
+                    {!r.hasFile ? <Tag danger>Datei fehlt</Tag> : null}
+                    {r.sendStatus === "OPEN" && (!r.countryName || !r.supplier) ? <Tag accent>pruefen</Tag> : null}
+                    {r.isHospitality && !r.hasHospitality ? <Tag accent>Bewirtung pruefen</Tag> : null}
                   </div>
                 </Card>
               </Link>

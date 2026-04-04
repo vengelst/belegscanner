@@ -142,16 +142,106 @@ export async function GET(request: NextRequest) {
     where: { success: false, ...(dateFrom || dateTo ? { createdAt: { ...(dateFrom ? { gte: new Date(dateFrom) } : {}), ...(dateTo ? { lte: new Date(dateTo) } : {}) } } : {}) },
   });
 
+  // --- Monthly breakdown (database-level aggregation via raw SQL) ---
+  const dateFilter = dateFrom || dateTo
+    ? `WHERE ${[dateFrom ? `date >= '${dateFrom}'` : "", dateTo ? `date <= '${dateTo}'` : ""].filter(Boolean).join(" AND ")}`
+    : "";
+  const byMonthRaw: Array<{ month: string; count: bigint; sum_eur: Prisma.Decimal | null }> = await prisma.$queryRawUnsafe(
+    `SELECT to_char(date, 'YYYY-MM') AS month, COUNT(*)::bigint AS count, SUM("amountEur") AS sum_eur
+     FROM "Receipt" ${dateFilter}
+     GROUP BY to_char(date, 'YYYY-MM')
+     ORDER BY month ASC`,
+  );
+  const byMonth = byMonthRaw.map((r) => ({
+    month: r.month,
+    count: Number(r.count),
+    sumEur: Number(r.sum_eur ?? 0),
+  }));
+
+  // --- Review status breakdown ---
+  const byReviewStatus = await prisma.receipt.groupBy({
+    by: ["reviewStatus"],
+    where,
+    _count: true,
+  });
+
+  // --- Problematic receipts (only operationally open — not yet successfully sent) ---
+  // SENT receipts are done; their missing fields are historical, not actionable.
+  const openWhere: Prisma.ReceiptWhereInput = {
+    ...where,
+    sendStatus: { not: "SENT" },
+  };
+
+  const [
+    missingFile,
+    missingCountry,
+    missingSupplier,
+    missingExchangeRate,
+    sendFailed,
+    missingHospitality,
+  ] = await Promise.all([
+    prisma.receipt.count({
+      where: { ...openWhere, files: { none: { type: "ORIGINAL" } } },
+    }),
+    prisma.receipt.count({
+      where: { ...openWhere, countryId: null },
+    }),
+    prisma.receipt.count({
+      where: { ...openWhere, OR: [{ supplier: null }, { supplier: "" }] },
+    }),
+    prisma.receipt.count({
+      where: { ...openWhere, currency: { not: "EUR" }, exchangeRate: null },
+    }),
+    prisma.receipt.count({
+      where: { ...where, sendStatus: "FAILED" },
+    }),
+    prisma.receipt.count({
+      where: {
+        ...openWhere,
+        purpose: { isHospitality: true },
+        hospitality: null,
+      },
+    }),
+  ]);
+
+  // Distinct count: how many unique receipts have at least one problem?
+  const distinctProblematic = await prisma.receipt.count({
+    where: {
+      ...openWhere,
+      OR: [
+        { files: { none: { type: "ORIGINAL" } } },
+        { countryId: null },
+        { OR: [{ supplier: null }, { supplier: "" }] },
+        { currency: { not: "EUR" }, exchangeRate: null },
+        { sendStatus: "FAILED" },
+        { purpose: { isHospitality: true }, hospitality: null },
+      ],
+    },
+  });
+
+  const problems = {
+    missingFile,
+    missingCountry,
+    missingSupplier,
+    missingExchangeRate,
+    sendFailed,
+    missingHospitality,
+    total: distinctProblematic,
+  };
+
   return NextResponse.json({
     totalReceipts,
     totalAmountEur: Number(totals._sum.amountEur ?? 0),
     failedSends,
     foreignCurrencyReceipts,
     byStatus: byStatus.map((s) => ({ status: s.sendStatus, count: s._count })),
+    byReviewStatus: byReviewStatus.map((s) => ({ status: s.reviewStatus, count: s._count })),
+    byMonth,
     byUser,
     byCountry,
     byPurpose,
     byCategory,
     byCurrency,
+    problems,
   });
 }

@@ -275,11 +275,16 @@ export const aiStructuredDataSchema = z.object({
 const receiptSchemaBase = z.object({
   date: z.string().date(),
   supplier: z.string().max(255).nullable().optional(),
+  invoiceNumber: z.string().max(80).nullable().optional(),
+  serviceDate: z.string().date().nullable().optional(),
+  dueDate: z.string().date().nullable().optional(),
   amount: z.coerce.number().positive("Betrag muss groesser als 0 sein."),
   currency: z
     .string()
     .length(3, "ISO-4217-Waehrungscode mit 3 Zeichen.")
     .default("EUR"),
+  netAmount: z.coerce.number().nonnegative().nullable().optional(),
+  taxAmount: z.coerce.number().nonnegative().nullable().optional(),
   exchangeRate: z.coerce.number().positive().nullable().optional(),
   exchangeRateDate: z.string().date().nullable().optional(),
   amountEur: z.coerce.number().nonnegative().nullable().optional(),
@@ -327,15 +332,20 @@ export const sendReadySchema = z
   .object({
     date: z.string().date(),
     supplier: z.string().max(255).nullable().optional(),
-    amount: z.coerce.number().positive("Betrag muss größer als 0 sein."),
+    invoiceNumber: z.string().max(80).nullable().optional(),
+    serviceDate: z.string().date().nullable().optional(),
+    dueDate: z.string().date().nullable().optional(),
+    amount: z.coerce.number().positive("Betrag muss groesser als 0 sein."),
     currency: z
       .string()
-      .length(3, "ISO-4217-Währungscode mit 3 Zeichen.")
+      .length(3, "ISO-4217-Waehrungscode mit 3 Zeichen.")
       .default("EUR"),
+    netAmount: z.coerce.number().nonnegative().nullable().optional(),
+    taxAmount: z.coerce.number().nonnegative().nullable().optional(),
     exchangeRate: z.coerce.number().positive().nullable().optional(),
     exchangeRateDate: z.string().date().nullable().optional(),
     amountEur: z.coerce.number().nonnegative().nullable().optional(),
-    countryId: z.string().min(1, "Land ist für den Versand erforderlich."),
+    countryId: z.string().min(1, "Land ist fuer den Versand erforderlich."),
     vehicleId: z.string().min(1).nullable().optional(),
     purposeId: z.string().min(1),
     categoryId: z.string().min(1),
@@ -343,3 +353,80 @@ export const sendReadySchema = z
     hospitality: hospitalitySchema.nullable().optional(),
   })
   .superRefine(sendCurrencyRefinement);
+
+/**
+ * Readiness check for DATEV send.
+ *
+ * DATEV-Versand = E-Mail mit Belegdatei als Anhang.
+ * Technische Blocker (nicht_sendbar): Kein Beleg-Attachment, kein DATEV-Profil/SMTP.
+ * Interne Warnungen (pruefen): Fehlende Felder fuer Buchhaltung/Controlling.
+ *
+ * Felder wie Rechnungsnummer, Netto, Steuer, Land, Lieferant sind KEINE
+ * technischen Versandblocker — sie sind interne Qualitaetshinweise.
+ */
+export type SendReadiness = {
+  status: "sendbar" | "pruefen" | "nicht_sendbar";
+  issues: Array<{ field: string; message: string; severity: "error" | "warning" }>;
+};
+
+export function checkSendReadiness(receipt: {
+  date: string | Date | null;
+  amount: number | null;
+  currency: string | null;
+  supplier: string | null;
+  invoiceNumber: string | null;
+  netAmount: number | null;
+  taxAmount: number | null;
+  countryId: string | null;
+  purposeId: string | null;
+  categoryId: string | null;
+  exchangeRate: number | null;
+  hasFile?: boolean;
+  hasSmtp?: boolean;
+  hasDatev?: boolean;
+}): SendReadiness {
+  const issues: SendReadiness["issues"] = [];
+
+  // --- Technische DATEV-Blocker (nicht_sendbar) ---
+  // Ohne diese kann die E-Mail an DATEV physisch nicht rausgehen.
+  if (receipt.hasFile === false) {
+    issues.push({ field: "file", message: "Keine Belegdatei vorhanden.", severity: "error" });
+  }
+  if (receipt.hasSmtp === false) {
+    issues.push({ field: "smtp", message: "SMTP ist nicht konfiguriert.", severity: "error" });
+  }
+  if (receipt.hasDatev === false) {
+    issues.push({ field: "datev", message: "Kein aktives DATEV-Profil vorhanden.", severity: "error" });
+  }
+
+  // --- Hinweis: Fremdwaehrung ohne gespeicherten Kurs ---
+  // Der aktuelle Kurs wird beim Versand geladen. Solange das noch nicht passiert ist,
+  // ist das in der UI nur ein Warnhinweis und kein harter Blocker.
+  if (receipt.currency && receipt.currency !== "EUR" && !receipt.exchangeRate) {
+    issues.push({
+      field: "exchangeRate",
+      message: "Kein gespeicherter Wechselkurs vorhanden. Der aktuelle Kurs wird beim Versand geladen.",
+      severity: "warning",
+    });
+  }
+
+  // --- Interne Warnungen (pruefen) ---
+  // Diese verhindern den Versand nicht, sind aber fuer Buchhaltung/Controlling wichtig.
+  if (!receipt.date) issues.push({ field: "date", message: "Belegdatum fehlt.", severity: "warning" });
+  if (!receipt.amount || receipt.amount <= 0) issues.push({ field: "amount", message: "Betrag fehlt oder ist ungueltig.", severity: "warning" });
+  if (!receipt.purposeId) issues.push({ field: "purposeId", message: "Zweck fehlt.", severity: "warning" });
+  if (!receipt.categoryId) issues.push({ field: "categoryId", message: "Kategorie fehlt.", severity: "warning" });
+  if (!receipt.countryId) issues.push({ field: "countryId", message: "Land fehlt.", severity: "warning" });
+  if (!receipt.supplier) issues.push({ field: "supplier", message: "Lieferant fehlt.", severity: "warning" });
+  if (!receipt.invoiceNumber) issues.push({ field: "invoiceNumber", message: "Rechnungsnummer fehlt.", severity: "warning" });
+  if (receipt.netAmount == null) issues.push({ field: "netAmount", message: "Nettobetrag fehlt.", severity: "warning" });
+  if (receipt.taxAmount == null) issues.push({ field: "taxAmount", message: "Steuerbetrag fehlt.", severity: "warning" });
+
+  const hasErrors = issues.some((i) => i.severity === "error");
+  const hasWarnings = issues.some((i) => i.severity === "warning");
+
+  return {
+    status: hasErrors ? "nicht_sendbar" : hasWarnings ? "pruefen" : "sendbar",
+    issues,
+  };
+}

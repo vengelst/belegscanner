@@ -14,8 +14,13 @@ type ReceiptData = {
   id: string;
   date: string;
   supplier: string | null;
+  invoiceNumber: string | null;
+  serviceDate: string | null;
+  dueDate: string | null;
   amount: number;
   currency: string;
+  netAmount: number | null;
+  taxAmount: number | null;
   exchangeRate: number | null;
   exchangeRateDate: string | null;
   countryId: string | null;
@@ -111,11 +116,21 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
     const erVal = (formData.get("exchangeRate") as string) || exchangeRate;
     if (erVal) parsedExchangeRate = parseFloat(erVal.replace(",", "."));
 
+    const netAmountRaw = (formData.get("netAmount") as string) || "";
+    const taxAmountRaw = (formData.get("taxAmount") as string) || "";
+    const parsedNet = netAmountRaw ? parseFloat(netAmountRaw.replace(",", ".")) : null;
+    const parsedTax = taxAmountRaw ? parseFloat(taxAmountRaw.replace(",", ".")) : null;
+
     const body: Record<string, unknown> = {
       date: formData.get("date"),
       supplier: formData.get("supplier") || null,
+      invoiceNumber: formData.get("invoiceNumber") || null,
+      serviceDate: formData.get("serviceDate") || null,
+      dueDate: formData.get("dueDate") || null,
       amount: isNaN(amount) ? 0 : amount,
       currency,
+      netAmount: parsedNet !== null && !isNaN(parsedNet) ? parsedNet : null,
+      taxAmount: parsedTax !== null && !isNaN(parsedTax) ? parsedTax : null,
       exchangeRate: parsedExchangeRate,
       exchangeRateDate: formData.get("exchangeRateDate") || exchangeRateDate || null,
       countryId: formData.get("countryId") || null,
@@ -172,8 +187,11 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
         <h2 className="text-lg font-semibold tracking-tight">Belegdaten</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Input label="Belegdatum" name="date" type="date" required defaultValue={receipt.date} />
+          <Input label="Faelligkeitsdatum" name="dueDate" type="date" defaultValue={receipt.dueDate ?? ""} />
+          <Input label="Leistungsdatum" name="serviceDate" type="date" defaultValue={receipt.serviceDate ?? ""} />
+          <Input label="Rechnungsnummer" name="invoiceNumber" maxLength={80} defaultValue={receipt.invoiceNumber ?? ""} />
           <Input
-            label="Kaufpreis Originalwaehrung"
+            label="Kaufpreis / Bruttobetrag"
             name="amount"
             type="text"
             inputMode="decimal"
@@ -181,6 +199,8 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
             value={amount}
             onChange={(event: React.ChangeEvent<HTMLInputElement>) => setAmount(event.target.value)}
           />
+          <Input label="Nettobetrag" name="netAmount" type="text" inputMode="decimal" defaultValue={receipt.netAmount != null ? String(receipt.netAmount).replace(".", ",") : ""} />
+          <Input label="Steuerbetrag" name="taxAmount" type="text" inputMode="decimal" defaultValue={receipt.taxAmount != null ? String(receipt.taxAmount).replace(".", ",") : ""} />
           <Input
             label="Waehrung"
             name="currency"

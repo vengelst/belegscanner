@@ -30,7 +30,7 @@ type Props = {
 };
 
 type OcrExtracted = OcrResult["extracted"];
-type OcrFieldKey = keyof Pick<OcrExtracted, "date" | "dueDate" | "amount" | "currency" | "supplier">;
+type OcrFieldKey = keyof Pick<OcrExtracted, "date" | "dueDate" | "amount" | "currency" | "supplier" | "invoiceNumber" | "netAmount" | "taxAmount" | "serviceDate" | "grossAmount">;
 type CaptureSource = "upload" | "camera";
 type CaptureTrigger = "manual" | "auto";
 
@@ -63,7 +63,11 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
   const today = new Date().toISOString().split("T")[0];
   const [date, setDate] = useState(today);
   const [dueDate, setDueDate] = useState("");
+  const [serviceDate, setServiceDate] = useState("");
+  const [invoiceNumber, setInvoiceNumber] = useState("");
   const [amount, setAmount] = useState("");
+  const [netAmount, setNetAmount] = useState("");
+  const [taxAmount, setTaxAmount] = useState("");
   const [currency, setCurrency] = useState("EUR");
   const [exchangeRate, setExchangeRate] = useState("");
   const [exchangeRateDate, setExchangeRateDate] = useState("");
@@ -83,7 +87,12 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
   const [manualOverrides, setManualOverrides] = useState<Record<OcrFieldKey, boolean>>({
     date: false,
     dueDate: false,
+    serviceDate: false,
+    invoiceNumber: false,
     amount: false,
+    grossAmount: false,
+    netAmount: false,
+    taxAmount: false,
     currency: false,
     supplier: false,
   });
@@ -187,7 +196,11 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
 
     if (extracted.date && !manualOverrides.date) setDate(extracted.date);
     if (!manualOverrides.dueDate) setDueDate(extracted.dueDate ?? "");
+    if (!manualOverrides.serviceDate) setServiceDate(extracted.serviceDate ?? "");
+    if (extracted.invoiceNumber && !manualOverrides.invoiceNumber) setInvoiceNumber(extracted.invoiceNumber);
     if (extracted.amount !== null && !manualOverrides.amount) setAmount(String(extracted.amount).replace(".", ","));
+    if (extracted.netAmount !== null && !manualOverrides.netAmount) setNetAmount(String(extracted.netAmount).replace(".", ","));
+    if (extracted.taxAmount !== null && !manualOverrides.taxAmount) setTaxAmount(String(extracted.taxAmount).replace(".", ","));
     if (extracted.currency && !manualOverrides.currency) setCurrency(extracted.currency);
     if (extracted.supplier && !manualOverrides.supplier) setSupplier(extracted.supplier);
   }, [manualOverrides, ocrResult]);
@@ -449,11 +462,19 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     const exchangeRateValue = (formData.get("exchangeRate") as string) || exchangeRate;
     if (exchangeRateValue) parsedExchangeRate = parseFloat(exchangeRateValue.replace(",", "."));
 
+    const parsedNet = netAmount ? parseFloat(netAmount.replace(",", ".")) : null;
+    const parsedTax = taxAmount ? parseFloat(taxAmount.replace(",", ".")) : null;
+
     const body: Record<string, unknown> = {
       date: formData.get("date"),
       supplier: formData.get("supplier") || null,
+      invoiceNumber: formData.get("invoiceNumber") || null,
+      serviceDate: formData.get("serviceDate") || null,
+      dueDate: formData.get("dueDate") || null,
       amount: isNaN(amountValue) ? 0 : amountValue,
       currency: selectedCurrency,
+      netAmount: parsedNet !== null && !isNaN(parsedNet) ? parsedNet : null,
+      taxAmount: parsedTax !== null && !isNaN(parsedTax) ? parsedTax : null,
       exchangeRate: parsedExchangeRate,
       exchangeRateDate: formData.get("exchangeRateDate") || exchangeRateDate || null,
       countryId: formData.get("countryId") || null,
@@ -608,7 +629,28 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
               }}
             />
             <Input
-              label="Kaufpreis Originalwaehrung"
+              label="Leistungsdatum"
+              name="serviceDate"
+              type="date"
+              value={serviceDate}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                markManualOverride("serviceDate");
+                setServiceDate(event.target.value);
+              }}
+            />
+            <Input
+              label="Rechnungsnummer"
+              name="invoiceNumber"
+              placeholder="optional"
+              value={invoiceNumber}
+              maxLength={80}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                markManualOverride("invoiceNumber");
+                setInvoiceNumber(event.target.value);
+              }}
+            />
+            <Input
+              label="Kaufpreis / Bruttobetrag"
               name="amount"
               type="text"
               inputMode="decimal"
@@ -618,6 +660,30 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
               onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
                 markManualOverride("amount");
                 setAmount(event.target.value);
+              }}
+            />
+            <Input
+              label="Nettobetrag"
+              name="netAmount"
+              type="text"
+              inputMode="decimal"
+              placeholder="optional"
+              value={netAmount}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                markManualOverride("netAmount");
+                setNetAmount(event.target.value);
+              }}
+            />
+            <Input
+              label="Steuerbetrag"
+              name="taxAmount"
+              type="text"
+              inputMode="decimal"
+              placeholder="optional"
+              value={taxAmount}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                markManualOverride("taxAmount");
+                setTaxAmount(event.target.value);
               }}
             />
             <Input

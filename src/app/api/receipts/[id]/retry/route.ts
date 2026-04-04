@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { sendReceipt } from "@/lib/mail";
+import { validateForSend, sendReceipt } from "@/lib/mail";
 
 export async function POST(
   request: NextRequest,
@@ -36,6 +36,15 @@ export async function POST(
     if (body.datevProfileId) datevProfileId = String(body.datevProfileId);
   } catch {
     // No body is fine
+  }
+
+  // Validate technical prerequisites (same as initial send)
+  const validationErrors = await validateForSend(id);
+  if (validationErrors.length > 0) {
+    return NextResponse.json(
+      { error: "Versandvoraussetzungen nicht erfuellt.", details: validationErrors },
+      { status: 400 },
+    );
   }
 
   // Transition to RETRY

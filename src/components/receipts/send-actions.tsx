@@ -2,24 +2,47 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import type { SendReadiness } from "@/lib/validation";
 
 type Props = {
   receiptId: string;
   sendStatus: string;
+  reviewStatus: string;
+  isAdmin: boolean;
   datevProfiles: { id: string; name: string; isDefault: boolean }[];
+  receiptDatevProfileId?: string | null;
+  readiness?: SendReadiness;
 };
 
-export function SendActions({ receiptId, sendStatus, datevProfiles }: Props) {
+const statusLabels: Record<SendReadiness["status"], string> = {
+  sendbar: "An DATEV sendbar",
+  pruefen: "An DATEV sendbar — intern noch zu pruefen",
+  nicht_sendbar: "Technisch nicht sendbar",
+};
+
+const statusColors: Record<SendReadiness["status"], string> = {
+  sendbar: "border-primary/30 bg-primary/5 text-primary",
+  pruefen: "border-accent/30 bg-accent/5 text-accent-foreground",
+  nicht_sendbar: "border-danger/30 bg-danger/5 text-danger",
+};
+
+export function SendActions({ receiptId, sendStatus, reviewStatus, isAdmin, datevProfiles, receiptDatevProfileId, readiness }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Receipt's own profile takes priority, then global default, then first available
   const [selectedProfile, setSelectedProfile] = useState(
-    datevProfiles.find((p) => p.isDefault)?.id ?? datevProfiles[0]?.id ?? "",
+    (receiptDatevProfileId && datevProfiles.some((p) => p.id === receiptDatevProfileId) ? receiptDatevProfileId : null)
+      ?? datevProfiles.find((p) => p.isDefault)?.id
+      ?? datevProfiles[0]?.id
+      ?? "",
   );
 
   const canSend = sendStatus === "OPEN" || sendStatus === "READY";
   const canRetry = sendStatus === "FAILED" || sendStatus === "SENT";
+  const isBlocked = readiness?.status === "nicht_sendbar";
+  const needsApproval = !isAdmin && reviewStatus !== "APPROVED";
 
   function handleSend() {
     setMessage(null);
@@ -63,7 +86,7 @@ export function SendActions({ receiptId, sendStatus, datevProfiles }: Props) {
     return (
       <div className="rounded-2xl border border-danger/30 bg-danger/5 p-4">
         <p className="text-sm font-medium text-danger">
-          Kein aktives DATEV-Profil konfiguriert. Bitte unter Admin → DATEV-Profile ein Profil anlegen.
+          Kein aktives DATEV-Profil konfiguriert. Bitte unter Admin &rarr; DATEV-Profile ein Profil anlegen.
         </p>
       </div>
     );
@@ -71,6 +94,34 @@ export function SendActions({ receiptId, sendStatus, datevProfiles }: Props) {
 
   return (
     <div className="space-y-3">
+      {/* Readiness status */}
+      {readiness && canSend ? (
+        <div className={`rounded-2xl border p-4 ${statusColors[readiness.status]}`}>
+          <p className="text-sm font-semibold">{statusLabels[readiness.status]}</p>
+          {readiness.issues.length > 0 ? (
+            <ul className="mt-2 space-y-1">
+              {readiness.issues.map((issue) => (
+                <li key={issue.field} className="flex items-start gap-2 text-sm">
+                  <span className="mt-0.5 shrink-0">
+                    {issue.severity === "error" ? "\u2717" : "\u26A0"}
+                  </span>
+                  <span>{issue.message}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Review gate warning */}
+      {canSend && needsApproval ? (
+        <div className="rounded-2xl border border-accent/30 bg-accent/5 p-4">
+          <p className="text-sm font-medium text-accent-foreground">
+            Versand erfordert Freigabe. Bitte den Beleg zuerst zur Pruefung einreichen und freigeben lassen.
+          </p>
+        </div>
+      ) : null}
+
       {/* Profile selector */}
       {datevProfiles.length > 1 ? (
         <label className="grid gap-1 text-sm font-medium">
@@ -95,8 +146,9 @@ export function SendActions({ receiptId, sendStatus, datevProfiles }: Props) {
           <button
             type="button"
             onClick={handleSend}
-            disabled={isPending}
-            className="rounded-2xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+            disabled={isPending || isBlocked || needsApproval}
+            title={isBlocked ? "Bitte fehlende Pflichtfelder ergaenzen" : needsApproval ? "Freigabe erforderlich" : undefined}
+            className="rounded-2xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isPending ? "Wird gesendet..." : "Jetzt senden"}
           </button>
@@ -113,9 +165,17 @@ export function SendActions({ receiptId, sendStatus, datevProfiles }: Props) {
         ) : null}
       </div>
 
-      {/* Feedback */}
-      {message ? <p className="text-sm font-medium text-primary">{message}</p> : null}
-      {error ? <p className="text-sm font-medium text-danger">{error}</p> : null}
+      {/* Send result feedback */}
+      {message ? (
+        <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3">
+          <p className="text-sm font-medium text-primary">{message}</p>
+        </div>
+      ) : null}
+      {error ? (
+        <div className="rounded-2xl border border-danger/30 bg-danger/5 p-3">
+          <p className="text-sm font-medium text-danger">{error}</p>
+        </div>
+      ) : null}
     </div>
   );
 }

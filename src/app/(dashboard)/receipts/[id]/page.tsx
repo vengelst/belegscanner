@@ -11,6 +11,7 @@ import { de } from "date-fns/locale";
 import Link from "next/link";
 import { connection } from "next/server";
 import { documentTypeLabels, fieldReviewStatusLabels, fromReceiptDocumentType, paymentMethodLabels, type OcrFieldReviewStatus } from "@/lib/ocr-suggestions";
+import { checkSendReadiness } from "@/lib/validation";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -63,6 +64,25 @@ export default async function ReceiptDetailPage({ params }: Props) {
   const lastLog = receipt.sendLogs[0] ?? null;
   const structuredData = parseStructuredData(receipt.aiStructuredData);
   const detectedDocumentType = fromReceiptDocumentType(receipt.aiDocumentType);
+
+  const smtpConfigured = await prisma.smtpConfig.findUnique({ where: { id: "default" }, select: { id: true } });
+
+  const readiness = checkSendReadiness({
+    date: receipt.date,
+    amount: Number(receipt.amount),
+    currency: receipt.currency,
+    supplier: receipt.supplier,
+    invoiceNumber: receipt.invoiceNumber,
+    netAmount: receipt.netAmount ? Number(receipt.netAmount) : null,
+    taxAmount: receipt.taxAmount ? Number(receipt.taxAmount) : null,
+    countryId: receipt.countryId,
+    purposeId: receipt.purposeId,
+    categoryId: receipt.categoryId,
+    exchangeRate: receipt.exchangeRate ? Number(receipt.exchangeRate) : null,
+    hasFile: receipt.files.length > 0,
+    hasSmtp: !!smtpConfigured,
+    hasDatev: datevProfiles.length > 0,
+  });
 
   return (
     <div className="space-y-6">
@@ -171,7 +191,11 @@ export default async function ReceiptDetailPage({ params }: Props) {
           <SendActions
             receiptId={receipt.id}
             sendStatus={receipt.sendStatus}
+            reviewStatus={receipt.reviewStatus}
+            isAdmin={session.user.role === "ADMIN"}
             datevProfiles={datevProfiles}
+            receiptDatevProfileId={receipt.datevProfileId}
+            readiness={readiness}
           />
         </div>
       </Card>
@@ -206,7 +230,12 @@ export default async function ReceiptDetailPage({ params }: Props) {
         <h2 className="text-lg font-semibold tracking-tight">Belegdaten</h2>
         <div className="mt-4 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
           <Field label="Belegdatum" value={fmtDate(receipt.date)} />
-          <Field label="Kaufpreis Originalwaehrung" value={`${fmtAmount(receipt.amount)} ${receipt.currency}`} />
+          {receipt.dueDate ? <Field label="Faelligkeitsdatum" value={fmtDate(receipt.dueDate)} /> : null}
+          {receipt.serviceDate ? <Field label="Leistungsdatum" value={fmtDate(receipt.serviceDate)} /> : null}
+          {receipt.invoiceNumber ? <Field label="Rechnungsnummer" value={receipt.invoiceNumber} /> : null}
+          <Field label="Kaufpreis / Brutto" value={`${fmtAmount(receipt.amount)} ${receipt.currency}`} />
+          {receipt.netAmount ? <Field label="Nettobetrag" value={`${fmtAmount(receipt.netAmount)} ${receipt.currency}`} /> : null}
+          {receipt.taxAmount ? <Field label="Steuerbetrag" value={`${fmtAmount(receipt.taxAmount)} ${receipt.currency}`} /> : null}
           <Field label="Kaufpreis in EUR" value={`${fmtAmount(receipt.amountEur)} EUR`} />
           {receipt.currency !== "EUR" ? (
             <>

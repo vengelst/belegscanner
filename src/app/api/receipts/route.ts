@@ -146,13 +146,27 @@ export async function POST(request: NextRequest) {
 
   const amountEur = calculateAmountEur(d.amount, d.currency, exchangeRate);
 
+  // Auto-assign default DATEV profile so it's visible on the receipt immediately
+  const defaultDatev = await prisma.datevProfile.findFirst({
+    where: { active: true, isDefault: true },
+    select: { id: true },
+  }) ?? await prisma.datevProfile.findFirst({
+    where: { active: true },
+    select: { id: true },
+  });
+
   const receipt = await prisma.receipt.create({
     data: {
       userId: session.userId,
       date: new Date(d.date),
       supplier: d.supplier ?? null,
+      invoiceNumber: d.invoiceNumber ?? null,
+      serviceDate: d.serviceDate ? new Date(d.serviceDate) : null,
+      dueDate: d.dueDate ? new Date(d.dueDate) : null,
       amount: d.amount,
       currency: d.currency,
+      netAmount: d.netAmount ?? null,
+      taxAmount: d.taxAmount ?? null,
       exchangeRate: exchangeRate,
       exchangeRateDate: exchangeRateDate ? new Date(exchangeRateDate) : null,
       amountEur,
@@ -160,6 +174,7 @@ export async function POST(request: NextRequest) {
       vehicleId: d.vehicleId ?? null,
       purposeId: d.purposeId,
       categoryId: d.categoryId,
+      datevProfileId: defaultDatev?.id ?? null,
       remark: d.remark ?? null,
       aiRawText: d.aiRawText ?? null,
       aiDocumentType: d.aiDocumentType ?? null,

@@ -43,35 +43,9 @@ export async function validateForSend(receiptId: string): Promise<SendValidation
     return errors;
   }
 
+  // --- Technische Blocker: Ohne diese kann die E-Mail nicht rausgehen ---
   if (receipt.files.length === 0) {
     errors.push({ field: "file", message: "Keine Belegdatei vorhanden." });
-  }
-
-  if (!receipt.purposeId) {
-    errors.push({ field: "purposeId", message: "Zweck ist erforderlich." });
-  }
-  if (!receipt.categoryId) {
-    errors.push({ field: "categoryId", message: "Kategorie ist erforderlich." });
-  }
-
-  if (receipt.purpose.isHospitality) {
-    if (!receipt.hospitality) {
-      errors.push({ field: "hospitality", message: "Bewirtungsangaben fehlen." });
-    } else {
-      if (!receipt.hospitality.occasion?.trim()) {
-        errors.push({ field: "hospitality.occasion", message: "Anlass ist erforderlich." });
-      }
-      if (!receipt.hospitality.guests?.trim()) {
-        errors.push({ field: "hospitality.guests", message: "Gaeste/Teilnehmer sind erforderlich." });
-      }
-      if (!receipt.hospitality.location?.trim()) {
-        errors.push({ field: "hospitality.location", message: "Ort ist erforderlich." });
-      }
-    }
-  }
-
-  if (receipt.currency !== "EUR" && !receipt.exchangeRate) {
-    errors.push({ field: "exchangeRate", message: "Wechselkurs fehlt bei Fremdwaehrung." });
   }
 
   const smtp = await prisma.smtpConfig.findUnique({ where: { id: "default" } });
@@ -88,6 +62,24 @@ export async function validateForSend(receiptId: string): Promise<SendValidation
       errors.push({ field: "datev", message: "Kein aktives DATEV-Profil vorhanden." });
     }
   }
+
+  // Fremdwaehrung ohne gespeicherten Wechselkurs ist nur dann ein technischer
+  // Blocker, wenn auch beim Versand kein aktueller Kurs geladen werden kann.
+  if (receipt.currency !== "EUR" && !receipt.exchangeRate) {
+    try {
+      const { fetchLatestExchangeRate } = await import("@/lib/exchange-rates");
+      await fetchLatestExchangeRate(receipt.currency);
+    } catch {
+      errors.push({
+        field: "exchangeRate",
+        message: "Wechselkurs fuer Fremdwaehrung konnte nicht ermittelt werden.",
+      });
+    }
+  }
+
+  // Felder wie Land, Lieferant, Rechnungsnummer, Netto, Steuer, Zweck, Kategorie
+  // und Bewirtungsangaben sind KEINE technischen Versandblocker.
+  // Diese werden ueber checkSendReadiness() als interne Warnungen behandelt.
 
   return errors;
 }
@@ -143,14 +135,54 @@ export async function sendReceipt(
     return { success: false, messageId: null, errorMessage: "Belegdatei konnte nicht gelesen werden." };
   }
 
+  // For foreign-currency image receipts, fetch a fresh exchange rate at send time
+  // so the DATEV PDF shows the current EUR value, not a potentially stale one.
+  let sendExchangeRate = receipt.exchangeRate ? Number(receipt.exchangeRate) : null;
+  let sendExchangeRateDate = receipt.exchangeRateDate;
+  let sendAmountEur = Number(receipt.amountEur);
+
+  if (receipt.currency !== "EUR") {
+    const { fetchLatestExchangeRate, calculateAmountEur } = await import("@/lib/exchange-rates");
+    try {
+      const fresh = await fetchLatestExchangeRate(receipt.currency);
+      sendExchangeRate = fresh.rate;
+      sendExchangeRateDate = new Date(fresh.rateDate);
+      sendAmountEur = calculateAmountEur(Number(receipt.amount), receipt.currency, fresh.rate);
+    } catch {
+      // If no rate can be loaded and none is stored, block the send
+      if (!sendExchangeRate) {
+        return {
+          success: false,
+          messageId: null,
+          errorMessage: "Wechselkurs fuer Fremdwaehrung konnte nicht ermittelt werden. Versand abgebrochen.",
+        };
+      }
+      // Otherwise fall back to the stored rate and re-calculate the EUR amount
+      // for the actual attachment payload.
+      sendAmountEur = calculateAmountEur(Number(receipt.amount), receipt.currency, sendExchangeRate);
+    }
+  }
+
+  // Determine DATEV attachment: PDF originals go as-is, images get wrapped in a DATEV PDF
+  const attachment = await buildDatevAttachment(
+    originalFile,
+    fileBuffer,
+    receipt,
+    sendExchangeRate,
+    sendExchangeRateDate,
+    sendAmountEur,
+  );
+
   // Build email
   const subject = renderTemplate(
-    datev.subjectTemplate ?? "Beleg {date} - {supplier} - {amount} {currency}",
+    datev.subjectTemplate ?? "Beleg {date}",
     receipt,
+    { amountEur: sendAmountEur },
   );
   const body = renderTemplate(
     datev.bodyTemplate ?? defaultBodyTemplate(),
     receipt,
+    { amountEur: sendAmountEur },
   );
 
   const transporter = nodemailer.createTransport({
@@ -167,13 +199,7 @@ export async function sendReceipt(
       replyTo: smtp.replyToAddress ?? undefined,
       subject,
       text: body,
-      attachments: [
-        {
-          filename: originalFile.filename,
-          content: fileBuffer,
-          contentType: originalFile.mimeType,
-        },
-      ],
+      attachments: [attachment],
     });
 
     const messageId = info.messageId ?? null;
@@ -243,13 +269,17 @@ async function loadReceiptForSend(receiptId: string) {
   });
 }
 
-function renderTemplate(template: string, receipt: NonNullable<ReceiptForSend>): string {
+function renderTemplate(
+  template: string,
+  receipt: NonNullable<ReceiptForSend>,
+  overrides?: { amountEur?: number },
+): string {
   const dateStr = format(receipt.date, "dd.MM.yyyy", { locale: de });
   const amountStr = Number(receipt.amount).toLocaleString("de-DE", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-  const amountEurStr = Number(receipt.amountEur).toLocaleString("de-DE", {
+  const amountEurStr = Number(overrides?.amountEur ?? receipt.amountEur).toLocaleString("de-DE", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
@@ -268,19 +298,72 @@ function renderTemplate(template: string, receipt: NonNullable<ReceiptForSend>):
     .replace(/\{remark\}/g, receipt.remark ?? "");
 }
 
+/**
+ * Build the DATEV email attachment.
+ *
+ * - PDF originals: attached as-is (all pages preserved)
+ * - Image receipts (JPG/PNG): wrapped in a clean A4 PDF with the receipt image
+ *   and business data on one page
+ */
+async function buildDatevAttachment(
+  file: { filename: string; mimeType: string },
+  fileBuffer: Buffer,
+  receipt: NonNullable<ReceiptForSend>,
+  sendExchangeRate: number | null,
+  sendExchangeRateDate: Date | null,
+  sendAmountEur: number,
+): Promise<{ filename: string; content: Buffer; contentType: string }> {
+  // PDF originals go directly — all pages preserved, no modification
+  if (file.mimeType === "application/pdf") {
+    return {
+      filename: file.filename,
+      content: fileBuffer,
+      contentType: "application/pdf",
+    };
+  }
+
+  // Image receipts → generate DATEV PDF with embedded image + business data
+  // Uses the send-time exchange rate, not the stored one
+  const { generateDatevPdf } = await import("@/lib/datev-pdf");
+  const fmtDate = (d: Date) => format(d, "dd.MM.yyyy", { locale: de });
+  const fmtAmount = (n: number) =>
+    n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const pdfBuffer = await generateDatevPdf({
+    date: fmtDate(receipt.date),
+    supplier: receipt.supplier,
+    amount: fmtAmount(Number(receipt.amount)),
+    currency: receipt.currency,
+    amountEur: fmtAmount(sendAmountEur),
+    exchangeRate: sendExchangeRate ? String(sendExchangeRate) : null,
+    exchangeRateDate: sendExchangeRateDate ? fmtDate(sendExchangeRateDate) : null,
+    purposeName: receipt.purpose.name,
+    countryName: receipt.country
+      ? `${receipt.country.name}${receipt.country.code ? ` (${receipt.country.code})` : ""}`
+      : null,
+    vehiclePlate: receipt.vehicle?.plate ?? null,
+    remark: receipt.remark,
+    hospitality: receipt.hospitality
+      ? {
+          occasion: receipt.hospitality.occasion,
+          guests: receipt.hospitality.guests,
+          location: receipt.hospitality.location,
+        }
+      : null,
+    imageBase64: fileBuffer.toString("base64"),
+    imageMimeType: file.mimeType,
+  });
+
+  // Filename: replace image extension with .pdf
+  const pdfFilename = file.filename.replace(/\.(jpe?g|png)$/i, ".pdf") || "beleg.pdf";
+
+  return {
+    filename: pdfFilename,
+    content: Buffer.from(pdfBuffer),
+    contentType: "application/pdf",
+  };
+}
+
 function defaultBodyTemplate(): string {
-  return [
-    "Beleg vom {date}",
-    "",
-    "Lieferant: {supplier}",
-    "Betrag: {amount} {currency}",
-    "EUR-Betrag: {amountEur} EUR",
-    "Zweck: {purpose}",
-    "Kategorie: {category}",
-    "Benutzer: {user}",
-    "",
-    "{remark}",
-    "",
-    "— Gesendet von BelegBox",
-  ].join("\n");
+  return "Beleg vom {date} — siehe Anhang.";
 }

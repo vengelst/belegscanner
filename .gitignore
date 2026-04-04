@@ -10,7 +10,6 @@ prisma/dev.db
 storage/*
 !storage/.gitkeep
 secrets/
-test-ocr/google-api
 *.log
 .dockerignore
 

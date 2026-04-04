@@ -77,8 +77,13 @@ export async function PUT(
 
   if (input.date !== undefined) data.date = new Date(input.date);
   if (input.supplier !== undefined) data.supplier = input.supplier ?? null;
+  if (input.invoiceNumber !== undefined) data.invoiceNumber = input.invoiceNumber ?? null;
+  if (input.serviceDate !== undefined) data.serviceDate = input.serviceDate ? new Date(input.serviceDate) : null;
+  if (input.dueDate !== undefined) data.dueDate = input.dueDate ? new Date(input.dueDate) : null;
   if (input.amount !== undefined) data.amount = input.amount;
   if (input.currency !== undefined) data.currency = input.currency;
+  if (input.netAmount !== undefined) data.netAmount = input.netAmount ?? null;
+  if (input.taxAmount !== undefined) data.taxAmount = input.taxAmount ?? null;
   if (input.exchangeRate !== undefined) data.exchangeRate = input.exchangeRate ?? null;
   if (input.exchangeRateDate !== undefined) {
     data.exchangeRateDate = input.exchangeRateDate ? new Date(input.exchangeRateDate) : null;

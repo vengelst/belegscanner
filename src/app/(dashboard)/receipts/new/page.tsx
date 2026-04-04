@@ -4,10 +4,17 @@ import { redirect } from "next/navigation";
 import { ReceiptForm } from "@/components/receipts/receipt-form";
 import { connection } from "next/server";
 
-export default async function NewReceiptPage() {
+type Props = {
+  searchParams: Promise<{ continued?: string }>;
+};
+
+export default async function NewReceiptPage({ searchParams }: Props) {
   await connection();
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
+
+  const params = await searchParams;
+  const isContinued = params.continued === "1";
 
   const [user, purposes, categories, countries, vehicles] = await Promise.all([
     prisma.user.findUnique({
@@ -27,6 +34,13 @@ export default async function NewReceiptPage() {
 
   return (
     <div className="space-y-6">
+      {isContinued ? (
+        <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
+          <p className="text-sm font-medium text-primary">
+            Vorheriger Beleg erfolgreich gespeichert. Du kannst den naechsten Beleg erfassen.
+          </p>
+        </div>
+      ) : null}
       <div className="space-y-2">
         <p className="text-sm font-medium uppercase tracking-[0.24em] text-muted-foreground">
           Erfassung
