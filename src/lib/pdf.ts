@@ -209,7 +209,7 @@ function buildReceiptDocument(data: PdfReceiptData) {
     row("Lieferant", data.supplier ?? "\u2014"),
     ...(data.currency !== "EUR"
       ? [
-          row(`Bruttobetrag (${data.currency})`, `${data.amount} ${data.currency}`),
+          row(`Rechnungsbetrag (${data.currency})`, `${data.amount} ${data.currency}`),
           row("Rechnungsbetrag (EUR)", `${data.amountEur} EUR`),
           row("Wechselkurs", data.exchangeRate ? `1 EUR = ${data.exchangeRate} ${data.currency}` : "\u2014"),
           row("Kursdatum", data.exchangeRateDate ?? "\u2014"),
@@ -234,7 +234,7 @@ function buildReceiptDocument(data: PdfReceiptData) {
             View,
             { style: s.sectionBlock, key: "curr" },
             React.createElement(Text, { style: s.sectionTitle }, "Waehrung"),
-            row(`Bruttobetrag (${data.currency})`, `${data.amount} ${data.currency}`),
+            row(`Rechnungsbetrag (${data.currency})`, `${data.amount} ${data.currency}`),
             row("Wechselkurs", data.exchangeRate ? `1 EUR = ${data.exchangeRate} ${data.currency}` : "\u2014"),
             row("Kursdatum", data.exchangeRateDate ?? "\u2014"),
             row("Rechnungsbetrag (EUR)", `${data.amountEur} EUR`),

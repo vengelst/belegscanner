@@ -57,6 +57,7 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
   const isHospitality = selectedPurpose?.isHospitality ?? false;
   const requiresExchangeRate = currency.trim().toUpperCase() !== "EUR";
   const normalizedCurrency = currency.trim().toUpperCase() || "EUR";
+  const currencyOptions = useMemo(() => buildCurrencyOptions(countries), [countries]);
   const amountEurPreview = useMemo(() => {
     const parsedAmount = parseLocalizedNumber(amount);
     const parsedRate = parseLocalizedNumber(exchangeRate);
@@ -117,7 +118,9 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
     const erVal = (formData.get("exchangeRate") as string) || exchangeRate;
     if (erVal) parsedExchangeRate = parseFloat(erVal.replace(",", "."));
 
-    const netAmountRaw = (formData.get("netAmount") as string) || "";
+    const netAmountRaw = requiresExchangeRate
+      ? (receipt.netAmount != null ? String(receipt.netAmount).replace(".", ",") : "")
+      : ((formData.get("netAmount") as string) || "");
     const taxAmountRaw = (formData.get("taxAmount") as string) || "";
     const parsedNet = netAmountRaw ? parseFloat(netAmountRaw.replace(",", ".")) : null;
     const parsedTax = taxAmountRaw ? parseFloat(taxAmountRaw.replace(",", ".")) : null;
@@ -188,29 +191,37 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
         <h2 className="text-lg font-semibold tracking-tight">Belegdaten</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Input label="Belegdatum" name="date" type="date" required defaultValue={receipt.date} />
-          <Input label="Rechnungsnummer" name="invoiceNumber" maxLength={80} defaultValue={receipt.invoiceNumber ?? ""} />
-          <Input
-            label={requiresExchangeRate ? `Bruttobetrag (${normalizedCurrency})` : `Rechnungsbetrag (${normalizedCurrency})`}
-            name="amount"
-            type="text"
-            inputMode="decimal"
-            required
-            value={amount}
-            onChange={(event: React.ChangeEvent<HTMLInputElement>) => setAmount(event.target.value)}
-          />
-          <Input label="Nettobetrag" name="netAmount" type="text" inputMode="decimal" defaultValue={receipt.netAmount != null ? String(receipt.netAmount).replace(".", ",") : ""} />
-          <Input label="Steuerbetrag" name="taxAmount" type="text" inputMode="decimal" defaultValue={receipt.taxAmount != null ? String(receipt.taxAmount).replace(".", ",") : ""} />
-          <Input
-            label="Waehrung"
-            name="currency"
-            type="text"
-            maxLength={3}
-            value={currency}
-            onChange={(event: React.ChangeEvent<HTMLInputElement>) => setCurrency(event.target.value)}
-          />
           {requiresExchangeRate ? (
             <Input label="Rechnungsbetrag (EUR)" name="amountEurPreview" type="text" value={amountEurPreview} readOnly />
-          ) : null}
+          ) : (
+            <Input
+              label="Rechnungsbetrag (EUR)"
+              name="amount"
+              type="text"
+              inputMode="decimal"
+              required
+              value={amount}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => setAmount(event.target.value)}
+            />
+          )}
+          <Input label="Rechnungsnummer" name="invoiceNumber" maxLength={80} defaultValue={receipt.invoiceNumber ?? ""} />
+          {requiresExchangeRate ? (
+            <Input
+              label={`Rechnungsbetrag (${normalizedCurrency})`}
+              name="amount"
+              type="text"
+              inputMode="decimal"
+              required
+              value={amount}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => setAmount(event.target.value)}
+            />
+          ) : (
+            <Input label="Nettobetrag" name="netAmount" type="text" inputMode="decimal" defaultValue={receipt.netAmount != null ? String(receipt.netAmount).replace(".", ",") : ""} />
+          )}
+          <Input label="Steuerbetrag" name="taxAmount" type="text" inputMode="decimal" defaultValue={receipt.taxAmount != null ? String(receipt.taxAmount).replace(".", ",") : ""} />
+          <SelectField label="Waehrung" name="currency" value={currency} onChange={setCurrency}>
+            {currencyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </SelectField>
           <Input label="Lieferant" name="supplier" defaultValue={receipt.supplier ?? ""} />
           <Input
             label={requiresExchangeRate ? "Wechselkurs *" : "Wechselkurs (optional)"}
@@ -348,4 +359,17 @@ function formatLocalizedNumber(value: number, maximumFractionDigits = 2): string
     minimumFractionDigits: 2,
     maximumFractionDigits,
   });
+}
+
+function buildCurrencyOptions(countries: Country[]) {
+  const commonCurrencies = ["EUR", "USD", "CHF", "GBP", "RSD", "PLN", "CZK", "HUF", "RON", "SEK", "NOK", "DKK"];
+  const unique = new Set<string>(commonCurrencies);
+
+  for (const country of countries) {
+    if (country.currencyCode) unique.add(country.currencyCode.toUpperCase());
+  }
+
+  return Array.from(unique)
+    .sort((a, b) => (a === "EUR" ? -1 : b === "EUR" ? 1 : a.localeCompare(b)))
+    .map((code) => ({ value: code, label: code }));
 }

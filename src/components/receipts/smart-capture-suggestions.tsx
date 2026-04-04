@@ -57,7 +57,7 @@ export function SmartCaptureSuggestions({
     { key: "location", label: "Ort", value: ocrResult.extracted.location, confidence: ocrResult.fieldConfidence.location },
     { key: "country", label: "Land", value: ocrResult.extracted.countryName, confidence: ocrResult.fieldConfidence.country },
     { key: "amount", label: "Betrag", value: formatMoney(ocrResult.extracted.amount), confidence: ocrResult.fieldConfidence.amount },
-    { key: "grossAmount", label: "Bruttobetrag", value: formatMoney(ocrResult.extracted.grossAmount), confidence: ocrResult.fieldConfidence.grossAmount },
+    { key: "grossAmount", label: "Rechnungsbetrag", value: formatMoney(ocrResult.extracted.grossAmount), confidence: ocrResult.fieldConfidence.grossAmount },
     { key: "netAmount", label: "Nettobetrag", value: formatMoney(ocrResult.extracted.netAmount), confidence: ocrResult.fieldConfidence.netAmount },
     { key: "taxAmount", label: "Steuerbetrag", value: formatMoney(ocrResult.extracted.taxAmount), confidence: ocrResult.fieldConfidence.taxAmount },
     { key: "currency", label: "Waehrung", value: ocrResult.extracted.currency, confidence: ocrResult.fieldConfidence.currency },

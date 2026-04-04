@@ -7,7 +7,7 @@ export type ReceiptDocumentType = (typeof RECEIPT_DOCUMENT_TYPE_VALUES)[number];
 export const OCR_CONFIDENCE_LEVELS = ["high", "medium", "low", "none"] as const;
 export type OcrConfidenceLevel = (typeof OCR_CONFIDENCE_LEVELS)[number];
 
-export const OCR_PAYMENT_METHODS = ["cash", "credit_card", "debit_card", "unknown"] as const;
+export const OCR_PAYMENT_METHODS = ["cash", "visa", "mastercard", "credit_card", "debit_card", "paypal", "sepa", "bank_transfer", "unknown"] as const;
 export type OcrPaymentMethod = (typeof OCR_PAYMENT_METHODS)[number];
 
 export const OCR_FIELD_REVIEW_STATUSES = [
@@ -30,8 +30,13 @@ export const documentTypeLabels: Record<OcrDocumentType, string> = {
 
 export const paymentMethodLabels: Record<OcrPaymentMethod, string> = {
   cash: "Barzahlung",
+  visa: "Visa",
+  mastercard: "Mastercard",
   credit_card: "Kreditkarte",
   debit_card: "Debitkarte",
+  paypal: "PayPal",
+  sepa: "SEPA-Lastschrift",
+  bank_transfer: "Ueberweisung",
   unknown: "Unklare Kartenzahlung",
 };
 

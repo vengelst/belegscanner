@@ -64,6 +64,12 @@ export default async function ReceiptDetailPage({ params }: Props) {
   const lastLog = receipt.sendLogs[0] ?? null;
   const structuredData = parseStructuredData(receipt.aiStructuredData);
   const detectedDocumentType = fromReceiptDocumentType(receipt.aiDocumentType);
+  const detectedPaymentMethod = structuredData?.extracted.paymentMethod
+    ? paymentMethodLabels[structuredData.extracted.paymentMethod]
+    : null;
+  const detectedCardLastDigits = structuredData?.extracted.cardLastDigits
+    ? `**** ${structuredData.extracted.cardLastDigits}`
+    : null;
 
   const smtpConfigured = await prisma.smtpConfig.findUnique({ where: { id: "default" }, select: { id: true } });
 
@@ -232,7 +238,7 @@ export default async function ReceiptDetailPage({ params }: Props) {
           <Field label="Belegdatum" value={fmtDate(receipt.date)} />
           {receipt.invoiceNumber ? <Field label="Rechnungsnummer" value={receipt.invoiceNumber} /> : null}
           {receipt.currency !== "EUR" ? (
-            <Field label={`Bruttobetrag (${receipt.currency})`} value={`${fmtAmount(receipt.amount)} ${receipt.currency}`} />
+            <Field label={`Rechnungsbetrag (${receipt.currency})`} value={`${fmtAmount(receipt.amount)} ${receipt.currency}`} />
           ) : null}
           {receipt.netAmount ? <Field label="Nettobetrag" value={`${fmtAmount(receipt.netAmount)} ${receipt.currency}`} /> : null}
           {receipt.taxAmount ? <Field label="Steuerbetrag" value={`${fmtAmount(receipt.taxAmount)} ${receipt.currency}`} /> : null}
@@ -248,6 +254,8 @@ export default async function ReceiptDetailPage({ params }: Props) {
           <Field label="Kategorie" value={receipt.category.name} />
           <Field label="Land" value={receipt.country ? `${receipt.country.name}${receipt.country.code ? ` (${receipt.country.code})` : ""}` : "—"} />
           <Field label="Kfz" value={receipt.vehicle ? receipt.vehicle.plate : "—"} />
+          {detectedPaymentMethod ? <Field label="Zahlungsart" value={detectedPaymentMethod} /> : null}
+          {detectedCardLastDigits ? <Field label="Kartenendziffern" value={detectedCardLastDigits} /> : null}
           {receipt.remark ? (
             <div className="sm:col-span-2 lg:col-span-3">
               <Field label="Bemerkung" value={receipt.remark} />
@@ -309,7 +317,7 @@ export default async function ReceiptDetailPage({ params }: Props) {
                   {structuredData.extracted.time ? <Field label="Uhrzeit" value={formatSuggestedValue(structuredData.extracted.time, structuredData.fieldReviewStates?.time, structuredData.fieldConfidence.time)} /> : null}
                   {structuredData.extracted.invoiceDate ? <Field label="Rechnungsdatum" value={formatSuggestedValue(structuredData.extracted.invoiceDate, structuredData.fieldReviewStates?.invoiceDate, structuredData.fieldConfidence.invoiceDate)} /> : null}
                   {structuredData.extracted.invoiceNumber ? <Field label="Rechnungsnummer" value={formatSuggestedValue(structuredData.extracted.invoiceNumber, structuredData.fieldReviewStates?.invoiceNumber, structuredData.fieldConfidence.invoiceNumber)} /> : null}
-                  {structuredData.extracted.grossAmount !== null ? <Field label="Bruttobetrag" value={formatSuggestedValue(structuredData.extracted.grossAmount.toFixed(2), structuredData.fieldReviewStates?.grossAmount, structuredData.fieldConfidence.grossAmount)} /> : null}
+                  {structuredData.extracted.grossAmount !== null ? <Field label="Rechnungsbetrag" value={formatSuggestedValue(structuredData.extracted.grossAmount.toFixed(2), structuredData.fieldReviewStates?.grossAmount, structuredData.fieldConfidence.grossAmount)} /> : null}
                   {structuredData.extracted.netAmount !== null ? <Field label="Nettobetrag" value={formatSuggestedValue(structuredData.extracted.netAmount.toFixed(2), structuredData.fieldReviewStates?.netAmount, structuredData.fieldConfidence.netAmount)} /> : null}
                   {structuredData.extracted.taxAmount !== null ? <Field label="Steuerbetrag" value={formatSuggestedValue(structuredData.extracted.taxAmount.toFixed(2), structuredData.fieldReviewStates?.taxAmount, structuredData.fieldConfidence.taxAmount)} /> : null}
                   {structuredData.extracted.location ? <Field label="Ort / Standort" value={formatSuggestedValue(structuredData.extracted.location, structuredData.fieldReviewStates?.location, structuredData.fieldConfidence.location)} /> : null}

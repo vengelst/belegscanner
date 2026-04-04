@@ -45,7 +45,7 @@ const EXTRACTION_SCHEMA = {
     taxAmount: { type: ["number", "null"] as const },
     paymentMethod: {
       type: ["string", "null"] as const,
-      enum: ["cash", "credit_card", "debit_card", "bank_transfer", null],
+      enum: ["cash", "visa", "mastercard", "credit_card", "debit_card", "paypal", "sepa", "bank_transfer", "unknown", null],
     },
     cardLastDigits: { type: ["string", "null"] as const },
     location: { type: ["string", "null"] as const },
@@ -106,22 +106,33 @@ Rules:
 - grossAmount is the final payable amount
 - netAmount is the amount before tax
 - taxAmount is the total tax amount
+- paymentMethod must detect cash, Visa, Mastercard, PayPal, SEPA direct debit, bank transfer or generic card when visible
 - All dates must be YYYY-MM-DD when possible
 - Currency must be ISO 4217 like EUR or USD
 - documentType must be one of: general, fuel, hospitality, lodging, parking, toll
 - Return null when a field cannot be read confidently
 - Add warnings when values are ambiguous or likely incomplete`;
 
-function mapPaymentMethod(raw: string | null): "cash" | "credit_card" | "debit_card" | "unknown" | null {
+function mapPaymentMethod(raw: string | null): "cash" | "visa" | "mastercard" | "credit_card" | "debit_card" | "paypal" | "sepa" | "bank_transfer" | "unknown" | null {
   if (!raw) return null;
   switch (raw) {
     case "cash":
       return "cash";
+    case "visa":
+      return "visa";
+    case "mastercard":
+      return "mastercard";
     case "credit_card":
       return "credit_card";
     case "debit_card":
       return "debit_card";
+    case "paypal":
+      return "paypal";
+    case "sepa":
+      return "sepa";
     case "bank_transfer":
+      return "bank_transfer";
+    case "unknown":
       return "unknown";
     default:
       return "unknown";
@@ -163,6 +174,8 @@ function buildRawText(data: ExtractionResult): string {
     data.netAmount !== null ? `Netto: ${data.netAmount}` : null,
     data.taxAmount !== null ? `Steuer: ${data.taxAmount}` : null,
     data.currency ? `Waehrung: ${data.currency}` : null,
+    data.paymentMethod ? `Zahlungsart: ${data.paymentMethod}` : null,
+    data.cardLastDigits ? `Kartenendziffern: ${data.cardLastDigits}` : null,
     data.location ? `Ort: ${data.location}` : null,
     data.countryName ? `Land: ${data.countryName}` : data.countryCode ? `Land: ${data.countryCode}` : null,
     data.documentType ? `Belegtyp: ${data.documentType}` : null,

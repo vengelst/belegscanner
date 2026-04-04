@@ -104,7 +104,7 @@ function buildDatevDocument(data: DatevPdfData) {
   ];
 
   if (data.currency !== "EUR") {
-    cells.push({ label: `Bruttobetrag (${data.currency})`, value: `${data.amount} ${data.currency}` });
+    cells.push({ label: `Rechnungsbetrag (${data.currency})`, value: `${data.amount} ${data.currency}` });
     cells.push({ label: "Rechnungsbetrag (EUR)", value: `${data.amountEur} EUR` });
     if (data.exchangeRate) cells.push({ label: "Wechselkurs", value: `1 EUR = ${data.exchangeRate} ${data.currency}` });
     if (data.exchangeRateDate) cells.push({ label: "Kursdatum", value: data.exchangeRateDate });

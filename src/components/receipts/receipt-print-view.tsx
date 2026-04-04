@@ -176,7 +176,7 @@ export function ReceiptPrintView({ receipt }: { receipt: PrintReceipt }) {
             <DataRow label="Lieferant" value={receipt.supplier ?? "—"} />
             {receipt.currency !== "EUR" ? (
               <>
-                <DataRow label={`Bruttobetrag (${receipt.currency})`} value={`${fmtAmount(receipt.amount)} ${receipt.currency}`} />
+                <DataRow label={`Rechnungsbetrag (${receipt.currency})`} value={`${fmtAmount(receipt.amount)} ${receipt.currency}`} />
                 <DataRow label="Rechnungsbetrag (EUR)" value={`${fmtAmount(receipt.amountEur)} EUR`} />
                 <DataRow label="Wechselkurs" value={receipt.exchangeRate ? `1 EUR = ${receipt.exchangeRate} ${receipt.currency}` : "—"} />
                 <DataRow label="Kursdatum" value={receipt.exchangeRateDate ? fmtDate(receipt.exchangeRateDate) : "—"} />
@@ -214,7 +214,7 @@ export function ReceiptPrintView({ receipt }: { receipt: PrintReceipt }) {
             <SectionTitle>Waehrung</SectionTitle>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10pt" }}>
               <tbody>
-                <DataRow label={`Bruttobetrag (${receipt.currency})`} value={`${fmtAmount(receipt.amount)} ${receipt.currency}`} />
+                <DataRow label={`Rechnungsbetrag (${receipt.currency})`} value={`${fmtAmount(receipt.amount)} ${receipt.currency}`} />
                 <DataRow label="Wechselkurs" value={receipt.exchangeRate ? `1 EUR = ${receipt.exchangeRate} ${receipt.currency}` : "—"} />
                 <DataRow label="Kursdatum" value={receipt.exchangeRateDate ? fmtDate(receipt.exchangeRateDate) : "—"} />
                 <DataRow label="Rechnungsbetrag (EUR)" value={`${fmtAmount(receipt.amountEur)} EUR`} />
