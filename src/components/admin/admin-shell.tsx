@@ -2,13 +2,12 @@ import type { Route } from "next";
 import Link from "next/link";
 
 type NavGroup = {
-  title: string;
+  title?: string;
   links: Array<{ href: Route; label: string }>;
 };
 
 const navGroups: NavGroup[] = [
   {
-    title: "Allgemein",
     links: [
       { href: "/admin/dashboard", label: "Dashboard" },
       { href: "/admin/users", label: "Benutzer" },
@@ -38,11 +37,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="grid gap-6 xl:grid-cols-[16rem_minmax(0,1fr)]">
       <aside className="rounded-[calc(var(--radius)+0.5rem)] border border-border bg-card p-4 shadow-soft">
-        {navGroups.map((group) => (
-          <div key={group.title} className="mb-5 last:mb-0">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-              {group.title}
-            </p>
+        {navGroups.map((group, index) => (
+          <div key={group.title ?? `group-${index}`} className="mb-5 last:mb-0">
+            {group.title ? (
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+                {group.title}
+              </p>
+            ) : null}
             <div className="space-y-1">
               {group.links.map((link) => (
                 <Link
