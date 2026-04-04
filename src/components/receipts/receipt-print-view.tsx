@@ -87,6 +87,7 @@ export function ReceiptPrintView({ receipt }: { receipt: PrintReceipt }) {
           body { background: white !important; color: black !important; margin: 0; padding: 0; }
           .print-controls { display: none !important; }
           .print-page { padding: 0 !important; box-shadow: none !important; border: none !important; }
+          .page-break { page-break-after: always; }
         }
         @media screen {
           .print-page {
@@ -128,9 +129,33 @@ export function ReceiptPrintView({ receipt }: { receipt: PrintReceipt }) {
         </button>
       </div>
 
-      {/* A4 Print page */}
+      {/* A4 Print page 1 */}
+      <div className="print-page page-break" style={{ minHeight: "297mm", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {receipt.file ? (
+          <div style={{ width: "100%", height: "100%", textAlign: "center" }}>
+            {isImage ? (
+              <img
+                src={`/api/files/${receipt.file.id}`}
+                alt="Originalbeleg"
+                style={{ maxWidth: "100%", maxHeight: "250mm", objectFit: "contain" }}
+              />
+            ) : (
+              <div style={{ padding: "24px", color: "#666", fontSize: "10pt" }}>
+                <div>
+                  Das Original-PDF wird ueber den PDF-Download unveraendert bereitgestellt.
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ padding: "16px", border: "1px dashed #ccc", borderRadius: "4px", textAlign: "center", color: "#999", fontSize: "10pt" }}>
+            Kein Originalbeleg vorhanden.
+          </div>
+        )}
+      </div>
+
+      {/* A4 Print page 2 */}
       <div className="print-page">
-        {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "2px solid #1a1a1a", paddingBottom: "12px", marginBottom: "16px" }}>
           <div>
             <div style={{ fontSize: "18pt", fontWeight: 700, letterSpacing: "0.05em" }}>BELEGBOX</div>
@@ -143,35 +168,6 @@ export function ReceiptPrintView({ receipt }: { receipt: PrintReceipt }) {
             <div>Benutzer: {receipt.userName}</div>
           </div>
         </div>
-
-        {/* Original image */}
-        {receipt.file ? (
-          <div style={{ marginBottom: "20px", textAlign: "center" }}>
-            {isImage ? (
-              <img
-                src={`/api/files/${receipt.file.id}`}
-                alt="Originalbeleg"
-                style={{ maxWidth: "100%", maxHeight: "340px", objectFit: "contain", borderRadius: "4px", border: "1px solid #e5e5e5" }}
-              />
-            ) : (
-              <div style={{ border: "1px solid #e5e5e5", borderRadius: "4px", padding: "24px", background: "#fafafa" }}>
-                <div style={{ fontSize: "10pt", color: "#666" }}>
-                  PDF-Original: {receipt.file.filename}
-                </div>
-                <div style={{ fontSize: "9pt", color: "#999", marginTop: "4px" }}>
-                  Das Original-PDF ist als separate Datei gespeichert.
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div style={{ marginBottom: "20px", padding: "16px", border: "1px dashed #ccc", borderRadius: "4px", textAlign: "center", color: "#999", fontSize: "10pt" }}>
-            Kein Originalbeleg vorhanden.
-          </div>
-        )}
-
-        {/* Separator line */}
-        <div style={{ borderTop: "1px solid #ddd", marginBottom: "16px" }} />
 
         {/* Core data table */}
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "10pt", marginBottom: "16px" }}>

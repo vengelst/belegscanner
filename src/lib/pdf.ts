@@ -55,6 +55,23 @@ const s = StyleSheet.create({
     paddingHorizontal: 45,
     color: "#1a1a1a",
   },
+  imageOnlyPage: {
+    fontFamily: "Helvetica",
+    paddingTop: 24,
+    paddingBottom: 24,
+    paddingHorizontal: 24,
+    color: "#1a1a1a",
+  },
+  fullImageContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fullImage: {
+    maxWidth: "100%",
+    maxHeight: "100%",
+    objectFit: "contain",
+  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -144,112 +161,111 @@ const s = StyleSheet.create({
 // ============================================================
 
 function buildReceiptDocument(data: PdfReceiptData) {
+  const imagePage = React.createElement(
+    Page,
+    { size: "A4", style: s.imageOnlyPage },
+    data.imageBase64
+      ? React.createElement(
+          View,
+          { style: s.fullImageContainer },
+          React.createElement(Image, {
+            style: s.fullImage,
+            src: `data:${data.imageMimeType};base64,${data.imageBase64}`,
+          }),
+        )
+      : React.createElement(
+          View,
+          { style: s.fullImageContainer },
+          React.createElement(
+            View,
+            { style: s.noImage },
+            React.createElement(Text, null, "Kein Originalbeleg vorhanden."),
+          ),
+        ),
+  );
+
+  const metadataPage = React.createElement(
+    Page,
+    { size: "A4", style: s.page },
+    // Header
+    React.createElement(
+      View,
+      { style: s.header },
+      React.createElement(
+        View,
+        null,
+        React.createElement(Text, { style: s.headerTitle }, "BELEGBOX"),
+        React.createElement(Text, { style: s.headerSub }, `Beleg-Nr.: ${data.id.slice(0, 12).toUpperCase()}`),
+      ),
+      React.createElement(
+        View,
+        null,
+        React.createElement(Text, { style: s.headerRight }, `Erstellt: ${data.createdAt}`),
+        React.createElement(Text, { style: s.headerRight }, `Benutzer: ${data.userName}`),
+      ),
+    ),
+    // Core data
+    row("Belegdatum", data.date),
+    row("Lieferant", data.supplier ?? "\u2014"),
+    row("Betrag", `${data.amount} ${data.currency}`),
+    ...(data.currency !== "EUR"
+      ? [
+          row("EUR-Betrag", `${data.amountEur} EUR`),
+          row("Wechselkurs", data.exchangeRate ? `1 EUR = ${data.exchangeRate} ${data.currency}` : "\u2014"),
+          row("Kursdatum", data.exchangeRateDate ?? "\u2014"),
+        ]
+      : []),
+    row("Zweck", data.purposeName),
+    row("Kategorie", data.categoryName),
+    row("Land", data.countryName ?? "\u2014"),
+    row("Kfz", data.vehiclePlate ?? "\u2014"),
+    row("Benutzer", data.userName),
+    ...(data.remark ? [row("Bemerkung", data.remark)] : []),
+    React.createElement(
+      View,
+      { style: s.sectionBlock },
+      React.createElement(Text, { style: s.sectionTitle }, "Versand"),
+      row("Status", data.sendStatusLabel),
+      ...(data.sendStatusUpdatedAt ? [row("Statuswechsel", data.sendStatusUpdatedAt)] : []),
+    ),
+    ...(data.currency !== "EUR"
+      ? [
+          React.createElement(
+            View,
+            { style: s.sectionBlock, key: "curr" },
+            React.createElement(Text, { style: s.sectionTitle }, "Waehrung"),
+            row("Originalbetrag", `${data.amount} ${data.currency}`),
+            row("Wechselkurs", data.exchangeRate ? `1 EUR = ${data.exchangeRate} ${data.currency}` : "\u2014"),
+            row("Kursdatum", data.exchangeRateDate ?? "\u2014"),
+            row("EUR-Betrag", `${data.amountEur} EUR`),
+          ),
+        ]
+      : []),
+    ...(data.hospitality
+      ? [
+          React.createElement(
+            View,
+            { style: s.sectionBlock, key: "hosp" },
+            React.createElement(Text, { style: s.sectionTitle }, "Bewirtung"),
+            row("Anlass", data.hospitality.occasion),
+            row("Gaeste", data.hospitality.guests),
+            row("Ort", data.hospitality.location),
+          ),
+        ]
+      : []),
+    React.createElement(
+      View,
+      { style: s.footer },
+      React.createElement(Text, null, `Erstellt: ${data.createdAt}`),
+      React.createElement(Text, null, "BelegBox v1.0"),
+    ),
+  );
+
   return React.createElement(
     Document,
     { title: `Beleg ${data.id.slice(0, 12)}`, author: "BelegBox" },
-    React.createElement(
-      Page,
-      { size: "A4", style: s.page },
-      // Header
-      React.createElement(
-        View,
-        { style: s.header },
-        React.createElement(
-          View,
-          null,
-          React.createElement(Text, { style: s.headerTitle }, "BELEGBOX"),
-          React.createElement(Text, { style: s.headerSub }, `Beleg-Nr.: ${data.id.slice(0, 12).toUpperCase()}`),
-        ),
-        React.createElement(
-          View,
-          null,
-          React.createElement(Text, { style: s.headerRight }, `Erstellt: ${data.createdAt}`),
-          React.createElement(Text, { style: s.headerRight }, `Benutzer: ${data.userName}`),
-        ),
-      ),
-      // Image
-      data.imageBase64
-        ? React.createElement(
-            View,
-            { style: s.imageContainer },
-            React.createElement(Image, {
-              style: s.image,
-              src: `data:${data.imageMimeType};base64,${data.imageBase64}`,
-            }),
-          )
-        : data.pdfOriginalNote
-          ? React.createElement(
-              View,
-              { style: s.noImage },
-              React.createElement(Text, null, `PDF-Original: ${data.pdfOriginalNote}`),
-            )
-          : React.createElement(
-              View,
-              { style: s.noImage },
-              React.createElement(Text, null, "Kein Originalbeleg vorhanden."),
-            ),
-      // Separator
-      React.createElement(View, { style: s.separator }),
-      // Core data
-      row("Belegdatum", data.date),
-      row("Lieferant", data.supplier ?? "\u2014"),
-      row("Betrag", `${data.amount} ${data.currency}`),
-      ...(data.currency !== "EUR"
-        ? [
-            row("EUR-Betrag", `${data.amountEur} EUR`),
-            row("Wechselkurs", data.exchangeRate ? `1 EUR = ${data.exchangeRate} ${data.currency}` : "\u2014"),
-            row("Kursdatum", data.exchangeRateDate ?? "\u2014"),
-          ]
-        : []),
-      row("Zweck", data.purposeName),
-      row("Kategorie", data.categoryName),
-      row("Land", data.countryName ?? "\u2014"),
-      row("Kfz", data.vehiclePlate ?? "\u2014"),
-      row("Benutzer", data.userName),
-      ...(data.remark ? [row("Bemerkung", data.remark)] : []),
-      // Send status block
-      React.createElement(
-        View,
-        { style: s.sectionBlock },
-        React.createElement(Text, { style: s.sectionTitle }, "Versand"),
-        row("Status", data.sendStatusLabel),
-        ...(data.sendStatusUpdatedAt ? [row("Statuswechsel", data.sendStatusUpdatedAt)] : []),
-      ),
-      // Currency block
-      ...(data.currency !== "EUR"
-        ? [
-            React.createElement(
-              View,
-              { style: s.sectionBlock, key: "curr" },
-              React.createElement(Text, { style: s.sectionTitle }, "Waehrung"),
-              row("Originalbetrag", `${data.amount} ${data.currency}`),
-              row("Wechselkurs", data.exchangeRate ? `1 EUR = ${data.exchangeRate} ${data.currency}` : "\u2014"),
-              row("Kursdatum", data.exchangeRateDate ?? "\u2014"),
-              row("EUR-Betrag", `${data.amountEur} EUR`),
-            ),
-          ]
-        : []),
-      // Hospitality block
-      ...(data.hospitality
-        ? [
-            React.createElement(
-              View,
-              { style: s.sectionBlock, key: "hosp" },
-              React.createElement(Text, { style: s.sectionTitle }, "Bewirtung"),
-              row("Anlass", data.hospitality.occasion),
-              row("Gaeste", data.hospitality.guests),
-              row("Ort", data.hospitality.location),
-            ),
-          ]
-        : []),
-      // Footer
-      React.createElement(
-        View,
-        { style: s.footer },
-        React.createElement(Text, null, `Erstellt: ${data.createdAt}`),
-        React.createElement(Text, null, "BelegBox v1.0"),
-      ),
-    ),
+    imagePage,
+    metadataPage,
   );
 }
 

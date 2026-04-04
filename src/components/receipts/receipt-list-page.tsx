@@ -252,15 +252,16 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <ActionLink href={`/receipts/${r.id}`}>Oeffnen</ActionLink>
-                  <ActionLink href={`/receipts/${r.id}/edit`}>Bearbeiten</ActionLink>
-                  <ActionLink href={`/receipts/${r.id}/print`} target="_blank">Drucken</ActionLink>
+                  <ActionLink href={`/receipts/${r.id}`} title="Oeffnen">👁</ActionLink>
+                  <ActionLink href={`/receipts/${r.id}/edit`} title="Bearbeiten">✎</ActionLink>
+                  <ActionLink href={`/receipts/${r.id}/print`} target="_blank" title="Drucken">🖨</ActionLink>
                   <ActionButton
                     danger
                     disabled={deletingId === r.id}
                     onClick={() => void handleDelete(r.id)}
+                    title="Loeschen"
                   >
-                    {deletingId === r.id ? "Loeschen..." : "Loeschen"}
+                    {deletingId === r.id ? "…" : "🗑"}
                   </ActionButton>
                 </div>
               </Card>
@@ -318,15 +319,16 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2">
-                        <ActionLink href={`/receipts/${r.id}`}>Oeffnen</ActionLink>
-                        <ActionLink href={`/receipts/${r.id}/edit`}>Bearbeiten</ActionLink>
-                        <ActionLink href={`/receipts/${r.id}/print`} target="_blank">Drucken</ActionLink>
+                        <ActionLink href={`/receipts/${r.id}`} title="Oeffnen">👁</ActionLink>
+                        <ActionLink href={`/receipts/${r.id}/edit`} title="Bearbeiten">✎</ActionLink>
+                        <ActionLink href={`/receipts/${r.id}/print`} target="_blank" title="Drucken">🖨</ActionLink>
                         <ActionButton
                           danger
                           disabled={deletingId === r.id}
                           onClick={() => void handleDelete(r.id)}
+                          title="Loeschen"
                         >
-                          {deletingId === r.id ? "Loeschen..." : "Loeschen"}
+                          {deletingId === r.id ? "…" : "🗑"}
                         </ActionButton>
                       </div>
                     </td>
@@ -382,12 +384,14 @@ function ReviewBadge({ status }: { status: string }) {
   );
 }
 
-function ActionLink({ href, children, target }: { href: string; children: React.ReactNode; target?: string }) {
+function ActionLink({ href, children, target, title }: { href: string; children: React.ReactNode; target?: string; title?: string }) {
   return (
     <a
       href={href}
       target={target}
-      className="rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-semibold transition hover:border-primary/40 hover:text-primary"
+      title={title}
+      aria-label={title}
+      className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-border bg-card text-xs font-semibold transition hover:border-primary/40 hover:text-primary"
     >
       {children}
     </a>
@@ -399,18 +403,22 @@ function ActionButton({
   onClick,
   disabled,
   danger,
+  title,
 }: {
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
   danger?: boolean;
+  title?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${danger ? "border-danger/30 bg-danger/5 text-danger hover:bg-danger/10" : "border-border bg-card hover:border-primary/40 hover:text-primary"}`}
+      title={title}
+      aria-label={title}
+      className={`inline-flex h-8 w-8 items-center justify-center rounded-xl border text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${danger ? "border-danger/30 bg-danger/5 text-danger hover:bg-danger/10" : "border-border bg-card hover:border-primary/40 hover:text-primary"}`}
     >
       {children}
     </button>
