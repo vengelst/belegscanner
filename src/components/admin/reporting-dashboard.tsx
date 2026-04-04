@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Card } from "@/components/ui/card";
 
 type SummaryData = {
@@ -86,6 +86,7 @@ export function ReportingDashboard() {
   const [selectedMonth, setSelectedMonth] = useState("");
   const [activePeriod, setActivePeriod] = useState<PeriodMode>("month");
   const [printTimestamp, setPrintTimestamp] = useState("");
+  const printContentRef = useRef<HTMLDivElement | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,10 +100,7 @@ export function ReportingDashboard() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
-    const updateTimestamp = () => setPrintTimestamp(fmtPrintTimestamp());
-    updateTimestamp();
-    window.addEventListener("beforeprint", updateTimestamp);
-    return () => window.removeEventListener("beforeprint", updateTimestamp);
+    setPrintTimestamp(fmtPrintTimestamp());
   }, []);
   const dayRows = data?.byDay ?? [];
   const weekRows = data?.byWeek ?? [];
@@ -211,6 +209,60 @@ export function ReportingDashboard() {
     dateTo ? `bis ${fmtDay(dateTo)}` : "",
   ].filter(Boolean).join(" ");
 
+  const handlePrint = useCallback(() => {
+    const timestamp = fmtPrintTimestamp();
+    setPrintTimestamp(timestamp);
+
+    window.requestAnimationFrame(() => {
+      const printMarkup = printContentRef.current?.innerHTML;
+      if (!printMarkup) return;
+
+      const popup = window.open("", "report-print", "popup=yes,width=1100,height=800");
+      if (!popup) return;
+
+      const headMarkup = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+        .map((node) => node.outerHTML)
+        .join("\n");
+
+      popup.document.open();
+      popup.document.write(`<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Auswertung drucken</title>
+    ${headMarkup}
+    <style>
+      @page { size: A4 portrait; margin: 14mm; }
+      html, body { background: white; color: black; }
+      body { margin: 0; font-family: Arial, sans-serif; }
+      .print-shell { padding: 0; }
+      .report-print-section { break-inside: avoid; page-break-inside: avoid; }
+    </style>
+  </head>
+  <body>
+    <main class="print-shell">${printMarkup}</main>
+  </body>
+</html>`);
+      popup.document.close();
+
+      const closePopup = () => {
+        try {
+          popup.close();
+        } catch {}
+        window.focus();
+      };
+
+      popup.onafterprint = closePopup;
+      popup.onbeforeunload = () => window.focus();
+      popup.onpagehide = closePopup;
+      popup.onload = () => {
+        popup.focus();
+        window.setTimeout(() => popup.print(), 150);
+      };
+    });
+  }, []);
+
   return (
     <div className="space-y-8">
       <style>{`
@@ -245,7 +297,7 @@ export function ReportingDashboard() {
             Zuruecksetzen
           </button>
         ) : null}
-        <button type="button" onClick={() => window.print()} className="h-9 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90">
+        <button type="button" onClick={handlePrint} className="h-9 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90">
           Drucken
         </button>
       </Card>
@@ -329,49 +381,51 @@ export function ReportingDashboard() {
             />
           </div>
 
-          <div className="report-print-only space-y-6">
-            <div className="report-print-section border-b border-slate-300 pb-4">
-              <div className="flex items-start justify-between gap-6">
-                <div className="space-y-1">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Auswertung</p>
-                  <h1 className="text-2xl font-semibold text-black">Druckansicht Reporting</h1>
+          <div ref={printContentRef} className="hidden">
+            <div className="space-y-6">
+              <div className="report-print-section border-b border-slate-300 pb-4">
+                <div className="flex items-start justify-between gap-6">
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Auswertung</p>
+                    <h1 className="text-2xl font-semibold text-black">Druckansicht Reporting</h1>
+                  </div>
+                  <p className="text-xs text-slate-500">Erstellt am {printTimestamp}</p>
                 </div>
-                <p className="text-xs text-slate-500">Erstellt am {printTimestamp}</p>
+                <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                  <div className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Auswahl</p>
+                    <p className="text-sm font-medium">{printScopeLabel}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Monat</p>
+                    <p className="text-sm font-medium">{selectedMonth ? fmtMonth(selectedMonth) : "-"}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500">Zeitraumfilter</p>
+                    <p className="text-sm font-medium">{printRangeLabel || "Kein zusaetzlicher Filter"}</p>
+                  </div>
+                </div>
               </div>
-              <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                <div className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Auswahl</p>
-                  <p className="text-sm font-medium">{printScopeLabel}</p>
-                </div>
-                <div className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Monat</p>
-                  <p className="text-sm font-medium">{selectedMonth ? fmtMonth(selectedMonth) : "-"}</p>
-                </div>
-                <div className="rounded-xl border border-slate-300 bg-slate-50 px-3 py-2">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Zeitraumfilter</p>
-                  <p className="text-sm font-medium">{printRangeLabel || "Kein zusaetzlicher Filter"}</p>
-                </div>
-              </div>
+              <PrintSummarySection
+                title={activePeriod === "day" ? "Gewaehlter Tag" : activePeriod === "week" ? "Tage der gewaelten Woche" : "Tage des gewaehlten Monats"}
+                label="Tag"
+                rows={printDayRows.map((row) => ({ key: row.day, label: fmtDay(row.day), count: row.count, sumEur: row.sumEur }))}
+              />
+              {printWeekRows.length > 0 ? (
+                <PrintSummarySection
+                  title={activePeriod === "month" ? "Wochen des gewaehlten Monats" : "Gewaehlte Woche"}
+                  label="Woche"
+                  rows={printWeekRows.map((row) => ({ key: row.weekStart, label: row.weekLabel, count: row.count, sumEur: row.sumEur }))}
+                />
+              ) : null}
+              {printMonthRows.length > 0 ? (
+                <PrintSummarySection
+                  title="Gewaehlter Monat"
+                  label="Monat"
+                  rows={printMonthRows.map((row) => ({ key: row.month, label: fmtMonth(row.month), count: row.count, sumEur: row.sumEur }))}
+                />
+              ) : null}
             </div>
-            <PrintSummarySection
-              title={activePeriod === "day" ? "Gewaehlter Tag" : activePeriod === "week" ? "Tage der gewaelten Woche" : "Tage des gewaehlten Monats"}
-              label="Tag"
-              rows={printDayRows.map((row) => ({ key: row.day, label: fmtDay(row.day), count: row.count, sumEur: row.sumEur }))}
-            />
-            {printWeekRows.length > 0 ? (
-              <PrintSummarySection
-                title={activePeriod === "month" ? "Wochen des gewaehlten Monats" : "Gewaehlte Woche"}
-                label="Woche"
-                rows={printWeekRows.map((row) => ({ key: row.weekStart, label: row.weekLabel, count: row.count, sumEur: row.sumEur }))}
-              />
-            ) : null}
-            {printMonthRows.length > 0 ? (
-              <PrintSummarySection
-                title="Gewaehlter Monat"
-                label="Monat"
-                rows={printMonthRows.map((row) => ({ key: row.month, label: fmtMonth(row.month), count: row.count, sumEur: row.sumEur }))}
-              />
-            ) : null}
           </div>
 
           {/* Status tables */}
