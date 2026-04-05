@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   analyzeDocumentFrame,
   type DocumentDetectionResult,
@@ -30,6 +30,7 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const analysisCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const fallbackInputRef = useRef<HTMLInputElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const readySinceRef = useRef<number | null>(null);
   const cooldownUntilRef = useRef<number>(0);
@@ -243,11 +244,40 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
     onClose();
   }
 
+  function openFallbackPicker() {
+    fallbackInputRef.current?.click();
+  }
+
+  async function handleFallbackFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    resetCapture();
+    setCapturedFile(file);
+    setCapturedPreviewUrl(URL.createObjectURL(file));
+    setCaptureTrigger("manual");
+    setDetection(null);
+    setError(null);
+    setState("review");
+    stopCamera();
+  }
+
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm">
       <div className="flex h-full flex-col">
+        <input
+          ref={fallbackInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(event) => {
+            void handleFallbackFileChange(event);
+          }}
+        />
         <div className="flex items-center justify-between border-b border-border/70 px-4 py-3">
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.24em] text-muted-foreground">Smart Capture Phase 2</p>
@@ -297,7 +327,7 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
             {error ? <p className="text-sm font-medium text-danger">{error}</p> : null}
             {!error && state === "camera" ? (
               <p className="text-sm text-muted-foreground">
-                Auto-Capture loest nur aus, wenn Dokumentgroesse, Schaerfe, Helligkeit, Kontrast und Stabilitaet ausreichen. Manuelles Ausloesen bleibt immer moeglich.
+                Auto-Capture loest nur aus, wenn Dokumentgroesse, Schaerfe, Helligkeit, Kontrast und Stabilitaet ausreichen. Manuelles Ausloesen und die native Handy-Kamera bleiben immer moeglich.
               </p>
             ) : null}
             {state === "review" ? (
@@ -310,16 +340,25 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
 
             <div className="flex flex-wrap gap-3">
               {state === "camera" ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handleCapture("manual");
-                  }}
-                  disabled={isStarting || !!error}
-                  className="flex-1 rounded-2xl bg-primary px-6 py-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isStarting ? "Kamera startet..." : detection?.autoCaptureEligible ? "Manuell jetzt aufnehmen" : "Foto aufnehmen"}
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleCapture("manual");
+                    }}
+                    disabled={isStarting || !!error}
+                    className="flex-1 rounded-2xl bg-primary px-6 py-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isStarting ? "Kamera startet..." : detection?.autoCaptureEligible ? "Manuell jetzt aufnehmen" : "Foto aufnehmen"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openFallbackPicker}
+                    className="rounded-2xl border border-border bg-card px-6 py-4 text-sm font-semibold transition hover:border-primary/40 hover:text-primary"
+                  >
+                    Handy-Kamera / Bild waehlen
+                  </button>
+                </>
               ) : null}
               {state === "review" ? (
                 <>
