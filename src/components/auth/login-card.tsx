@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,8 +24,10 @@ export function LoginCard() {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const submit = (provider: "email-password" | "pin-login") => (formData: FormData) => {
+  const submit = (provider: "email-password" | "pin-login") => (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setError(null);
+    const formData = new FormData(event.currentTarget);
     startTransition(async () => {
       try {
         await authenticate(provider, formData);
@@ -58,7 +60,7 @@ export function LoginCard() {
                   Rollenbasierter Zugang fuer Verwaltung und regulare Erfassung.
                 </p>
               </div>
-              <form action={submit("email-password")} className="space-y-3">
+              <form onSubmit={submit("email-password")} className="space-y-3">
                 <Input label="E-Mail" name="email" type="email" placeholder="name@firma.de" required />
                 <Input label="Passwort" name="password" type="password" placeholder="Passwort" required />
                 <button
@@ -77,7 +79,7 @@ export function LoginCard() {
                   Fuer Kiosk und mobile Erfassung. Im MVP erfolgt die Zuordnung ueber E-Mail plus PIN.
                 </p>
               </div>
-              <form action={submit("pin-login")} className="space-y-3">
+              <form onSubmit={submit("pin-login")} className="space-y-3">
                 <Input label="E-Mail" name="email" type="email" placeholder="name@firma.de" required />
                 <Input label="PIN" name="pin" inputMode="numeric" pattern="[0-9]{4}" maxLength={4} placeholder="1234" required />
                 <button
