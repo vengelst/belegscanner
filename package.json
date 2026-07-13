@@ -12,7 +12,9 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
     "setup": "prisma generate && prisma migrate dev && tsx prisma/seed.ts",
-    "prisma:seed:demo": "tsx prisma/seed-demo.ts"
+    "prisma:seed:demo": "tsx prisma/seed-demo.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.5.3",
@@ -33,15 +35,19 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^22.10.2",
     "@types/nodemailer": "^7.0.11",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "eslint": "^9.17.0",
     "eslint-config-next": "^15.0.0",
+    "jsdom": "^29.1.1",
     "prisma": "^6.0.0",
     "tailwindcss": "^4.0.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.10"
   }
 }
