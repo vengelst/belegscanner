@@ -10,8 +10,15 @@ import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import Link from "next/link";
 import { connection } from "next/server";
-import { documentTypeLabels, fieldReviewStatusLabels, fromReceiptDocumentType, paymentMethodLabels, type OcrFieldReviewStatus } from "@/lib/ocr-suggestions";
+import { fromReceiptDocumentType, paymentMethodLabels } from "@/lib/ocr-suggestions";
 import { checkSendReadiness } from "@/lib/validation";
+import {
+  StatusBadge,
+  ReceiptCoreData,
+  ReceiptOcrSection,
+  ReceiptHospitalitySection,
+  parseStructuredData,
+} from "@/components/receipts/detail";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -50,7 +57,6 @@ export default async function ReceiptDetailPage({ params }: Props) {
     notFound();
   }
 
-  // Load active DATEV profiles for send action
   const datevProfiles = await prisma.datevProfile.findMany({
     where: { active: true },
     select: { id: true, name: true, isDefault: true },
@@ -236,48 +242,33 @@ export default async function ReceiptDetailPage({ params }: Props) {
       ) : null}
 
       {/* Core Data */}
-      <Card>
-        <h2 className="text-lg font-semibold tracking-tight">Belegdaten</h2>
-        <div className="mt-4 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
-          <Field label="Belegdatum" value={fmtDate(receipt.date)} />
-          {receipt.invoiceNumber ? <Field label="Rechnungsnummer" value={receipt.invoiceNumber} /> : null}
-          {receipt.currency !== "EUR" ? (
-            <Field label={`Rechnungsbetrag (${receipt.currency})`} value={`${fmtAmount(receipt.amount)} ${receipt.currency}`} />
-          ) : null}
-          {receipt.netAmount ? <Field label="Nettobetrag" value={`${fmtAmount(receipt.netAmount)} ${receipt.currency}`} /> : null}
-          {receipt.taxAmount ? <Field label="Steuerbetrag" value={`${fmtAmount(receipt.taxAmount)} ${receipt.currency}`} /> : null}
-          <Field label="Rechnungsbetrag (EUR)" value={`${fmtAmount(receipt.amountEur)} EUR`} />
-          {receipt.currency !== "EUR" ? (
-            <>
-              <Field label="Wechselkurs" value={receipt.exchangeRate ? `1 EUR = ${Number(receipt.exchangeRate)} ${receipt.currency}` : "—"} />
-              <Field label="Kursdatum" value={receipt.exchangeRateDate ? fmtDate(receipt.exchangeRateDate) : "—"} />
-            </>
-          ) : null}
-          <Field label="Lieferant" value={receipt.supplier ?? "—"} />
-          <Field label="Zweck" value={receipt.purpose.name} />
-          <Field label="Kategorie" value={receipt.category.name} />
-          <Field label="Land" value={receipt.country ? `${receipt.country.name}${receipt.country.code ? ` (${receipt.country.code})` : ""}` : "—"} />
-          <Field label="Kfz" value={receipt.vehicle ? receipt.vehicle.plate : "—"} />
-          {detectedPaymentMethod ? <Field label="Zahlungsart" value={detectedPaymentMethod} /> : null}
-          {detectedCardLastDigits ? <Field label="Kartenendziffern" value={detectedCardLastDigits} /> : null}
-          {receipt.remark ? (
-            <div className="sm:col-span-2 lg:col-span-3">
-              <Field label="Bemerkung" value={receipt.remark} />
-            </div>
-          ) : null}
-        </div>
-      </Card>
+      <ReceiptCoreData
+        date={fmtDate(receipt.date)}
+        invoiceNumber={receipt.invoiceNumber}
+        currency={receipt.currency}
+        amount={fmtAmount(receipt.amount)}
+        netAmount={receipt.netAmount ? fmtAmount(receipt.netAmount) : null}
+        taxAmount={receipt.taxAmount ? fmtAmount(receipt.taxAmount) : null}
+        amountEur={fmtAmount(receipt.amountEur)}
+        exchangeRate={receipt.exchangeRate ? String(Number(receipt.exchangeRate)) : null}
+        exchangeRateDate={receipt.exchangeRateDate ? fmtDate(receipt.exchangeRateDate) : null}
+        supplier={receipt.supplier}
+        purposeName={receipt.purpose.name}
+        categoryName={receipt.category.name}
+        countryDisplay={receipt.country ? `${receipt.country.name}${receipt.country.code ? ` (${receipt.country.code})` : ""}` : "—"}
+        vehiclePlate={receipt.vehicle ? receipt.vehicle.plate : null}
+        detectedPaymentMethod={detectedPaymentMethod}
+        detectedCardLastDigits={detectedCardLastDigits}
+        remark={receipt.remark}
+      />
 
       {/* Hospitality */}
       {receipt.hospitality ? (
-        <Card>
-          <h2 className="text-lg font-semibold tracking-tight">Bewirtungsangaben</h2>
-          <div className="mt-4 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
-            <Field label="Anlass" value={receipt.hospitality.occasion} />
-            <Field label="Gaeste" value={receipt.hospitality.guests} />
-            <Field label="Ort" value={receipt.hospitality.location} />
-          </div>
-        </Card>
+        <ReceiptHospitalitySection
+          occasion={receipt.hospitality.occasion}
+          guests={receipt.hospitality.guests}
+          location={receipt.hospitality.location}
+        />
       ) : null}
 
       {/* Send Log */}
@@ -307,136 +298,11 @@ export default async function ReceiptDetailPage({ params }: Props) {
         </div>
       </Card>
 
-      {/* KI-Auslese */}
-      {structuredData || detectedDocumentType ? (
-        <Card>
-          <h2 className="text-lg font-semibold tracking-tight">KI-Vorschlaege</h2>
-          <div className="mt-4 space-y-4 text-sm">
-            {detectedDocumentType ? (
-              <Field label="Erkannter Belegtyp" value={documentTypeLabels[detectedDocumentType]} />
-            ) : null}
-            {structuredData ? (
-              <>
-                <div className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {structuredData.extracted.time ? <Field label="Uhrzeit" value={formatSuggestedValue(structuredData.extracted.time, structuredData.fieldReviewStates?.time, structuredData.fieldConfidence.time)} /> : null}
-                  {structuredData.extracted.invoiceDate ? <Field label="Rechnungsdatum" value={formatSuggestedValue(structuredData.extracted.invoiceDate, structuredData.fieldReviewStates?.invoiceDate, structuredData.fieldConfidence.invoiceDate)} /> : null}
-                  {structuredData.extracted.invoiceNumber ? <Field label="Rechnungsnummer" value={formatSuggestedValue(structuredData.extracted.invoiceNumber, structuredData.fieldReviewStates?.invoiceNumber, structuredData.fieldConfidence.invoiceNumber)} /> : null}
-                  {structuredData.extracted.grossAmount !== null ? <Field label="Rechnungsbetrag" value={formatSuggestedValue(structuredData.extracted.grossAmount.toFixed(2), structuredData.fieldReviewStates?.grossAmount, structuredData.fieldConfidence.grossAmount)} /> : null}
-                  {structuredData.extracted.netAmount !== null ? <Field label="Nettobetrag" value={formatSuggestedValue(structuredData.extracted.netAmount.toFixed(2), structuredData.fieldReviewStates?.netAmount, structuredData.fieldConfidence.netAmount)} /> : null}
-                  {structuredData.extracted.taxAmount !== null ? <Field label="Steuerbetrag" value={formatSuggestedValue(structuredData.extracted.taxAmount.toFixed(2), structuredData.fieldReviewStates?.taxAmount, structuredData.fieldConfidence.taxAmount)} /> : null}
-                  {structuredData.extracted.location ? <Field label="Ort / Standort" value={formatSuggestedValue(structuredData.extracted.location, structuredData.fieldReviewStates?.location, structuredData.fieldConfidence.location)} /> : null}
-                  {structuredData.extracted.countryName ? <Field label="Erkanntes Land" value={formatSuggestedValue(structuredData.extracted.countryName, structuredData.fieldReviewStates?.country, structuredData.fieldConfidence.country)} /> : null}
-                  {structuredData.extracted.paymentMethod ? <Field label="Zahlungsart" value={formatSuggestedValue(paymentMethodLabels[structuredData.extracted.paymentMethod], structuredData.fieldReviewStates?.paymentMethod, structuredData.fieldConfidence.paymentMethod)} /> : null}
-                  {structuredData.extracted.cardLastDigits ? <Field label="Kartenendziffern" value={formatSuggestedValue(`**** ${structuredData.extracted.cardLastDigits}`, structuredData.fieldReviewStates?.cardLastDigits, structuredData.fieldConfidence.cardLastDigits)} /> : null}
-                </div>
-                {structuredData.special.invoice ? (
-                  <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
-                    <p className="text-sm font-semibold">Rechnungspositionen</p>
-                    <div className="mt-3 space-y-2">
-                      {structuredData.special.invoice.lineItems.map((item, index) => (
-                        <div key={`${item.description}-${index}`} className="rounded-xl border border-border bg-background px-3 py-2 text-sm">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="font-medium">{item.lineNumber ? `${item.lineNumber}. ` : ""}{item.description}</p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                {[
-                                  item.quantity !== null ? `Menge ${item.quantity}` : null,
-                                  item.unit ? `Einheit ${item.unit}` : null,
-                                  item.unitPrice !== null ? `Einzelpreis ${item.unitPrice.toFixed(2)}` : null,
-                                  item.taxHint ? `Steuer ${item.taxHint}` : null,
-                                ].filter(Boolean).join(" / ") || "Teilweise erkannt"}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className="font-semibold">{item.totalPrice !== null ? formatSuggestedValue(item.totalPrice.toFixed(2), structuredData.fieldReviewStates?.invoiceLineItems, item.confidence) : "-"}</p>
-                              <p className="mt-1 text-xs text-muted-foreground">{item.status === "confident" ? "sicher" : item.status === "uncertain" ? "pruefen" : "teilweise"}</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-                {structuredData.special.fuel ? (
-                  <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
-                    <p className="text-sm font-semibold">Tankhinweise</p>
-                    <div className="mt-3 grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {structuredData.special.fuel.liters !== null ? <Field label="Liter" value={formatSuggestedValue(structuredData.special.fuel.liters.toFixed(2), structuredData.fieldReviewStates?.fuelLiters, structuredData.specialConfidence.fuel?.liters ?? "none")} /> : null}
-                      {structuredData.special.fuel.pricePerLiter !== null ? <Field label="Preis pro Liter" value={formatSuggestedValue(structuredData.special.fuel.pricePerLiter.toFixed(3), structuredData.fieldReviewStates?.fuelPricePerLiter, structuredData.specialConfidence.fuel?.pricePerLiter ?? "none")} /> : null}
-                      {structuredData.special.fuel.fuelType ? <Field label="Kraftstoffart" value={formatSuggestedValue(structuredData.special.fuel.fuelType, structuredData.fieldReviewStates?.fuelType, structuredData.specialConfidence.fuel?.fuelType ?? "none")} /> : null}
-                    </div>
-                  </div>
-                ) : null}
-                {structuredData.special.hospitality ? (
-                  <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
-                    <p className="text-sm font-semibold">Bewirtungshinweise</p>
-                    <div className="mt-3 grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {structuredData.special.hospitality.location ? <Field label="Ort" value={formatSuggestedValue(structuredData.special.hospitality.location, structuredData.fieldReviewStates?.hospitalityLocation, structuredData.specialConfidence.hospitality?.location ?? "none")} /> : null}
-                      {structuredData.special.hospitality.subtotal !== null ? <Field label="Zwischensumme" value={formatSuggestedValue(structuredData.special.hospitality.subtotal.toFixed(2), structuredData.fieldReviewStates?.hospitalitySubtotal, structuredData.specialConfidence.hospitality?.subtotal ?? "none")} /> : null}
-                      {structuredData.special.hospitality.tip !== null ? <Field label="Trinkgeld" value={formatSuggestedValue(structuredData.special.hospitality.tip.toFixed(2), structuredData.fieldReviewStates?.hospitalityTip, structuredData.specialConfidence.hospitality?.tip ?? "none")} /> : null}
-                    </div>
-                    {structuredData.special.hospitality.lineItems.length > 0 ? (
-                      <div className="mt-3 space-y-2">
-                        <p className="text-xs text-muted-foreground">Erkannte Positionen</p>
-                        {structuredData.special.hospitality.lineItems.map((item, index) => (
-                          <div key={`${item.label}-${index}`} className="flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-sm">
-                            <span>{item.label}</span>
-                            <span>{item.amount !== null ? item.amount.toFixed(2) : "-"}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-                {structuredData.special.lodging ? (
-                  <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
-                    <p className="text-sm font-semibold">Unterkunftshinweise</p>
-                    <div className="mt-3 grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {structuredData.special.lodging.location ? <Field label="Ort" value={formatSuggestedValue(structuredData.special.lodging.location, structuredData.fieldReviewStates?.lodgingLocation, structuredData.specialConfidence.lodging?.location ?? "none")} /> : null}
-                      {structuredData.special.lodging.nights !== null ? <Field label="Naechte" value={formatSuggestedValue(String(structuredData.special.lodging.nights), structuredData.fieldReviewStates?.lodgingNights, structuredData.specialConfidence.lodging?.nights ?? "none")} /> : null}
-                      {structuredData.special.lodging.subtotal !== null ? <Field label="Zwischensumme" value={formatSuggestedValue(structuredData.special.lodging.subtotal.toFixed(2), structuredData.fieldReviewStates?.lodgingSubtotal, structuredData.specialConfidence.lodging?.subtotal ?? "none")} /> : null}
-                      {structuredData.special.lodging.tax !== null ? <Field label="Tax / Kurtaxe" value={formatSuggestedValue(structuredData.special.lodging.tax.toFixed(2), structuredData.fieldReviewStates?.lodgingTax, structuredData.specialConfidence.lodging?.tax ?? "none")} /> : null}
-                      {structuredData.special.lodging.fees !== null ? <Field label="Gebuehren" value={formatSuggestedValue(structuredData.special.lodging.fees.toFixed(2), structuredData.fieldReviewStates?.lodgingFees, structuredData.specialConfidence.lodging?.fees ?? "none")} /> : null}
-                    </div>
-                    {structuredData.special.lodging.lineItems.length > 0 ? (
-                      <div className="mt-3 space-y-2">
-                        <p className="text-xs text-muted-foreground">Erkannte Zusatzpositionen</p>
-                        {structuredData.special.lodging.lineItems.map((item, index) => (
-                          <div key={`${item.label}-${index}`} className="flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-sm">
-                            <span>{item.label}</span>
-                            <span>{item.amount !== null ? item.amount.toFixed(2) : "-"}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-                {structuredData.special.parking ? (
-                  <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
-                    <p className="text-sm font-semibold">Parkhinweise</p>
-                    <div className="mt-3 grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {structuredData.special.parking.location ? <Field label="Ort" value={formatSuggestedValue(structuredData.special.parking.location, structuredData.fieldReviewStates?.parkingLocation, structuredData.specialConfidence.parking?.location ?? "none")} /> : null}
-                      {structuredData.special.parking.durationText ? <Field label="Dauer" value={formatSuggestedValue(structuredData.special.parking.durationText, structuredData.fieldReviewStates?.parkingDuration, structuredData.specialConfidence.parking?.durationText ?? "none")} /> : null}
-                      {structuredData.special.parking.entryTime ? <Field label="Einfahrt" value={formatSuggestedValue(structuredData.special.parking.entryTime, structuredData.fieldReviewStates?.parkingEntryTime, structuredData.specialConfidence.parking?.entryTime ?? "none")} /> : null}
-                      {structuredData.special.parking.exitTime ? <Field label="Ausfahrt" value={formatSuggestedValue(structuredData.special.parking.exitTime, structuredData.fieldReviewStates?.parkingExitTime, structuredData.specialConfidence.parking?.exitTime ?? "none")} /> : null}
-                    </div>
-                  </div>
-                ) : null}
-                {structuredData.special.toll ? (
-                  <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
-                    <p className="text-sm font-semibold">Mauthinweise</p>
-                    <div className="mt-3 grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {structuredData.special.toll.station ? <Field label="Station / Anbieter" value={formatSuggestedValue(structuredData.special.toll.station, structuredData.fieldReviewStates?.tollStation, structuredData.specialConfidence.toll?.station ?? "none")} /> : null}
-                      {structuredData.special.toll.routeHint ? <Field label="Streckenhinweis" value={formatSuggestedValue(structuredData.special.toll.routeHint, structuredData.fieldReviewStates?.tollRouteHint, structuredData.specialConfidence.toll?.routeHint ?? "none")} /> : null}
-                      {structuredData.special.toll.vehicleClass ? <Field label="Fahrzeugklasse" value={formatSuggestedValue(structuredData.special.toll.vehicleClass, structuredData.fieldReviewStates?.tollVehicleClass, structuredData.specialConfidence.toll?.vehicleClass ?? "none")} /> : null}
-                    </div>
-                  </div>
-                ) : null}
-              </>
-            ) : null}
-          </div>
-        </Card>
-      ) : null}
+      {/* KI-Vorschlaege */}
+      <ReceiptOcrSection
+        structuredData={structuredData}
+        detectedDocumentType={detectedDocumentType}
+      />
 
       {/* KI-Rohtext */}
       {receipt.aiRawText ? (
@@ -449,153 +315,4 @@ export default async function ReceiptDetailPage({ params }: Props) {
       ) : null}
     </div>
   );
-}
-
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="font-medium">{value}</p>
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const colors: Record<string, string> = {
-    OPEN: "bg-muted text-muted-foreground",
-    READY: "bg-accent/20 text-accent-foreground",
-    SENT: "bg-primary/10 text-primary",
-    FAILED: "bg-danger/10 text-danger",
-    RETRY: "bg-accent/20 text-accent-foreground",
-  };
-  return (
-    <span className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${colors[status] ?? ""}`}>
-      {status}
-    </span>
-  );
-}
-
-
-type StructuredData = {
-  extracted: {
-    time: string | null;
-    invoiceDate: string | null;
-    dueDate: string | null;
-    serviceDate: string | null;
-    location: string | null;
-    paymentMethod: keyof typeof paymentMethodLabels | null;
-    cardLastDigits: string | null;
-    invoiceNumber: string | null;
-    grossAmount: number | null;
-    netAmount: number | null;
-    taxAmount: number | null;
-    countryName: string | null;
-  };
-  fieldConfidence: {
-    time: string;
-    invoiceDate: string;
-    dueDate: string;
-    serviceDate: string;
-    location: string;
-    paymentMethod: string;
-    cardLastDigits: string;
-    invoiceNumber: string;
-    grossAmount: string;
-    netAmount: string;
-    taxAmount: string;
-    country: string;
-  };
-  fieldReviewStates?: Partial<Record<string, OcrFieldReviewStatus>>;
-  special: {
-    fuel: {
-      liters: number | null;
-      pricePerLiter: number | null;
-      fuelType: string | null;
-    } | null;
-    hospitality: {
-      location: string | null;
-      subtotal: number | null;
-      tip: number | null;
-      lineItems: Array<{ label: string; amount: number | null }>;
-    } | null;
-    lodging: {
-      location: string | null;
-      nights: number | null;
-      subtotal: number | null;
-      tax: number | null;
-      fees: number | null;
-      lineItems: Array<{ label: string; amount: number | null }>;
-    } | null;
-    parking: {
-      location: string | null;
-      durationText: string | null;
-      entryTime: string | null;
-      exitTime: string | null;
-    } | null;
-    toll: {
-      station: string | null;
-      routeHint: string | null;
-      vehicleClass: string | null;
-    } | null;
-    invoice: {
-      lineItems: Array<{
-        lineNumber: number | null;
-        description: string;
-        quantity: number | null;
-        unit: string | null;
-        unitPrice: number | null;
-        totalPrice: number | null;
-        taxHint: string | null;
-        confidence: string;
-        status: "confident" | "uncertain" | "partial";
-      }>;
-    } | null;
-  };
-  specialConfidence: {
-    fuel: {
-      liters: string;
-      pricePerLiter: string;
-      fuelType: string;
-    } | null;
-    hospitality: {
-      location: string;
-      subtotal: string;
-      tip: string;
-    } | null;
-    lodging: {
-      location: string;
-      nights: string;
-      subtotal: string;
-      tax: string;
-      fees: string;
-      lineItems: string;
-    } | null;
-    parking: {
-      location: string;
-      durationText: string;
-      entryTime: string;
-      exitTime: string;
-    } | null;
-    toll: {
-      station: string;
-      routeHint: string;
-      vehicleClass: string;
-    } | null;
-    invoice: {
-      lineItems: string;
-    } | null;
-  };
-};
-
-function parseStructuredData(value: unknown): StructuredData | null {
-  if (!value || typeof value !== "object") return null;
-  return value as StructuredData;
-}
-
-function formatSuggestedValue(value: string, status: OcrFieldReviewStatus | undefined, confidence: string) {
-  if (status) return `${value} (${fieldReviewStatusLabels[status]})`;
-  if (confidence === "high") return `${value} (sicher)`;
-  if (confidence === "medium") return `${value} (wahrscheinlich)`;
-  if (confidence === "low") return `${value} (unsicher)`;
-  return value;
 }
