@@ -2,14 +2,43 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { analyzeWithOpenAI } from "@/lib/openai-document-ai";
 import { validateFile } from "@/lib/storage";
+import { checkRateLimit, cleanupExpiredEntries } from "@/lib/rate-limit";
+
+const RATE_LIMIT_MAX = 30;
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
 export async function POST(request: NextRequest) {
   let fileMeta: { mimeType: string; sizeBytes: number; fileName: string } | null = null;
   const startedAt = Date.now();
 
   try {
-    const { error } = await requireAuth();
+    const { session, error } = await requireAuth();
     if (error) return error;
+
+    cleanupExpiredEntries(RATE_LIMIT_WINDOW_MS);
+
+    const rateLimit = checkRateLimit(
+      `ai-analyze:${session.userId}`,
+      RATE_LIMIT_MAX,
+      RATE_LIMIT_WINDOW_MS,
+    );
+
+    if (!rateLimit.allowed) {
+      const resetTime = rateLimit.resetAt.toLocaleTimeString("de-DE", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      return NextResponse.json(
+        { error: `Analyse-Limit erreicht. Bitte warten Sie bis ${resetTime}.` },
+        {
+          status: 429,
+          headers: {
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": rateLimit.resetAt.toISOString(),
+          },
+        },
+      );
+    }
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
@@ -49,7 +78,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json(result);
+    return NextResponse.json(result, {
+      headers: {
+        "X-RateLimit-Remaining": String(rateLimit.remaining),
+        "X-RateLimit-Reset": rateLimit.resetAt.toISOString(),
+      },
+    });
   } catch (error) {
     console.error("Document analysis route failed:", {
       ...fileMeta,

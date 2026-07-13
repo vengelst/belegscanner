@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
   const url = request.nextUrl;
 
   // Reuse same filter logic as receipt list
-  const where: Prisma.ReceiptWhereInput = {};
+  const where: Prisma.ReceiptWhereInput = { deletedAt: null };
 
   const search = url.searchParams.get("search")?.trim();
   if (search) {

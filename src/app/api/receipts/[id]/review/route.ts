@@ -56,11 +56,12 @@ export async function PUT(
     select: {
       userId: true,
       reviewStatus: true,
+      deletedAt: true,
       files: { where: { type: "ORIGINAL" }, select: { id: true }, take: 1 },
     },
   });
 
-  if (!receipt) {
+  if (!receipt || receipt.deletedAt) {
     return NextResponse.json({ error: "Beleg nicht gefunden." }, { status: 404 });
   }
 

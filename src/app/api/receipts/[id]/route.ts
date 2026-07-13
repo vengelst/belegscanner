@@ -4,7 +4,6 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { receiptUpdateSchema } from "@/lib/validation";
 import { Prisma } from "@prisma/client";
 import { calculateAmountEur, fetchLatestExchangeRate } from "@/lib/exchange-rates";
-import { deleteReceiptFiles } from "@/lib/storage";
 
 export async function GET(
   _request: NextRequest,
@@ -33,6 +32,10 @@ export async function GET(
     return NextResponse.json({ error: "Beleg nicht gefunden." }, { status: 404 });
   }
 
+  if (receipt.deletedAt && session.role !== "ADMIN") {
+    return NextResponse.json({ error: "Beleg nicht gefunden." }, { status: 404 });
+  }
+
   if (session.role !== "ADMIN" && receipt.userId !== session.userId) {
     return NextResponse.json({ error: "Kein Zugriff." }, { status: 403 });
   }
@@ -50,7 +53,7 @@ export async function PUT(
   const { id } = await params;
 
   const existing = await prisma.receipt.findUnique({ where: { id } });
-  if (!existing) {
+  if (!existing || existing.deletedAt) {
     return NextResponse.json({ error: "Beleg nicht gefunden." }, { status: 404 });
   }
 
@@ -195,9 +198,9 @@ export async function DELETE(
 
   const receipt = await prisma.receipt.findUnique({
     where: { id },
-    select: { id: true, userId: true },
+    select: { id: true, userId: true, deletedAt: true },
   });
-  if (!receipt) {
+  if (!receipt || receipt.deletedAt) {
     return NextResponse.json({ error: "Beleg nicht gefunden." }, { status: 404 });
   }
 
@@ -205,8 +208,10 @@ export async function DELETE(
     return NextResponse.json({ error: "Kein Zugriff." }, { status: 403 });
   }
 
-  await prisma.receipt.delete({ where: { id } });
-  await deleteReceiptFiles(id);
+  await prisma.receipt.update({
+    where: { id },
+    data: { deletedAt: new Date() },
+  });
 
   return NextResponse.json({ ok: true });
 }

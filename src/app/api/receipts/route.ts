@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   const page = Math.max(1, Number(url.searchParams.get("page") ?? 1));
   const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get("pageSize") ?? 20)));
 
-  const where: Prisma.ReceiptWhereInput = {};
+  const where: Prisma.ReceiptWhereInput = { deletedAt: null };
 
   // Users only see their own receipts
   if (session.role !== "ADMIN") {

@@ -28,7 +28,7 @@ export default async function PrintReceiptPage({ params }: Props) {
     },
   });
 
-  if (!receipt) notFound();
+  if (!receipt || receipt.deletedAt) notFound();
 
   if (session.user.role !== "ADMIN" && receipt.userId !== session.user.id) {
     notFound();
