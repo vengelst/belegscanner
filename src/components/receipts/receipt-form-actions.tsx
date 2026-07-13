@@ -1,40 +1,47 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+
 type Props = {
   isPending: boolean;
   isPreparingAsset: boolean;
 };
 
 export function ReceiptFormActions({ isPending, isPreparingAsset }: Props) {
+  const disabled = isPending || isPreparingAsset;
+
   return (
     <div className="flex flex-wrap gap-3">
-      <button
+      <Button
         type="submit"
         name="_action"
         value="save"
-        disabled={isPending || isPreparingAsset}
-        className="rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={disabled}
+        loading={isPending}
+        size="lg"
       >
-        {isPending ? "Wird gespeichert..." : "Speichern"}
-      </button>
-      <button
+        Speichern
+      </Button>
+      <Button
         type="submit"
         name="_action"
         value="save_next"
-        disabled={isPending || isPreparingAsset}
-        className="rounded-2xl border border-border bg-card px-6 py-3 text-sm font-semibold transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={disabled}
+        variant="secondary"
+        size="lg"
       >
         {isPending ? "Wird vorbereitet..." : "Speichern & naechsten Beleg erfassen"}
-      </button>
-      <button
+      </Button>
+      <Button
         type="submit"
         name="_action"
         value="send"
-        disabled={isPending || isPreparingAsset}
-        className="rounded-2xl border border-primary bg-primary/10 px-6 py-3 text-sm font-semibold text-primary transition hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={disabled}
+        size="lg"
+        className="border border-primary bg-primary/10 text-primary hover:bg-primary/20 hover:opacity-100"
       >
         {isPending ? "Wird gesendet..." : "Speichern & Senden"}
-      </button>
+      </Button>
     </div>
   );
 }
