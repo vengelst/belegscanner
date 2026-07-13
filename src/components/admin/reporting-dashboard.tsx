@@ -2,6 +2,17 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Card } from "@/components/ui/card";
+import {
+  KpiCard,
+  ProblemLink,
+  GroupTable,
+  PeriodSelectorCard,
+  PrintSummarySection,
+  CurrencyTable,
+  fmtEur,
+  fmtMonth,
+  fmtDay,
+} from "./reporting";
 
 type SummaryData = {
   totalReceipts: number;
@@ -38,22 +49,6 @@ const STATUS_LABELS: Record<string, string> = {
 const REVIEW_LABELS: Record<string, string> = {
   DRAFT: "Entwurf", IN_REVIEW: "In Pruefung", APPROVED: "Freigegeben", DEFERRED: "Zurueckgestellt", COMPLETED: "Abgeschlossen",
 };
-
-const fmtEur = (n: number) =>
-  n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " EUR";
-
-const MONTH_NAMES = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
-
-function fmtMonth(key: string) {
-  const [year, month] = key.split("-");
-  const idx = parseInt(month, 10) - 1;
-  return `${MONTH_NAMES[idx] ?? month} ${year}`;
-}
-
-function fmtDay(key: string) {
-  const [year, month, day] = key.split("-");
-  return `${day}.${month}.${year}`;
-}
 
 function findWeekStartForDay(day: string, days: Array<{ day: string; weekStart: string }>) {
   return days.find((entry) => entry.day === day)?.weekStart ?? "";
@@ -443,211 +438,5 @@ export function ReportingDashboard() {
         <p className="text-sm text-danger">Daten konnten nicht geladen werden.</p>
       )}
     </div>
-  );
-}
-
-function KpiCard({ label, value, danger }: { label: string; value: string; danger?: boolean }) {
-  return (
-    <div className="rounded-[calc(var(--radius)+0.5rem)] border border-border/80 bg-card p-5 shadow-soft">
-      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className={`mt-2 text-2xl font-semibold tabular-nums ${danger ? "text-danger" : "text-foreground"}`}>{value}</p>
-    </div>
-  );
-}
-
-function ProblemLink({ label, count, href }: { label: string; count: number; href?: string }) {
-  const content = (
-    <div className="flex items-center justify-between rounded-xl border border-danger/20 bg-background px-3 py-2 text-sm">
-      <span>{label}</span>
-      <span className="ml-2 rounded-full bg-danger/10 px-2.5 py-0.5 text-xs font-semibold tabular-nums text-danger">{count}</span>
-    </div>
-  );
-  if (href) return <a href={href} className="hover:opacity-80 transition">{content}</a>;
-  return content;
-}
-
-function GroupTable({ title, rows, showSum }: { title: string; rows: { name: string; count: number; sumEur?: number }[]; showSum?: boolean }) {
-  return (
-    <Card className="p-0 overflow-hidden">
-      <div className="px-4 py-3 border-b border-border">
-        <h3 className="text-sm font-semibold">{title}</h3>
-      </div>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border text-left text-muted-foreground">
-            <th className="px-4 py-2 font-medium">Name</th>
-            <th className="px-4 py-2 font-medium text-right">Anzahl</th>
-            {showSum ? <th className="px-4 py-2 font-medium text-right">Summe EUR</th> : null}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <tr><td colSpan={showSum ? 3 : 2} className="px-4 py-3 text-muted-foreground">Keine Daten</td></tr>
-          ) : rows.map((r) => (
-            <tr key={r.name} className="border-b border-border/50">
-              <td className="px-4 py-2">{r.name}</td>
-              <td className="px-4 py-2 text-right tabular-nums">{r.count}</td>
-              {showSum ? <td className="px-4 py-2 text-right tabular-nums">{fmtEur(r.sumEur ?? 0)}</td> : null}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </Card>
-  );
-}
-
-function PeriodSelectorCard({
-  title,
-  label,
-  value,
-  onChange,
-  options,
-  summary,
-  rows,
-  listTitle,
-}: {
-  title: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
-  summary: { count: number; sumEur: number } | null;
-  rows?: { key: string; label: string; count: number; sumEur: number }[];
-  listTitle?: string;
-}) {
-  return (
-    <Card className="space-y-4 p-4">
-      <div className="space-y-3">
-        <h3 className="text-sm font-semibold">{title}</h3>
-        <label className="grid gap-1 text-sm font-medium">
-          <span className="text-xs text-muted-foreground">{label} waehlen</span>
-          <select
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            className="h-10 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
-          >
-            {options.length === 0 ? <option value="">Keine Daten</option> : null}
-            {options.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      {summary ? (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-2xl border border-border bg-muted/20 p-4">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Anzahl</p>
-            <p className="mt-2 text-2xl font-semibold tabular-nums">{summary.count}</p>
-          </div>
-          <div className="rounded-2xl border border-border bg-muted/20 p-4">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Gesamtsumme</p>
-            <p className="mt-2 text-2xl font-semibold tabular-nums">{fmtEur(summary.sumEur)}</p>
-          </div>
-        </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">Keine Daten fuer diese Auswahl.</p>
-      )}
-      {rows && rows.length > 0 ? (
-        <div className="overflow-hidden rounded-2xl border border-border/80">
-          <div className="border-b border-border bg-muted/20 px-4 py-2">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{listTitle ?? "Eintraege"}</h4>
-          </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border/70 text-left text-muted-foreground">
-                <th className="px-4 py-2 font-medium">{label}</th>
-                <th className="px-4 py-2 text-right font-medium">Anzahl</th>
-                <th className="px-4 py-2 text-right font-medium">Summe EUR</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.key} className={row.key === value ? "bg-primary/5" : undefined}>
-                  <td className="px-4 py-2">{row.label}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{row.count}</td>
-                  <td className="px-4 py-2 text-right tabular-nums">{fmtEur(row.sumEur)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-    </Card>
-  );
-}
-
-function PrintSummarySection({
-  title,
-  label,
-  rows,
-}: {
-  title: string;
-  label: string;
-  rows: { key: string; label: string; count: number; sumEur: number }[];
-}) {
-  const totalCount = rows.reduce((sum, row) => sum + row.count, 0);
-  const totalSumEur = rows.reduce((sum, row) => sum + row.sumEur, 0);
-
-  return (
-    <div className="report-print-section rounded-2xl border border-border bg-white p-5 text-black">
-      <h2 className="text-base font-semibold">{title}</h2>
-      <table className="mt-3 w-full text-sm">
-        <thead>
-          <tr className="border-b border-slate-300 text-left">
-            <th className="px-2 py-1.5 font-medium">{label}</th>
-            <th className="px-2 py-1.5 text-right font-medium">Anzahl</th>
-            <th className="px-2 py-1.5 text-right font-medium">Summe EUR</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.key} className="border-b border-slate-200">
-              <td className="px-2 py-1.5">{row.label}</td>
-              <td className="px-2 py-1.5 text-right tabular-nums">{row.count}</td>
-              <td className="px-2 py-1.5 text-right tabular-nums">{fmtEur(row.sumEur)}</td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="border-t-2 border-slate-400 font-semibold">
-            <td className="px-2 py-1.5">Gesamtsumme</td>
-            <td className="px-2 py-1.5 text-right tabular-nums">{totalCount}</td>
-            <td className="px-2 py-1.5 text-right tabular-nums">{fmtEur(totalSumEur)}</td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-  );
-}
-
-function CurrencyTable({ rows }: { rows: { currency: string; count: number; sumOriginal: number }[] }) {
-  return (
-    <Card className="overflow-hidden p-0">
-      <div className="border-b border-border px-4 py-3">
-        <h3 className="text-sm font-semibold">Originalbetraege nach Waehrung</h3>
-      </div>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border text-left text-muted-foreground">
-            <th className="px-4 py-2 font-medium">Waehrung</th>
-            <th className="px-4 py-2 font-medium text-right">Anzahl</th>
-            <th className="px-4 py-2 font-medium text-right">Summe Original</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <tr><td colSpan={3} className="px-4 py-3 text-muted-foreground">Keine Daten</td></tr>
-          ) : rows.map((row) => (
-            <tr key={row.currency} className="border-b border-border/50">
-              <td className="px-4 py-2">{row.currency}</td>
-              <td className="px-4 py-2 text-right tabular-nums">{row.count}</td>
-              <td className="px-4 py-2 text-right tabular-nums">{row.sumOriginal.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {row.currency}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </Card>
   );
 }
