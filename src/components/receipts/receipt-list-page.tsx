@@ -3,7 +3,10 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { Eye, Pencil, Printer, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/dialog";
 import { ReceiptFilterBar } from "@/components/receipts/receipt-filter-bar";
 import { getReviewStatusBadgeClass, getReviewStatusLabel } from "@/lib/receipts/review-status";
 
@@ -178,7 +181,8 @@ function fmtAmount(n: number) {
 export function ReceiptListPage({ receipts, pagination, filters, filterOptions, isAdmin }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(DEFAULT_VISIBLE_COLUMNS);
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
 
@@ -240,13 +244,11 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
     setParams({ sortBy, sortDir: nextDir });
   }, [filters.sortBy, filters.sortDir, setParams]);
 
-  const handleDelete = useCallback(async (receiptId: string) => {
-    const confirmed = window.confirm("Diesen Beleg wirklich loeschen?");
-    if (!confirmed) return;
-
-    setDeletingId(receiptId);
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      const response = await fetch(`/api/receipts/${receiptId}`, { method: "DELETE" });
+      const response = await fetch(`/api/receipts/${deleteTarget}`, { method: "DELETE" });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
         const message = data && typeof data === "object" && "error" in data ? String(data.error) : "Beleg konnte nicht geloescht werden.";
@@ -255,9 +257,10 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
       }
       router.refresh();
     } finally {
-      setDeletingId(null);
+      setDeleting(false);
+      setDeleteTarget(null);
     }
-  }, [router]);
+  }, [deleteTarget, router]);
 
   return (
     <div className="space-y-4">
@@ -299,17 +302,14 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
               </select>
             </label>
             <div className="relative">
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setColumnMenuOpen((current) => !current)}
-                className={`flex h-9 items-center rounded-xl border px-3 text-sm font-medium transition ${
-                  columnMenuOpen
-                    ? "border-primary/40 bg-primary/5 text-primary"
-                    : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-primary"
-                }`}
+                className={columnMenuOpen ? "border-primary/40 bg-primary/5 text-primary" : "text-muted-foreground"}
               >
                 Spalten
-              </button>
+              </Button>
               {columnMenuOpen ? (
                 <div className="absolute right-0 z-10 mt-2 w-64 rounded-2xl border border-border bg-popover p-3 shadow-soft">
                   <div className="mb-3 flex items-center justify-between gap-3">
@@ -336,13 +336,9 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                     ))}
                   </div>
                   <div className="mt-3 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setColumnMenuOpen(false)}
-                      className="rounded-xl border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:border-primary/40 hover:text-primary"
-                    >
+                    <Button variant="secondary" size="sm" onClick={() => setColumnMenuOpen(false)}>
                       Schliessen
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ) : null}
@@ -365,15 +361,11 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
             </p>
           </div>
           {hasActiveFilters ? (
-            <button
-              type="button"
-              onClick={() => router.push("/receipts")}
-              className="rounded-2xl border border-border bg-card px-4 py-3 text-sm font-semibold transition hover:border-primary/40 hover:text-primary"
-            >
+            <Button variant="secondary" size="lg" onClick={() => router.push("/receipts")}>
               Filter zuruecksetzen
-            </button>
+            </Button>
           ) : (
-            <Link href="/receipts/new" className="rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90">
+            <Link href="/receipts/new" className="inline-flex items-center justify-center rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90">
               Neuen Beleg anlegen
             </Link>
           )}
@@ -415,16 +407,16 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <ActionLink href={`/receipts/${r.id}`} title="Oeffnen">👁</ActionLink>
-                  <ActionLink href={`/receipts/${r.id}/edit`} title="Bearbeiten">✎</ActionLink>
-                  <ActionLink href={`/receipts/${r.id}/print`} target="_blank" title="Drucken">🖨</ActionLink>
+                  <ActionLink href={`/receipts/${r.id}`} title="Oeffnen"><Eye size={14} /></ActionLink>
+                  <ActionLink href={`/receipts/${r.id}/edit`} title="Bearbeiten"><Pencil size={14} /></ActionLink>
+                  <ActionLink href={`/receipts/${r.id}/print`} target="_blank" title="Drucken"><Printer size={14} /></ActionLink>
                   <ActionButton
                     danger
-                    disabled={deletingId === r.id}
-                    onClick={() => void handleDelete(r.id)}
+                    disabled={deleting && deleteTarget === r.id}
+                    onClick={() => setDeleteTarget(r.id)}
                     title="Loeschen"
                   >
-                    {deletingId === r.id ? "…" : "🗑"}
+                    <Trash2 size={14} />
                   </ActionButton>
                 </div>
               </Card>
@@ -494,16 +486,16 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                     ) : null}
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2">
-                        <ActionLink href={`/receipts/${r.id}`} title="Oeffnen">👁</ActionLink>
-                        <ActionLink href={`/receipts/${r.id}/edit`} title="Bearbeiten">✎</ActionLink>
-                        <ActionLink href={`/receipts/${r.id}/print`} target="_blank" title="Drucken">🖨</ActionLink>
+                        <ActionLink href={`/receipts/${r.id}`} title="Oeffnen"><Eye size={14} /></ActionLink>
+                        <ActionLink href={`/receipts/${r.id}/edit`} title="Bearbeiten"><Pencil size={14} /></ActionLink>
+                        <ActionLink href={`/receipts/${r.id}/print`} target="_blank" title="Drucken"><Printer size={14} /></ActionLink>
                         <ActionButton
                           danger
-                          disabled={deletingId === r.id}
-                          onClick={() => void handleDelete(r.id)}
+                          disabled={deleting && deleteTarget === r.id}
+                          onClick={() => setDeleteTarget(r.id)}
                           title="Loeschen"
                         >
-                          {deletingId === r.id ? "…" : "🗑"}
+                          <Trash2 size={14} />
                         </ActionButton>
                       </div>
                     </td>
@@ -520,21 +512,38 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                 Seite {pagination.page} von {pagination.totalPages}
               </p>
               <div className="flex gap-2">
-                <PaginationButton
+                <Button
+                  variant="secondary"
+                  size="md"
                   disabled={pagination.page <= 1}
                   onClick={() => setParams({ page: String(pagination.page - 1) })}
-                  label="Zurueck"
-                />
-                <PaginationButton
+                >
+                  Zurueck
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="md"
                   disabled={pagination.page >= pagination.totalPages}
                   onClick={() => setParams({ page: String(pagination.page + 1) })}
-                  label="Weiter"
-                />
+                >
+                  Weiter
+                </Button>
               </div>
             </div>
           ) : null}
         </>
       )}
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => void confirmDelete()}
+        title="Beleg loeschen"
+        message="Diesen Beleg wirklich loeschen? Diese Aktion kann nicht rueckgaengig gemacht werden."
+        confirmLabel="Loeschen"
+        variant="danger"
+        loading={deleting}
+      />
     </div>
   );
 }
@@ -605,19 +614,6 @@ function Tag({ children, accent, danger }: { children: React.ReactNode; accent?:
   if (accent) cls = "rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-semibold text-accent-foreground";
   if (danger) cls = "rounded-full bg-danger/10 px-2 py-0.5 text-[10px] font-semibold text-danger";
   return <span className={cls}>{children}</span>;
-}
-
-function PaginationButton({ disabled, onClick, label }: { disabled: boolean; onClick: () => void; label: string }) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className="rounded-2xl border border-border bg-card px-4 py-2 text-sm font-medium transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
-    >
-      {label}
-    </button>
-  );
 }
 
 function SortableHeader({
