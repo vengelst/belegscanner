@@ -11,7 +11,8 @@ const envSchema = z.object({
   ADMIN_EMAIL: z.string().email(),
   ADMIN_PASSWORD: z.string().min(8),
   ADMIN_NAME: z.string().min(1),
-  EXCHANGE_RATE_API_URL: z.string().url()
+  EXCHANGE_RATE_API_URL: z.string().url(),
+  OCR_SERVICE_URL: z.string().url().optional(),
 });
 
 export const env = envSchema.parse({
@@ -25,5 +26,6 @@ export const env = envSchema.parse({
   ADMIN_EMAIL: process.env.ADMIN_EMAIL,
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
   ADMIN_NAME: process.env.ADMIN_NAME,
-  EXCHANGE_RATE_API_URL: process.env.EXCHANGE_RATE_API_URL
+  EXCHANGE_RATE_API_URL: process.env.EXCHANGE_RATE_API_URL,
+  OCR_SERVICE_URL: process.env.OCR_SERVICE_URL || undefined,
 });

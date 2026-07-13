@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { analyzeWithOpenAI } from "@/lib/openai-document-ai";
+import { analyzeWithOpenAI, analyzeWithOpenAITextMode } from "@/lib/openai-document-ai";
+import { extractTextWithOcrService } from "@/lib/ocr-service";
 import { validateFile } from "@/lib/storage";
 import { checkRateLimit, cleanupExpiredEntries } from "@/lib/rate-limit";
+import type { DocumentAnalysisOcrSource } from "@/lib/document-analysis";
 
 const RATE_LIMIT_MAX = 30;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+const IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png"]);
+const PADDLEOCR_CONFIDENCE_THRESHOLD = 0.5;
 
 export async function POST(request: NextRequest) {
   let fileMeta: { mimeType: string; sizeBytes: number; fileName: string } | null = null;
@@ -58,22 +63,81 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
-    console.info("Document analysis request received:", fileMeta);
+    console.info("[Analyze] Request empfangen:", fileMeta);
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const result = await analyzeWithOpenAI(buffer, file.type);
+    const isImage = IMAGE_MIME_TYPES.has(file.type);
+    const isPdf = file.type === "application/pdf";
 
-    console.info("Document analysis request completed:", {
+    let ocrSource: DocumentAnalysisOcrSource;
+
+    if (isImage) {
+      const ocrStartedAt = Date.now();
+      const ocrResult = await extractTextWithOcrService(buffer, file.type);
+      const ocrDurationMs = Date.now() - ocrStartedAt;
+
+      if (ocrResult && ocrResult.text.trim().length > 0 && ocrResult.confidence > PADDLEOCR_CONFIDENCE_THRESHOLD) {
+        console.info("[Analyze] PaddleOCR erfolgreich:", {
+          textLength: ocrResult.text.length,
+          confidence: ocrResult.confidence.toFixed(2),
+          ocrDurationMs,
+        });
+
+        const openaiStartedAt = Date.now();
+        const result = await analyzeWithOpenAITextMode(ocrResult.text, file.type);
+        const openaiDurationMs = Date.now() - openaiStartedAt;
+
+        ocrSource = "paddleocr+openai";
+        result.ocrSource = ocrSource;
+
+        console.info("[Analyze] Hybrid-Pipeline abgeschlossen:", {
+          ...fileMeta,
+          ocrSource,
+          paddleOcrConfidence: ocrResult.confidence.toFixed(2),
+          ocrDurationMs,
+          openaiDurationMs,
+          totalDurationMs: Date.now() - startedAt,
+        });
+
+        return NextResponse.json(result, {
+          headers: {
+            "X-RateLimit-Remaining": String(rateLimit.remaining),
+            "X-RateLimit-Reset": rateLimit.resetAt.toISOString(),
+          },
+        });
+      }
+
+      if (ocrResult) {
+        console.info("[Analyze] PaddleOCR-Confidence zu niedrig:", {
+          confidence: ocrResult.confidence.toFixed(2),
+          threshold: PADDLEOCR_CONFIDENCE_THRESHOLD,
+          ocrDurationMs,
+        });
+      } else {
+        console.info("[Analyze] PaddleOCR nicht verfuegbar, ocrDurationMs:", ocrDurationMs);
+      }
+    }
+
+    const openaiStartedAt = Date.now();
+    const result = await analyzeWithOpenAI(buffer, file.type);
+    const openaiDurationMs = Date.now() - openaiStartedAt;
+
+    ocrSource = isPdf ? "openai-pdf" : "openai-vision";
+    result.ocrSource = ocrSource;
+
+    console.info("[Analyze] Direkte OpenAI-Analyse abgeschlossen:", {
       ...fileMeta,
+      ocrSource,
       sourceType: result.sourceType,
       hasRawText: Boolean(result.rawText.trim()),
-      durationMs: Date.now() - startedAt,
+      openaiDurationMs,
+      totalDurationMs: Date.now() - startedAt,
     });
 
     if (result.message) {
-      console.warn("Document analysis completed with warning:", {
+      console.warn("[Analyze] Warnung:", {
         ...fileMeta,
-        durationMs: Date.now() - startedAt,
+        totalDurationMs: Date.now() - startedAt,
         message: result.message,
       });
     }
@@ -85,9 +149,9 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Document analysis route failed:", {
+    console.error("[Analyze] Fehler:", {
       ...fileMeta,
-      durationMs: Date.now() - startedAt,
+      totalDurationMs: Date.now() - startedAt,
       error: error instanceof Error ? { name: error.name, message: error.message } : { message: String(error) },
     });
     return NextResponse.json(

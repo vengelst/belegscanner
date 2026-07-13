@@ -27,6 +27,9 @@ services:
     volumes:
       - storage:/app/storage
       - ./secrets:/app/secrets:ro
+    networks:
+      - default
+      - vivahome
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://belegbox:belegbox@db:5432/belegbox}
       AUTH_SECRET: ${AUTH_SECRET}
@@ -39,7 +42,12 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
       ADMIN_NAME: ${ADMIN_NAME:-Administrator}
       EXCHANGE_RATE_API_URL: ${EXCHANGE_RATE_API_URL:-https://api.frankfurter.app}
+      OCR_SERVICE_URL: ${OCR_SERVICE_URL:-http://ocr-service:8000}
 
 volumes:
   pgdata:
   storage:
+
+networks:
+  vivahome:
+    external: true

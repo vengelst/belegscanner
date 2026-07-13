@@ -25,9 +25,12 @@ export type DocumentAnalysisInvoiceLineItem = {
   status: DocumentAnalysisInvoiceLineItemStatus;
 };
 
+export type DocumentAnalysisOcrSource = "paddleocr+openai" | "openai-vision" | "openai-pdf";
+
 export type DocumentAnalysisResult = {
   sourceType: DocumentAnalysisSourceType;
   rawText: string;
+  ocrSource?: DocumentAnalysisOcrSource;
   extracted: {
     date: string | null;
     invoiceDate: string | null;
@@ -155,3 +158,4 @@ export type OcrLineItem = DocumentAnalysisLineItem;
 export type OcrInvoiceLineItemStatus = DocumentAnalysisInvoiceLineItemStatus;
 export type OcrInvoiceLineItem = DocumentAnalysisInvoiceLineItem;
 export type OcrResult = DocumentAnalysisResult;
+export type OcrSource = DocumentAnalysisOcrSource;

@@ -189,6 +189,121 @@ function buildRawText(data: ExtractionResult): string {
   return lines.filter(Boolean).join("\n");
 }
 
+export async function analyzeWithOpenAITextMode(
+  rawText: string,
+  mimeType: string,
+): Promise<OcrResult> {
+  const { env } = await import("@/lib/env");
+  const client = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+  const model = env.OPENAI_MODEL ?? "gpt-4o-mini";
+
+  const response = await client.responses.create({
+    model,
+    input: [
+      { role: "system", content: SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: `Der folgende Text wurde per OCR aus einem Beleg extrahiert. Lies ihn aus und gib nur die strukturierten Daten gemaess Schema zurueck.\n\n--- OCR-TEXT ---\n${rawText}\n--- ENDE ---`,
+          },
+        ],
+      },
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "receipt_extraction",
+        schema: EXTRACTION_SCHEMA,
+        strict: true,
+      },
+    },
+  });
+
+  const outputText = response.output
+    .find((item) => item.type === "message")
+    ?.content.find((content) => content.type === "output_text")
+    ?.text;
+
+  if (!outputText) {
+    throw new Error("ChatGPT hat keine strukturierte Antwort geliefert.");
+  }
+
+  const data: ExtractionResult = JSON.parse(outputText);
+  const lineItems = mapLineItems(data.lineItems);
+  const builtRawText = buildRawText(data);
+  const sourceType = mimeType === "application/pdf" ? "pdf" : "image";
+  const message = data.warnings.length > 0 ? data.warnings.join("; ") : null;
+
+  return {
+    sourceType,
+    rawText: builtRawText,
+    extracted: {
+      date: data.invoiceDate ?? data.serviceDate ?? null,
+      invoiceDate: data.invoiceDate,
+      dueDate: data.dueDate,
+      serviceDate: data.serviceDate,
+      time: data.time,
+      amount: data.grossAmount,
+      grossAmount: data.grossAmount,
+      netAmount: data.netAmount,
+      taxAmount: data.taxAmount,
+      currency: data.currency,
+      supplier: data.supplier,
+      invoiceNumber: data.invoiceNumber,
+      location: data.location,
+      paymentMethod: mapPaymentMethod(data.paymentMethod),
+      cardLastDigits: data.cardLastDigits,
+      countryCode: data.countryCode,
+      countryName: data.countryName,
+      documentType: data.documentType,
+    },
+    special: {
+      fuel: null,
+      hospitality: null,
+      lodging: null,
+      parking: null,
+      toll: null,
+      invoice: lineItems.length > 0 ? { lineItems } : null,
+    },
+    confidence: 0.9,
+    fieldConfidence: {
+      date: confidence(data.invoiceDate ?? data.serviceDate),
+      invoiceDate: confidence(data.invoiceDate),
+      dueDate: confidence(data.dueDate),
+      serviceDate: confidence(data.serviceDate),
+      time: confidence(data.time),
+      amount: confidence(data.grossAmount),
+      grossAmount: confidence(data.grossAmount),
+      netAmount: confidence(data.netAmount),
+      taxAmount: confidence(data.taxAmount),
+      currency: confidence(data.currency),
+      supplier: confidence(data.supplier),
+      invoiceNumber: confidence(data.invoiceNumber),
+      location: confidence(data.location),
+      paymentMethod: confidence(data.paymentMethod),
+      cardLastDigits: confidence(data.cardLastDigits),
+      country: confidence(data.countryCode ?? data.countryName),
+      documentType: confidence(data.documentType),
+    },
+    specialConfidence: {
+      fuel: null,
+      hospitality: null,
+      lodging: null,
+      parking: null,
+      toll: null,
+      invoice: lineItems.length > 0 ? { lineItems: "high" } : null,
+    },
+    message,
+    warnings: data.warnings.map((warning) => ({
+      field: "general",
+      type: "info",
+      message: warning,
+    })),
+  };
+}
+
 export async function analyzeWithOpenAI(
   buffer: Buffer,
   mimeType: string,
