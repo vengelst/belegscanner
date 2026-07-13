@@ -321,49 +321,29 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     }
 
     const body = buildBody(formData);
-    const action = formData.get("_action");
-    const shouldSend = action === "send";
+    const action = (formData.get("_action") as string) || "save";
     const shouldContinue = action === "save_next";
 
     startTransition(async () => {
-      const receiptResponse = await fetch("/api/receipts", {
+      const formPayload = new FormData();
+      formPayload.append("file", originalFile);
+      formPayload.append("data", JSON.stringify(body));
+      formPayload.append("action", action);
+
+      const response = await fetch("/api/receipts/create-with-file", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: formPayload,
       });
 
-      if (!receiptResponse.ok) {
-        const data = await receiptResponse.json();
+      if (!response.ok) {
+        const data = await response.json();
         setError(getApiErrorMessage(data, "Fehler beim Speichern."));
         return;
       }
 
-      const receipt = await receiptResponse.json();
-
-      const uploadData = new FormData();
-      uploadData.append("file", originalFile);
-      uploadData.append("receiptId", receipt.id);
-      const uploadResponse = await fetch("/api/files/upload", { method: "POST", body: uploadData });
-      if (!uploadResponse.ok) {
-        const data = await uploadResponse.json();
-        setError(`Beleg gespeichert, aber Datei-Upload fehlgeschlagen: ${data.error}`);
-        router.push(`/receipts/${receipt.id}`);
-        router.refresh();
-        return;
-      }
+      const { receipt } = await response.json();
 
       persistLastSelections({ purposeId, categoryId, countryId, vehicleId });
-
-      if (shouldSend) {
-        const sendResponse = await fetch(`/api/receipts/${receipt.id}/send`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        });
-        if (!sendResponse.ok) {
-          // Receipt saved, file uploaded, but send failed; detail page shows FAILED status.
-        }
-      }
 
       if (shouldContinue) {
         router.push("/receipts/new?continued=1");
