@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   }
 
   const receipt = await prisma.receipt.findUnique({ where: { id: receiptId } });
-  if (!receipt) {
+  if (!receipt || receipt.deletedAt) {
     return NextResponse.json({ error: "Beleg nicht gefunden." }, { status: 404 });
   }
 

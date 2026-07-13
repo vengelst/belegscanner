@@ -42,6 +42,10 @@ export default async function ReceiptDetailPage({ params }: Props) {
 
   if (!receipt) notFound();
 
+  if (receipt.deletedAt && session.user.role !== "ADMIN") {
+    notFound();
+  }
+
   if (session.user.role !== "ADMIN" && receipt.userId !== session.user.id) {
     notFound();
   }

@@ -34,7 +34,7 @@ export default async function ReceiptsPage({ searchParams }: Props) {
   const sortDir = sp.sortDir === "asc" ? "asc" : "desc";
 
   // Build where clause
-  const where: Prisma.ReceiptWhereInput = {};
+  const where: Prisma.ReceiptWhereInput = { deletedAt: null };
   if (!isAdmin) {
     where.userId = session.user.id;
   } else if (userId) {

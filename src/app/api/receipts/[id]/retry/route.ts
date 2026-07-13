@@ -13,7 +13,7 @@ export async function POST(
   const { id } = await params;
 
   const receipt = await prisma.receipt.findUnique({ where: { id } });
-  if (!receipt) {
+  if (!receipt || receipt.deletedAt) {
     return NextResponse.json({ error: "Beleg nicht gefunden." }, { status: 404 });
   }
 

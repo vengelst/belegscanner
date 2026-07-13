@@ -211,6 +211,7 @@ model Receipt {
 
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
+  deletedAt           DateTime?
 
   @@index([userId])
   @@index([sendStatus])
@@ -225,6 +226,7 @@ model Receipt {
   @@index([invoiceNumber])
   @@index([serviceDate])
   @@index([dueDate])
+  @@index([deletedAt])
 }
 
 // Bewirtungsdetails (1:1-Erweiterung, nur bei Zweck = Bewirtung)

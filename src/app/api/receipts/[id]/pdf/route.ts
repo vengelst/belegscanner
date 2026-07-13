@@ -37,7 +37,7 @@ export async function GET(
     },
   });
 
-  if (!receipt) {
+  if (!receipt || receipt.deletedAt) {
     return NextResponse.json({ error: "Beleg nicht gefunden." }, { status: 404 });
   }
 

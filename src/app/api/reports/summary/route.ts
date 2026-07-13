@@ -11,19 +11,17 @@ export async function GET(request: NextRequest) {
   const dateFrom = url.searchParams.get("dateFrom");
   const dateTo = url.searchParams.get("dateTo");
 
-  const where: Prisma.ReceiptWhereInput = {};
+  const where: Prisma.ReceiptWhereInput = { deletedAt: null };
   if (dateFrom || dateTo) {
     where.date = {};
     if (dateFrom) where.date.gte = new Date(dateFrom);
     if (dateTo) where.date.lte = new Date(dateTo);
   }
 
-  const dateConditions: Prisma.Sql[] = [];
+  const dateConditions: Prisma.Sql[] = [Prisma.sql`"deletedAt" IS NULL`];
   if (dateFrom) dateConditions.push(Prisma.sql`date >= ${new Date(dateFrom)}`);
   if (dateTo) dateConditions.push(Prisma.sql`date <= ${new Date(dateTo)}`);
-  const rawWhere = dateConditions.length > 0
-    ? Prisma.sql`WHERE ${Prisma.join(dateConditions, " AND ")}`
-    : Prisma.empty;
+  const rawWhere = Prisma.sql`WHERE ${Prisma.join(dateConditions, " AND ")}`;
 
   const [
     totalReceipts,

@@ -13,10 +13,10 @@ export async function GET(
 
   const receipt = await prisma.receipt.findUnique({
     where: { id },
-    select: { userId: true },
+    select: { userId: true, deletedAt: true },
   });
 
-  if (!receipt) {
+  if (!receipt || receipt.deletedAt) {
     return NextResponse.json({ error: "Beleg nicht gefunden." }, { status: 404 });
   }
 
