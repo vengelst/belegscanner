@@ -21,10 +21,10 @@ type Props = {
 
 type CameraState = "camera" | "review";
 
-const ANALYZE_INTERVAL_MS = 320;
-const AUTO_CAPTURE_HOLD_MS = 1100;
-const AUTO_CAPTURE_COOLDOWN_MS = 3000;
-const ANALYSIS_WIDTH = 180;
+const ANALYZE_INTERVAL_MS = 280;
+const AUTO_CAPTURE_HOLD_MS = 800;
+const AUTO_CAPTURE_COOLDOWN_MS = 2500;
+const ANALYSIS_WIDTH = 240;
 
 export function CameraCapture({ open, onClose, onCapture }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);

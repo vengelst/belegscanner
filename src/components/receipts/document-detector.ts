@@ -27,14 +27,14 @@ export type DocumentDetectionResult = {
 
 const MIN_EDGE_PIXELS = 180;
 const EDGE_THRESHOLD_MULTIPLIER = 1.85;
-const MIN_COVERAGE = 0.18;
-const MAX_COVERAGE = 0.9;
-const MIN_RECTANGULARITY = 0.28;
-const MIN_CONTRAST = 22;
-const MIN_BRIGHTNESS = 55;
-const MAX_BRIGHTNESS = 225;
-const MIN_BLUR = 18;
-const MAX_MOTION = 0.07;
+const MIN_COVERAGE = 0.15;
+const MAX_COVERAGE = 0.92;
+const MIN_RECTANGULARITY = 0.22;
+const MIN_CONTRAST = 18;
+const MIN_BRIGHTNESS = 45;
+const MAX_BRIGHTNESS = 235;
+const MIN_BLUR = 12;
+const MAX_MOTION = 0.12;
 
 export function analyzeDocumentFrame(
   imageData: ImageData,

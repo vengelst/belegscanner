@@ -4,6 +4,7 @@ import { useState, useTransition, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 
 async function authenticate(provider: "email-password" | "pin-login", formData: FormData) {
   const response = await signIn(provider, {
@@ -62,7 +63,7 @@ export function LoginCard() {
               </div>
               <form onSubmit={submit("email-password")} className="space-y-3">
                 <Input label="E-Mail" name="email" type="email" placeholder="name@firma.de" required />
-                <Input label="Passwort" name="password" type="password" placeholder="Passwort" required />
+                <PasswordInput label="Passwort" name="password" placeholder="Passwort" required />
                 <button
                   type="submit"
                   disabled={isPending}
