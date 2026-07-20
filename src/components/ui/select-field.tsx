@@ -16,7 +16,7 @@ export function SelectField({
         required={required}
         value={value}
         onChange={onChange ? (event) => onChange(event.target.value) : undefined}
-        className="h-12 rounded-2xl border border-border bg-background px-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
+        className="input-3d h-10 rounded-xl px-3 text-sm outline-none transition-all duration-150 focus:ring-2 focus:ring-primary/20"
       >
         {children}
       </select>

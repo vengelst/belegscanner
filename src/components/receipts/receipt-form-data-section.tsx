@@ -66,8 +66,8 @@ export function ReceiptFormDataSection({
 }: Props) {
   return (
     <Card>
-      <h2 className="text-lg font-semibold tracking-tight">Belegdaten</h2>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <h2 className="text-base font-semibold tracking-tight">Belegdaten</h2>
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3">
         <Input
           label="Belegdatum"
           name="date"
@@ -82,7 +82,7 @@ export function ReceiptFormDataSection({
         />
         {requiresExchangeRate ? (
           <Input
-            label="Rechnungsbetrag (EUR)"
+            label="Betrag (EUR)"
             name="amountEurPreview"
             type="text"
             value={amountEurPreview}
@@ -90,7 +90,7 @@ export function ReceiptFormDataSection({
           />
         ) : (
           <Input
-            label="Rechnungsbetrag (EUR)"
+            label="Betrag (EUR)"
             name="amount"
             type="text"
             inputMode="decimal"
@@ -104,7 +104,7 @@ export function ReceiptFormDataSection({
           />
         )}
         <Input
-          label="Rechnungsnummer"
+          label="Rechnungsnr."
           name="invoiceNumber"
           placeholder="optional"
           value={invoiceNumber}
@@ -116,7 +116,7 @@ export function ReceiptFormDataSection({
         />
         {requiresExchangeRate ? (
           <Input
-            label={`Rechnungsbetrag (${normalizedCurrency})`}
+            label={`Betrag (${normalizedCurrency})`}
             name="amount"
             type="text"
             inputMode="decimal"
@@ -130,7 +130,7 @@ export function ReceiptFormDataSection({
           />
         ) : (
           <Input
-            label="Nettobetrag"
+            label="Netto"
             name="netAmount"
             type="text"
             inputMode="decimal"
@@ -143,7 +143,7 @@ export function ReceiptFormDataSection({
           />
         )}
         <Input
-          label="Steuerbetrag"
+          label="Steuer"
           name="taxAmount"
           type="text"
           inputMode="decimal"
@@ -167,18 +167,20 @@ export function ReceiptFormDataSection({
             <option key={option.value} value={option.value}>{option.label}</option>
           ))}
         </SelectField>
+        <div className="col-span-2 lg:col-span-1">
+          <Input
+            label="Lieferant"
+            name="supplier"
+            placeholder="optional"
+            value={supplier}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+              markManualOverride("supplier");
+              setSupplier(event.target.value);
+            }}
+          />
+        </div>
         <Input
-          label="Lieferant / Haendler"
-          name="supplier"
-          placeholder="optional"
-          value={supplier}
-          onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-            markManualOverride("supplier");
-            setSupplier(event.target.value);
-          }}
-        />
-        <Input
-          label={requiresExchangeRate ? "Wechselkurs *" : "Wechselkurs (optional)"}
+          label={requiresExchangeRate ? "Wechselkurs *" : "Wechselkurs"}
           name="exchangeRate"
           type="text"
           inputMode="decimal"
@@ -188,7 +190,7 @@ export function ReceiptFormDataSection({
           onChange={(event: React.ChangeEvent<HTMLInputElement>) => setExchangeRate(event.target.value)}
         />
         <Input
-          label={requiresExchangeRate ? "Kursdatum *" : "Kursdatum (optional)"}
+          label={requiresExchangeRate ? "Kursdatum *" : "Kursdatum"}
           name="exchangeRateDate"
           type="date"
           required={requiresExchangeRate}

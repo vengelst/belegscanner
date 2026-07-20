@@ -15,6 +15,10 @@
   --danger: oklch(0.637 0.208 25.34);
   --radius: 1rem;
   --shadow-soft: 0 20px 45px rgba(15, 23, 42, 0.08);
+  --input-bg: oklch(0.96 0.005 95);
+  --input-shadow-inset: inset 2px 2px 4px rgba(0, 0, 0, 0.08), inset -1px -1px 3px rgba(255, 255, 255, 0.9);
+  --input-border-top: oklch(0.82 0.01 95);
+  --input-border-bottom: oklch(0.98 0.002 95);
 }
 
 .dark {
@@ -31,6 +35,10 @@
   --accent-foreground: oklch(0.19 0.02 255.45);
   --danger: oklch(0.73 0.16 25.34);
   --shadow-soft: 0 24px 50px rgba(2, 6, 23, 0.38);
+  --input-bg: oklch(0.22 0.02 255);
+  --input-shadow-inset: inset 2px 2px 4px rgba(0, 0, 0, 0.25), inset -1px -1px 3px rgba(255, 255, 255, 0.05);
+  --input-border-top: oklch(0.15 0.02 255);
+  --input-border-bottom: oklch(0.32 0.02 255);
 }
 
 @theme inline {
@@ -83,5 +91,19 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+.input-3d {
+  background: var(--input-bg);
+  border: 1px solid transparent;
+  border-top-color: var(--input-border-top);
+  border-left-color: var(--input-border-top);
+  border-bottom-color: var(--input-border-bottom);
+  border-right-color: var(--input-border-bottom);
+  box-shadow: var(--input-shadow-inset);
+}
+
+.input-3d:focus {
+  border-color: var(--primary);
 }
 
