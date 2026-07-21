@@ -15,6 +15,12 @@ export type SendReceiptResult = {
   errorMessage: string | null;
 };
 
+// SMTP-Timeouts (ms): verhindern, dass ein haengender Mailserver den Versand-
+// Request unendlich blockiert.
+const SMTP_CONNECTION_TIMEOUT_MS = 10_000;
+const SMTP_GREETING_TIMEOUT_MS = 10_000;
+const SMTP_SOCKET_TIMEOUT_MS = 20_000;
+
 type ReceiptForSend = Awaited<ReturnType<typeof loadReceiptForSend>>;
 
 // ============================================================
@@ -190,6 +196,10 @@ export async function sendReceipt(
     port: smtp.port,
     secure: smtp.secure,
     auth: { user: smtp.username, pass: password },
+    // Timeouts, damit ein haengender SMTP-Server den Request nicht unendlich blockiert.
+    connectionTimeout: SMTP_CONNECTION_TIMEOUT_MS,
+    greetingTimeout: SMTP_GREETING_TIMEOUT_MS,
+    socketTimeout: SMTP_SOCKET_TIMEOUT_MS,
   });
 
   try {

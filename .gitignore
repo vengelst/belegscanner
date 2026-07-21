@@ -10,6 +10,7 @@ prisma/dev.db
 storage/*
 !storage/.gitkeep
 secrets/
+backups/
 *.log
 .dockerignore
 

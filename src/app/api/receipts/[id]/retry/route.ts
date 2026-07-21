@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { validateForSend, sendReceipt } from "@/lib/mail";
+import { claimSendSlot, releaseSendSlot } from "@/lib/receipts/send-lock";
 
 export async function POST(
   request: NextRequest,
@@ -38,33 +39,46 @@ export async function POST(
     // No body is fine
   }
 
-  // Validate technical prerequisites (same as initial send)
-  const validationErrors = await validateForSend(id);
-  if (validationErrors.length > 0) {
+  // Atomarer Claim gegen Doppelversand durch Parallelklicks/Races.
+  const claimed = await claimSendSlot(id, ["FAILED", "SENT"]);
+  if (!claimed) {
     return NextResponse.json(
-      { error: "Versandvoraussetzungen nicht erfuellt.", details: validationErrors },
-      { status: 400 },
+      { error: "Der Beleg wird bereits (erneut) versendet oder der Status hat sich geaendert. Bitte Seite neu laden." },
+      { status: 409 },
     );
   }
 
-  // Transition to RETRY
-  await prisma.receipt.update({
-    where: { id },
-    data: { sendStatus: "RETRY", sendStatusUpdatedAt: new Date() },
-  });
+  try {
+    // Validate technical prerequisites (same as initial send)
+    const validationErrors = await validateForSend(id);
+    if (validationErrors.length > 0) {
+      return NextResponse.json(
+        { error: "Versandvoraussetzungen nicht erfuellt.", details: validationErrors },
+        { status: 400 },
+      );
+    }
 
-  // Send
-  const result = await sendReceipt(id, datevProfileId);
-
-  if (result.success) {
-    return NextResponse.json({
-      message: "Beleg wurde erneut erfolgreich versendet.",
-      messageId: result.messageId,
+    // Transition to RETRY
+    await prisma.receipt.update({
+      where: { id },
+      data: { sendStatus: "RETRY", sendStatusUpdatedAt: new Date() },
     });
-  } else {
-    return NextResponse.json(
-      { error: result.errorMessage ?? "Erneuter Versand fehlgeschlagen." },
-      { status: 500 },
-    );
+
+    // Send
+    const result = await sendReceipt(id, datevProfileId);
+
+    if (result.success) {
+      return NextResponse.json({
+        message: "Beleg wurde erneut erfolgreich versendet.",
+        messageId: result.messageId,
+      });
+    } else {
+      return NextResponse.json(
+        { error: result.errorMessage ?? "Erneuter Versand fehlgeschlagen." },
+        { status: 500 },
+      );
+    }
+  } finally {
+    await releaseSendSlot(id);
   }
 }
