@@ -1,0 +1,395 @@
+"""
+Self-hosted OCR-Service fuer BelegBox (PaddleOCR).
+
+Nimmt Bilder entgegen, fuehrt PaddleOCR aus und liefert Rohtext + Bloecke an die
+Next.js-App. Diese haelt die Cloud-Unabhaengigkeit: es wird ausschliesslich lokal
+per PaddleOCR erkannt, keine externe OCR-API.
+
+Sicherheit / Robustheit:
+- Harte Pixelgrenze (Breite * Hoehe) VOR jeder np.array/cv2-Verarbeitung, um
+  Decompression-Bombs und OOM durch riesige Dimensionen zu verhindern.
+- Pillow DecompressionBomb-Schutz (Image.MAX_IMAGE_PIXELS) aktiv, Warnungen
+  werden als Fehler behandelt.
+- Verstoesse fuehren zu einer sauberen 422-Antwort mit klarer Fehlermeldung,
+  nicht zu einem stillen Crash / OOM.
+"""
+
+import io
+import logging
+import os
+import sys
+import warnings
+from typing import Any
+
+import cv2
+import numpy as np
+from fastapi import FastAPI, File, Query, UploadFile
+from fastapi.responses import JSONResponse
+from PIL import Image
+
+from limits import (
+    MAX_IMAGE_DIMENSION,
+    MAX_IMAGE_PIXELS,
+    ImageTooLargeError,
+    assert_image_within_limits,
+)
+
+logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+logger = logging.getLogger("ocr-service")
+
+# Erlaubte Sprachcodes. "german" deckt alle lateinischen Schriften ab.
+ALLOWED_LANGUAGES = {"german", "en", "latin", "french", "spanish", "italian", "portuguese"}
+
+DEFAULT_LANG = os.environ.get("OCR_LANGUAGE", "german")
+if DEFAULT_LANG not in ALLOWED_LANGUAGES:
+    logger.error(
+        "OCR_LANGUAGE='%s' is not supported. Allowed: %s. Falling back to 'german'.",
+        DEFAULT_LANG,
+        ", ".join(sorted(ALLOWED_LANGUAGES)),
+    )
+    DEFAULT_LANG = "german"
+
+# ---------------------------------------------------------------------------
+# Sicherheitsgrenzen gegen Decompression-Bombs / OOM
+# ---------------------------------------------------------------------------
+# Die harten Pixel-/Kantengrenzen leben in limits.py (abhaengigkeitsfrei, testbar).
+# Pillow: DecompressionBomb-Schutz scharf stellen. Pillow warnt ab der Haelfte
+# dieses Wertes und wirft ab dem Wert eine DecompressionBombError.
+Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
+# DecompressionBombWarning als Fehler behandeln, damit auch der Graubereich
+# zwischen Warn- und Fehlerschwelle sauber abgelehnt wird.
+warnings.simplefilter("error", Image.DecompressionBombWarning)
+
+# OCR-Tuning fuer Uploads:
+# - zu grosse Bilder kosten viel CPU und bringen kaum Mehrwert
+# - sehr kleine Bilder werden fuer bessere Lesbarkeit skaliert
+OCR_MAX_SIDE = 2200
+OCR_MIN_SIDE = 1200
+
+# Fast path: wenn das Basisergebnis bereits gut ist, sparen wir weitere OCR-Paesse.
+FAST_ACCEPT_MIN_CONFIDENCE = 0.78
+FAST_ACCEPT_MIN_LINES = 5
+FAST_ACCEPT_MIN_CHARS = 60
+
+ocr_instances: dict[str, Any] = {}
+
+
+def get_ocr(lang: str):
+    """Gibt eine gecachte PaddleOCR-Instanz fuer die gewuenschte Sprache zurueck."""
+    if lang not in ALLOWED_LANGUAGES:
+        logger.warning("Requested lang='%s' not allowed, using default '%s'.", lang, DEFAULT_LANG)
+        lang = DEFAULT_LANG
+    if lang not in ocr_instances:
+        from paddleocr import PaddleOCR
+
+        logger.info("Loading PaddleOCR model for lang=%s ...", lang)
+        ocr_instances[lang] = PaddleOCR(
+            use_angle_cls=True,
+            lang=lang,
+            use_gpu=False,
+            show_log=False,
+        )
+        logger.info("PaddleOCR model for lang=%s loaded.", lang)
+    return ocr_instances[lang]
+
+
+app = FastAPI(title="BelegBox OCR Service", version="2.0.0")
+
+
+@app.on_event("startup")
+async def startup():
+    """Modell beim Start laden, damit der erste Request schnell ist."""
+    get_ocr(DEFAULT_LANG)
+    logger.info(
+        "OCR service ready (default lang=%s, max_pixels=%d, max_dim=%d).",
+        DEFAULT_LANG,
+        MAX_IMAGE_PIXELS,
+        MAX_IMAGE_DIMENSION,
+    )
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "model_loaded": len(ocr_instances) > 0}
+
+
+async def _run_ocr(file: UploadFile, lang: str | None) -> Any:
+    effective_lang = lang if lang else DEFAULT_LANG
+    contents = await file.read()
+    if not contents:
+        return JSONResponse(status_code=400, content={"error": "No image file provided"})
+
+    try:
+        image_bgr = load_image_bgr(contents)
+        engine = get_ocr(effective_lang)
+        best = run_ocr_with_quality_selection(engine, image_bgr)
+    except ImageTooLargeError as too_large:
+        logger.warning("Rejected oversized image: %s", too_large)
+        return JSONResponse(status_code=422, content={"error": str(too_large)})
+    except ValueError as validation_error:
+        return JSONResponse(status_code=422, content={"error": str(validation_error)})
+    except Exception as exc:  # noqa: BLE001 - Fehler kontrolliert als 500 zurueckgeben
+        logger.exception("OCR processing failed")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"OCR processing failed: {exc}"},
+        )
+
+    logger.info(
+        "OCR completed: lines=%d confidence=%.2f score=%.3f variant=%s lang=%s",
+        len(best["lines"]),
+        best["confidence"],
+        best["score"],
+        best["variant"],
+        effective_lang,
+    )
+    return best
+
+
+def _to_blocks(lines: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Konvertiert interne Zeilen ins von der App erwartete blocks-Format."""
+    return [
+        {
+            "text": line["text"],
+            "confidence": round(float(line["confidence"]), 4),
+            "box": line["bbox"],
+        }
+        for line in lines
+    ]
+
+
+@app.post("/ocr/text")
+async def ocr_text_endpoint(
+    file: UploadFile = File(...),
+    lang: str = Query(default=None, description="PaddleOCR-Sprachcode (z.B. german, en)"),
+):
+    """Haupt-Endpoint fuer die Next.js-App (src/lib/ocr-service.ts)."""
+    best = await _run_ocr(file, lang)
+    if isinstance(best, JSONResponse):
+        return best
+    return {
+        "text": best["text"],
+        "confidence": round(best["confidence"], 4),
+        "blocks": _to_blocks(best["lines"]),
+    }
+
+
+@app.post("/ocr")
+async def ocr_endpoint(
+    file: UploadFile = File(...),
+    lang: str = Query(default=None, description="PaddleOCR-Sprachcode (z.B. german, en)"),
+):
+    """Kompatibilitaets-Endpoint (aeltere Clients)."""
+    best = await _run_ocr(file, lang)
+    if isinstance(best, JSONResponse):
+        return best
+    return {
+        "text": best["text"],
+        "confidence": round(best["confidence"], 4),
+        "lines": best["lines"],
+    }
+
+
+def load_image_bgr(contents: bytes) -> np.ndarray:
+    """Validiert Upload-Bild, prueft harte Pixelgrenzen und konvertiert nach OpenCV-BGR.
+
+    Die Groessenpruefung erfolgt bewusst VOR ``np.array`` / ``cv2``, damit ein
+    manipuliertes Bild mit riesigen Dimensionen niemals dekodiert und in den
+    Speicher expandiert wird.
+    """
+    try:
+        # Erster Pass: nur Header/Struktur validieren.
+        verify_img = Image.open(io.BytesIO(contents))
+        verify_img.verify()
+    except Image.DecompressionBombError as bomb:
+        raise ImageTooLargeError(
+            f"Image rejected: exceeds the maximum allowed size of {MAX_IMAGE_PIXELS} pixels."
+        ) from bomb
+    except Image.DecompressionBombWarning as bomb_warning:
+        raise ImageTooLargeError(
+            f"Image rejected: exceeds the maximum allowed size of {MAX_IMAGE_PIXELS} pixels."
+        ) from bomb_warning
+    except Exception as exc:
+        raise ValueError("Cannot process image: corrupt or unsupported format") from exc
+
+    try:
+        img = Image.open(io.BytesIO(contents))
+    except Image.DecompressionBombError as bomb:
+        raise ImageTooLargeError(
+            f"Image rejected: exceeds the maximum allowed size of {MAX_IMAGE_PIXELS} pixels."
+        ) from bomb
+    except Exception as exc:
+        raise ValueError("Cannot process image: corrupt or unsupported format") from exc
+
+    # Harte Dimensions-/Pixelgrenze anhand der Metadaten, bevor dekodiert wird.
+    width, height = img.size
+    assert_image_within_limits(width, height)
+
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+
+    rgb_array = np.array(img)
+    return cv2.cvtColor(rgb_array, cv2.COLOR_RGB2BGR)
+
+
+def run_ocr_with_quality_selection(engine: Any, image_bgr: np.ndarray) -> dict[str, Any]:
+    """Fuehrt OCR aus und waehlt bei Bedarf das beste Preprocessing-Ergebnis."""
+    base_bgr = resize_for_ocr(image_bgr)
+    candidates: list[dict[str, Any]] = []
+
+    base_candidate = run_variant_ocr(engine, "base", cv2.cvtColor(base_bgr, cv2.COLOR_BGR2RGB))
+    candidates.append(base_candidate)
+
+    if (
+        base_candidate["confidence"] >= FAST_ACCEPT_MIN_CONFIDENCE
+        and base_candidate["line_count"] >= FAST_ACCEPT_MIN_LINES
+        and base_candidate["text_chars"] >= FAST_ACCEPT_MIN_CHARS
+    ):
+        return base_candidate
+
+    deskewed = deskew_image(base_bgr)
+    gray = cv2.cvtColor(deskewed, cv2.COLOR_BGR2GRAY)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)).apply(gray)
+    denoised = cv2.fastNlMeansDenoising(clahe, None, 12, 7, 21)
+    adaptive = cv2.adaptiveThreshold(
+        denoised,
+        255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY,
+        31,
+        14,
+    )
+    sharpen_kernel = np.array([[0, -1, 0], [-1, 5.5, -1], [0, -1, 0]], dtype=np.float32)
+    sharpened_bgr = cv2.filter2D(cv2.cvtColor(denoised, cv2.COLOR_GRAY2BGR), -1, sharpen_kernel)
+
+    candidates.append(run_variant_ocr(engine, "deskew_clahe", cv2.cvtColor(denoised, cv2.COLOR_GRAY2RGB)))
+    candidates.append(run_variant_ocr(engine, "deskew_adaptive", cv2.cvtColor(adaptive, cv2.COLOR_GRAY2RGB)))
+    candidates.append(run_variant_ocr(engine, "deskew_sharpened", cv2.cvtColor(sharpened_bgr, cv2.COLOR_BGR2RGB)))
+
+    best = max(candidates, key=lambda item: item["score"])
+    return best
+
+
+def run_variant_ocr(engine: Any, variant_name: str, rgb_image: np.ndarray) -> dict[str, Any]:
+    """Fuehrt OCR fuer eine konkrete Bildvariante aus und bewertet das Resultat."""
+    result = engine.ocr(rgb_image, cls=True)
+    lines = normalize_ocr_lines(result)
+    text = "\n".join(line["text"] for line in lines)
+    confidence = (
+        sum(float(line["confidence"]) for line in lines) / len(lines)
+        if lines
+        else 0.0
+    )
+    metrics = score_text_quality(text, len(lines), confidence)
+
+    return {
+        "variant": variant_name,
+        "text": text,
+        "confidence": confidence,
+        "lines": lines,
+        "line_count": len(lines),
+        "text_chars": metrics["text_chars"],
+        "score": metrics["score"],
+    }
+
+
+def normalize_ocr_lines(result: Any) -> list[dict[str, Any]]:
+    """Normalisiert PaddleOCR-Ausgabe in ein robustes API-Format."""
+    lines: list[dict[str, Any]] = []
+    page_result = result[0] if result else []
+    if page_result is None:
+        page_result = []
+
+    for detection in page_result:
+        try:
+            bbox = detection[0]
+            text = str(detection[1][0]).strip()
+            conf = float(detection[1][1])
+        except Exception:
+            continue
+
+        if not text:
+            continue
+        lines.append({"text": text, "confidence": conf, "bbox": bbox})
+
+    return lines
+
+
+def score_text_quality(text: str, line_count: int, avg_confidence: float) -> dict[str, float]:
+    """Bewertet OCR-Qualitaet als gemischten Score aus Confidence, Textmenge und Struktur."""
+    text_chars = len(text)
+    alnum_chars = sum(ch.isalnum() for ch in text)
+
+    confidence_score = clamp(avg_confidence, 0.0, 1.0)
+    length_score = clamp(text_chars / 450.0, 0.0, 1.0)
+    density_score = clamp(alnum_chars / 260.0, 0.0, 1.0)
+    line_score = clamp(line_count / 16.0, 0.0, 1.0)
+
+    total = (
+        confidence_score * 0.58
+        + density_score * 0.22
+        + line_score * 0.12
+        + length_score * 0.08
+    )
+
+    if text_chars < 24:
+        total -= 0.15
+    if line_count < 2:
+        total -= 0.10
+
+    return {"score": clamp(total, 0.0, 1.0), "text_chars": float(text_chars)}
+
+
+def resize_for_ocr(image_bgr: np.ndarray) -> np.ndarray:
+    """Skaliert Bilder auf sinnvolle OCR-Groesse."""
+    height, width = image_bgr.shape[:2]
+    max_side = max(height, width)
+    min_side = min(height, width)
+
+    scale = 1.0
+    if max_side > OCR_MAX_SIDE:
+        scale = OCR_MAX_SIDE / max_side
+    elif min_side < OCR_MIN_SIDE:
+        scale = OCR_MIN_SIDE / min_side
+
+    if abs(scale - 1.0) < 0.01:
+        return image_bgr
+
+    new_width = max(1, int(round(width * scale)))
+    new_height = max(1, int(round(height * scale)))
+    return cv2.resize(image_bgr, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
+
+
+def deskew_image(image_bgr: np.ndarray) -> np.ndarray:
+    """Korrigiert moderate Schraeglage fuer bessere Texterkennung."""
+    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (5, 5), 0)
+    bw = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+    coords = np.column_stack(np.where(bw > 0))
+
+    if coords.shape[0] < 200:
+        return image_bgr
+
+    angle = cv2.minAreaRect(coords)[-1]
+    if angle < -45:
+        angle = -(90 + angle)
+    else:
+        angle = -angle
+
+    if abs(angle) < 0.3 or abs(angle) > 17:
+        return image_bgr
+
+    height, width = image_bgr.shape[:2]
+    center = (width // 2, height // 2)
+    matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
+    return cv2.warpAffine(
+        image_bgr,
+        matrix,
+        (width, height),
+        flags=cv2.INTER_CUBIC,
+        borderMode=cv2.BORDER_REPLICATE,
+    )
+
+
+def clamp(value: float, min_value: float, max_value: float) -> float:
+    return max(min_value, min(max_value, value))
