@@ -49,7 +49,9 @@ export type ParseEnvOptions = {
   enforceSecureSecrets: boolean;
 };
 
-function isInsecureProductionRuntime(source: NodeJS.ProcessEnv): boolean {
+type EnvSource = Record<string, string | undefined>;
+
+function isInsecureProductionRuntime(source: EnvSource): boolean {
   const isProduction = source.NODE_ENV === "production";
   // Waehrend `next build` liegen echte Secrets oft noch nicht vor – hier NICHT
   // fail-fast, sonst bricht der Build. Erzwungen wird zur Laufzeit.
@@ -97,7 +99,7 @@ export function buildEnvSchema(options: ParseEnvOptions) {
   });
 }
 
-export function parseEnv(source: NodeJS.ProcessEnv, options?: Partial<ParseEnvOptions>): Env {
+export function parseEnv(source: EnvSource, options?: Partial<ParseEnvOptions>): Env {
   const enforceSecureSecrets =
     options?.enforceSecureSecrets ?? isInsecureProductionRuntime(source);
 

@@ -174,10 +174,18 @@ export function extractAmounts(rawText: string | null | undefined): ExtractedAmo
 
   const lines = rawText.split(/\r?\n/);
 
-  let bestGross: { value: number; priority: number; index: number } | null = null;
-  let bestNet: { value: number; index: number } | null = null;
-  let bestTax: { value: number; index: number } | null = null;
-  let bestSubtotal: { value: number; index: number } | null = null;
+  let grossValue: number | null = null;
+  let grossPriority = -1;
+  let grossIndex = -1;
+
+  let netValue: number | null = null;
+  let netIndex = -1;
+
+  let taxValue: number | null = null;
+  let taxIndex = -1;
+
+  let subtotalValue: number | null = null;
+  let subtotalIndex = -1;
 
   lines.forEach((rawLine, index) => {
     const line = normalizeLine(rawLine);
@@ -185,10 +193,12 @@ export function extractAmounts(rawText: string | null | undefined): ExtractedAmo
 
     const isSubtotal = containsKeyword(line, SUBTOTAL_KEYWORDS);
     const amount = parseAmountFromLine(rawLine);
+    if (amount === null) return;
 
     if (isSubtotal) {
-      if (amount !== null && (!bestSubtotal || index > bestSubtotal.index)) {
-        bestSubtotal = { value: amount, index };
+      if (index > subtotalIndex) {
+        subtotalValue = amount;
+        subtotalIndex = index;
       }
       // Eine Zwischensummenzeile darf nie als Gesamtbetrag zaehlen.
       return;
@@ -197,37 +207,37 @@ export function extractAmounts(rawText: string | null | undefined): ExtractedAmo
     // Gesamtbetrag: hoechste passende Prioritaet gewinnt, bei Gleichstand die
     // spaeter im Dokument stehende Zeile (Belege fuehren den Endbetrag unten).
     for (const rule of GROSS_RULES) {
-      if (containsKeyword(line, rule.keywords) && amount !== null) {
+      if (containsKeyword(line, rule.keywords)) {
         if (
-          !bestGross ||
-          rule.priority > bestGross.priority ||
-          (rule.priority === bestGross.priority && index > bestGross.index)
+          grossValue === null ||
+          rule.priority > grossPriority ||
+          (rule.priority === grossPriority && index > grossIndex)
         ) {
-          bestGross = { value: amount, priority: rule.priority, index };
+          grossValue = amount;
+          grossPriority = rule.priority;
+          grossIndex = index;
         }
         break;
       }
     }
 
-    // Netto (nur wenn nicht als Gesamt/Brutto-Zeile klassifiziert relevant).
-    if (containsKeyword(line, NET_KEYWORDS) && amount !== null) {
-      if (!bestNet || index > bestNet.index) {
-        bestNet = { value: amount, index };
-      }
+    // Netto
+    if (containsKeyword(line, NET_KEYWORDS) && index > netIndex) {
+      netValue = amount;
+      netIndex = index;
     }
 
     // Steuer
-    if (containsKeyword(line, TAX_KEYWORDS) && amount !== null) {
-      if (!bestTax || index > bestTax.index) {
-        bestTax = { value: amount, index };
-      }
+    if (containsKeyword(line, TAX_KEYWORDS) && index > taxIndex) {
+      taxValue = amount;
+      taxIndex = index;
     }
   });
 
-  result.grossAmount = bestGross?.value ?? null;
-  result.netAmount = bestNet?.value ?? null;
-  result.taxAmount = bestTax?.value ?? null;
-  result.subtotalAmount = bestSubtotal?.value ?? null;
+  result.grossAmount = grossValue;
+  result.netAmount = netValue;
+  result.taxAmount = taxValue;
+  result.subtotalAmount = subtotalValue;
 
   return result;
 }

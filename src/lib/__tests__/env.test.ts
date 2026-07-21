@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseEnv } from "@/lib/env";
 
-function baseEnv(overrides: Record<string, string | undefined> = {}): NodeJS.ProcessEnv {
+function baseEnv(overrides: Record<string, string | undefined> = {}): Record<string, string | undefined> {
   return {
     DATABASE_URL: "postgresql://user:pass@db:5432/belegbox",
     AUTH_SECRET: "a".repeat(48),
@@ -14,7 +14,7 @@ function baseEnv(overrides: Record<string, string | undefined> = {}): NodeJS.Pro
     ADMIN_NAME: "Administrator",
     EXCHANGE_RATE_API_URL: "https://api.frankfurter.app",
     ...overrides,
-  } as NodeJS.ProcessEnv;
+  };
 }
 
 describe("parseEnv – Fail-Fast bei unsicheren Secrets (P1-7)", () => {
