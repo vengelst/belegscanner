@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import type { OcrConfidenceLevel, OcrDocumentType } from "@/lib/ocr-suggestions";
 import type { OcrInvoiceLineItem, OcrResult } from "@/lib/document-analysis";
+import { reconcileAmounts } from "@/lib/ocr";
 
 type ExtractionResult = {
   supplier: string | null;
@@ -232,6 +233,21 @@ export async function analyzeWithOpenAITextMode(
 
   const data: ExtractionResult = JSON.parse(outputText);
   const lineItems = mapLineItems(data.lineItems);
+
+  // P0-3: OpenAI-Betraege konservativ gegen den OCR-Rohtext abgleichen. Der hier
+  // uebergebene rawText ist der echte PaddleOCR-Text (nicht der von OpenAI gebaute),
+  // daher lassen sich Zwischensumme-vs-Gesamt und Tausender-/Dezimalfehler korrigieren.
+  const reconciled = reconcileAmounts(
+    { grossAmount: data.grossAmount, netAmount: data.netAmount, taxAmount: data.taxAmount },
+    rawText,
+  );
+  data.grossAmount = reconciled.grossAmount;
+  data.netAmount = reconciled.netAmount;
+  data.taxAmount = reconciled.taxAmount;
+  if (reconciled.corrections.length > 0) {
+    data.warnings = [...data.warnings, ...reconciled.corrections];
+  }
+
   const builtRawText = buildRawText(data);
   const sourceType = mimeType === "application/pdf" ? "pdf" : "image";
   const message = data.warnings.length > 0 ? data.warnings.join("; ") : null;
