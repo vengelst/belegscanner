@@ -12,15 +12,15 @@ export function PasswordInput({ label, className, id, ...props }: PasswordInputP
   const inputId = id ?? label.toLowerCase().replace(/\s+/g, "-");
 
   return (
-    <label htmlFor={inputId} className="grid gap-2 text-sm font-medium">
-      <span>{label}</span>
+    <label htmlFor={inputId} className="grid gap-1 text-sm font-medium">
+      <span className="text-xs text-muted-foreground">{label}</span>
       <div className="relative">
         <input
           id={inputId}
           type={visible ? "text" : "password"}
           className={cn(
-            "h-12 w-full rounded-2xl border border-border bg-background px-4 pr-12 outline-none transition",
-            "focus:border-primary focus:ring-2 focus:ring-primary/10",
+            "input-3d h-10 w-full rounded-xl px-3 pr-11 text-sm outline-none transition-all duration-150",
+            "focus:ring-2 focus:ring-primary/20",
             className
           )}
           {...props}
@@ -29,7 +29,7 @@ export function PasswordInput({ label, className, id, ...props }: PasswordInputP
           type="button"
           onClick={() => setVisible(!visible)}
           tabIndex={-1}
-          className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted-foreground transition hover:text-foreground"
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-muted-foreground transition hover:text-foreground"
           aria-label={visible ? "Passwort verbergen" : "Passwort anzeigen"}
         >
           {visible ? <EyeOffIcon /> : <EyeIcon />}
