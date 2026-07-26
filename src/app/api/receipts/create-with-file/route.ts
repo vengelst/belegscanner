@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { receiptSchema } from "@/lib/validation";
-import { validateFile, saveOriginalFile } from "@/lib/storage";
+import { validateFile } from "@/lib/storage";
 import { calculateAmountEur, fetchLatestExchangeRate } from "@/lib/exchange-rates";
 import { Prisma } from "@prisma/client";
 import { validateForSend, sendReceipt } from "@/lib/mail";
+import { createReceiptWithFile } from "@/lib/receipts/persist-with-file";
 
 export async function POST(request: NextRequest) {
   const { session, error } = await requireAuth();
@@ -103,62 +104,61 @@ export async function POST(request: NextRequest) {
   // Read file buffer before transaction
   const buffer = Buffer.from(await file.arrayBuffer());
 
-  // Atomic transaction: create receipt + file record
-  const receipt = await prisma.$transaction(async (tx) => {
-    const createdReceipt = await tx.receipt.create({
-      data: {
-        userId: session.userId,
-        date: new Date(d.date),
-        supplier: d.supplier ?? null,
-        invoiceNumber: d.invoiceNumber ?? null,
-        serviceDate: d.serviceDate ? new Date(d.serviceDate) : null,
-        dueDate: d.dueDate ? new Date(d.dueDate) : null,
-        amount: d.amount,
-        currency: d.currency,
-        netAmount: d.netAmount ?? null,
-        taxAmount: d.taxAmount ?? null,
-        exchangeRate: exchangeRate,
-        exchangeRateDate: exchangeRateDate ? new Date(exchangeRateDate) : null,
-        amountEur,
-        countryId: d.countryId ?? null,
-        vehicleId: d.vehicleId ?? null,
-        purposeId: d.purposeId,
-        categoryId: d.categoryId,
-        datevProfileId: defaultDatev?.id ?? null,
-        remark: d.remark ?? null,
-        aiRawText: d.aiRawText ?? null,
-        aiDocumentType: d.aiDocumentType ?? null,
-        aiStructuredData: d.aiStructuredData === undefined ? undefined : d.aiStructuredData === null ? Prisma.JsonNull : d.aiStructuredData,
-        sendStatus: "OPEN",
-        ...(d.hospitality ? {
-          hospitality: {
-            create: {
-              occasion: d.hospitality.occasion,
-              guests: d.hospitality.guests,
-              location: d.hospitality.location,
-            },
+  // Atomic: Beleg + Datei + ReceiptFile in einer Transaktion. Bei Upload-/DB-Fehler
+  // wird alles zurueckgerollt und eine ggf. geschriebene Datei entfernt (P1-3).
+  let receipt: { id: string };
+  try {
+    receipt = await createReceiptWithFile({
+      buffer,
+      mimeType: file.type,
+      originalName: file.name,
+      createReceipt: (tx) =>
+        tx.receipt.create({
+          data: {
+            userId: session.userId,
+            date: new Date(d.date),
+            supplier: d.supplier ?? null,
+            invoiceNumber: d.invoiceNumber ?? null,
+            serviceDate: d.serviceDate ? new Date(d.serviceDate) : null,
+            dueDate: d.dueDate ? new Date(d.dueDate) : null,
+            amount: d.amount,
+            currency: d.currency,
+            netAmount: d.netAmount ?? null,
+            taxAmount: d.taxAmount ?? null,
+            exchangeRate: exchangeRate,
+            exchangeRateDate: exchangeRateDate ? new Date(exchangeRateDate) : null,
+            amountEur,
+            countryId: d.countryId ?? null,
+            vehicleId: d.vehicleId ?? null,
+            purposeId: d.purposeId,
+            categoryId: d.categoryId,
+            datevProfileId: defaultDatev?.id ?? null,
+            remark: d.remark ?? null,
+            aiRawText: d.aiRawText ?? null,
+            aiDocumentType: d.aiDocumentType ?? null,
+            aiStructuredData: d.aiStructuredData === undefined ? undefined : d.aiStructuredData === null ? Prisma.JsonNull : d.aiStructuredData,
+            sendStatus: "OPEN",
+            ...(d.hospitality ? {
+              hospitality: {
+                create: {
+                  occasion: d.hospitality.occasion,
+                  guests: d.hospitality.guests,
+                  location: d.hospitality.location,
+                },
+              },
+            } : {}),
           },
-        } : {}),
-      },
+        }),
     });
-
-    // Save file to disk
-    const stored = await saveOriginalFile(createdReceipt.id, buffer, file.type, file.name);
-
-    // Create file record in DB
-    await tx.receiptFile.create({
-      data: {
-        receiptId: createdReceipt.id,
-        type: "ORIGINAL",
-        mimeType: stored.mimeType,
-        filename: stored.filename,
-        storagePath: stored.storagePath,
-        sizeBytes: stored.sizeBytes,
-      },
+  } catch (err) {
+    console.error("[create-with-file] Beleganlage fehlgeschlagen, Rollback ausgefuehrt:", {
+      error: err instanceof Error ? { name: err.name, message: err.message } : { message: String(err) },
     });
-
-    return createdReceipt;
-  });
+    return NextResponse.json(
+      { error: "Beleg konnte nicht gespeichert werden. Es wurde kein unvollstaendiger Beleg angelegt. Bitte erneut versuchen." },
+      { status: 500 },
+    );
+  }
 
   // Reload with relations for consistent response
   const fullReceipt = await prisma.receipt.findUnique({

@@ -188,6 +188,8 @@ model Receipt {
   // Versandstatus (technisch: SMTP-Ergebnis)
   sendStatus          SendStatus @default(OPEN)
   sendStatusUpdatedAt DateTime?
+  // Idempotenz-/Race-Schutz beim Versand: haelt einen laufenden Sendevorgang.
+  sendLockedAt        DateTime?
 
   // Pruef-/Freigabestatus (fachlich: Buchhaltungs-Workflow)
   reviewStatus        ReviewStatus @default(DRAFT)

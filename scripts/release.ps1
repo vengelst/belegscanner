@@ -12,8 +12,11 @@ param(
     [string]$ServerPath = "/opt/belegscanner",
     [string]$ComposeFile = "docker-compose.prod.yml",
     [ValidateSet("migrate", "push")]
-    [string]$SchemaSyncMode = "push",
+    [string]$SchemaSyncMode = "migrate",
     [string]$AppUrl = "https://beleg.vivahome.de",
+    [string]$BackupDir = "backups",
+    [switch]$AllowDbPush,
+    [switch]$SkipBackup,
     [switch]$Push,
     [switch]$CreateTag,
     [switch]$RunSeed,
@@ -97,6 +100,24 @@ function Assert-ServerEnvValue {
     if ($checkResult -ne "OK") {
         throw "Deploy abgebrochen: $ErrorMessage"
     }
+}
+
+function Get-ServerEnvValue {
+    param(
+        [string]$SshTarget,
+        [string]$ServerPath,
+        [string]$VariableName,
+        [string]$Default
+    )
+
+    $readCommand = "cd '$ServerPath' && grep -E '^${VariableName}=' .env 2>/dev/null | head -n1 | cut -d'=' -f2- | tr -d '\"'"
+    $value = (& ssh $SshTarget $readCommand | Out-String).Trim()
+
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        return $Default
+    }
+
+    return $value
 }
 
 function Get-RepoRoot {
@@ -322,6 +343,29 @@ function Invoke-Deploy {
     Ensure-Value $ServerHost "ServerHost"
     Ensure-Value $ServerPath "ServerPath"
 
+    # --- Schema-Sync-Modus bestimmen und absichern (P0-2) ---
+    # Standard ist der sichere 'migrate deploy'-Pfad. 'db push' ist destruktiv
+    # (kein Migrationsverlauf, kann Spalten/Daten verwerfen) und daher nur mit
+    # explizitem -AllowDbPush erlaubt.
+    if ($SchemaSyncMode -eq "push") {
+        if (-not $AllowDbPush) {
+            throw "Deploy abgebrochen: SchemaSyncMode 'push' ist im Standard-Deploy gesperrt. 'prisma db push' kann Schema/Daten ohne Migrationsverlauf veraendern. Falls wirklich gewollt, explizit mit -AllowDbPush erneut ausfuehren."
+        }
+
+        Write-WarnLine "======================================================================"
+        Write-WarnLine "ACHTUNG: Schema-Sync-Modus = 'db push' (destruktiv, ohne Migrationen)."
+        Write-WarnLine "Dieser Modus kann Spalten/Daten unwiderruflich veraendern."
+        Write-WarnLine "Nur fortfahren, wenn dies bewusst gewollt ist (-AllowDbPush gesetzt)."
+        Write-WarnLine "======================================================================"
+    }
+    else {
+        Write-Info "Schema-Sync-Modus: 'prisma migrate deploy' (sicher, versionierte Migrationen)."
+    }
+
+    if ($SkipBackup) {
+        Write-WarnLine "DB-Backup vor Schema-Sync wurde per -SkipBackup deaktiviert. Nicht fuer Produktion empfohlen."
+    }
+
     $sshTarget = $ServerUser + "@" + $ServerHost
     $dirtyStatusCommand = "cd '$ServerPath' && git status --short"
 
@@ -345,6 +389,17 @@ function Invoke-Deploy {
         }
     }
 
+    # Datenbank-User/-Name aus der Server-.env lesen (fuer das Backup), mit
+    # denselben Defaults wie docker-compose.prod.yml.
+    $pgUser = "belegbox"
+    $pgDb = "belegbox"
+    if (-not $DryRun -and -not $SkipBackup) {
+        $pgUser = Get-ServerEnvValue -SshTarget $sshTarget -ServerPath $ServerPath -VariableName "POSTGRES_USER" -Default "belegbox"
+        $pgDb = Get-ServerEnvValue -SshTarget $sshTarget -ServerPath $ServerPath -VariableName "POSTGRES_DB" -Default "belegbox"
+    }
+    $backupTimestamp = (Get-Date -Format "yyyyMMdd-HHmmss")
+    $backupFile = "$BackupDir/pre-schema-sync-$backupTimestamp.sql"
+
     $remoteSteps = @()
     $remoteSteps += "set -e"
     $remoteSteps += "cd '$ServerPath'"
@@ -366,10 +421,22 @@ function Invoke-Deploy {
     ) -join " && "
     $prismaHelperPrefix = "docker run --rm --network belegscanner_default --env-file .env -e DATABASE_URL='postgresql://belegbox:belegbox@db:5432/belegbox' -v '${ServerPath}:/repo:ro' -w /tmp/prisma-work node:20-alpine sh -lc"
 
+    # --- Verpflichtendes DB-Backup VOR jeder Schema-Aenderung (P0-2) ---
+    # Laeuft direkt vor dem Schema-Sync. Schlaegt das Backup fehl, bricht 'set -e'
+    # den Deploy ab, bevor das Schema veraendert wird.
+    if (-not $SkipBackup) {
+        $remoteSteps += "mkdir -p '$BackupDir'"
+        $remoteSteps += "echo '==> Erstelle DB-Backup vor Schema-Sync: $backupFile'"
+        $remoteSteps += "docker compose -f $ComposeFile exec -T db pg_dump -U $pgUser $pgDb > '$backupFile'"
+        $remoteSteps += "echo '==> DB-Backup erstellt.'"
+    }
+
     if ($SchemaSyncMode -eq "push") {
+        $remoteSteps += "echo '==> Schema-Sync: prisma db push (destruktiv, -AllowDbPush aktiv)'"
         $remoteSteps += $prismaHelperPrefix + " '" + $prismaHelperSetup + " && npx prisma db push'"
     }
     else {
+        $remoteSteps += "echo '==> Schema-Sync: prisma migrate deploy (versionierte Migrationen)'"
         $remoteSteps += $prismaHelperPrefix + " '" + $prismaHelperSetup + " && npx prisma migrate deploy'"
     }
 

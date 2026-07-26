@@ -16,12 +16,24 @@ services:
       timeout: 3s
       retries: 10
 
+  ocr-service:
+    build: ./ocr-service
+    restart: unless-stopped
+    # Self-hosted PaddleOCR – keine Cloud-Abhaengigkeit. Nur im internen
+    # Compose-Netz erreichbar, kein veroeffentlichter Port.
+    environment:
+      OCR_LANGUAGE: ${OCR_LANGUAGE:-german}
+      OCR_MAX_IMAGE_PIXELS: ${OCR_MAX_IMAGE_PIXELS:-40000000}
+      OCR_MAX_IMAGE_DIMENSION: ${OCR_MAX_IMAGE_DIMENSION:-20000}
+
   app:
     build: .
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
+      ocr-service:
+        condition: service_started
     ports:
       - "127.0.0.1:3003:3000"
     volumes:
