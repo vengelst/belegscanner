@@ -33,7 +33,6 @@ export const updateUserSchema = z.object({
 });
 
 export const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1, "Aktuelles Passwort ist erforderlich."),
   newPassword: z.string().min(8, "Das neue Passwort muss mindestens 8 Zeichen haben."),
 });
 
@@ -42,7 +41,6 @@ export const setPinSchema = z.object({
 });
 
 export const changePinSchema = z.object({
-  currentPassword: z.string().min(1, "Passwort ist zur PIN-Aenderung erforderlich."),
   pin: z.string().regex(/^\d{4}$/, "Die PIN muss aus genau 4 Ziffern bestehen."),
 });
 

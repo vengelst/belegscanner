@@ -13,7 +13,6 @@ export function ChangePinForm({ hasPin }: { hasPin: boolean }) {
     setError(null);
     setSuccess(null);
 
-    const currentPassword = formData.get("currentPassword") as string;
     const pin = formData.get("pin") as string;
 
     if (!/^\d{4}$/.test(pin)) {
@@ -25,7 +24,7 @@ export function ChangePinForm({ hasPin }: { hasPin: boolean }) {
       const res = await fetch("/api/users/me/pin", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword, pin }),
+        body: JSON.stringify({ pin }),
       });
 
       const data = await res.json();
@@ -46,13 +45,6 @@ export function ChangePinForm({ hasPin }: { hasPin: boolean }) {
         Die 4-stellige PIN ermoeglicht den schnellen Kiosk-Login.
       </p>
       <form action={handleSubmit} className="mt-4 grid gap-4 sm:grid-cols-2">
-        <Input
-          label="Aktuelles Passwort"
-          name="currentPassword"
-          type="password"
-          required
-          placeholder="Zur Bestaetigung"
-        />
         <Input
           label="Neue PIN"
           name="pin"

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { changePasswordSchema } from "@/lib/validation";
-import { hashSecret, compareSecret } from "@/lib/auth/hash";
+import { hashSecret } from "@/lib/auth/hash";
 
 export async function PUT(request: NextRequest) {
   const { session, error } = await requireAuth();
@@ -34,17 +34,6 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json(
       { error: "Benutzer nicht gefunden." },
       { status: 404 },
-    );
-  }
-
-  const isValid = await compareSecret(
-    parsed.data.currentPassword,
-    user.passwordHash,
-  );
-  if (!isValid) {
-    return NextResponse.json(
-      { error: "Das aktuelle Passwort ist falsch." },
-      { status: 400 },
     );
   }
 
