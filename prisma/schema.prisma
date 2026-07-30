@@ -129,6 +129,7 @@ model User {
   defaultPurpose    Purpose?   @relation("userDefaultPurpose", fields: [defaultPurposeId], references: [id], onDelete: SetNull)
   defaultCategoryId String?
   defaultCategory   Category?  @relation("userDefaultCategory", fields: [defaultCategoryId], references: [id], onDelete: SetNull)
+  uiTemplate        String     @default("classic")
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
   receipts          Receipt[]

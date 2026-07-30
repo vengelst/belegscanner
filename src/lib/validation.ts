@@ -55,6 +55,12 @@ export const userReceiptDefaultsSchema = z.object({
   defaultCategoryId: z.string().min(1).nullable().optional(),
 });
 
+export const userTemplateSchema = z.object({
+  uiTemplate: z.enum(["classic", "modern"]),
+});
+
+export type UiTemplate = z.infer<typeof userTemplateSchema>["uiTemplate"];
+
 // ============================================================
 // Master data schemas
 // ============================================================

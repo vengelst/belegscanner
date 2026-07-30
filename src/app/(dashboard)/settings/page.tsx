@@ -6,7 +6,9 @@ import { ChangePinForm } from "@/components/settings/change-pin-form";
 import { NavigationDisplayForm } from "@/components/settings/navigation-display-form";
 import { UserReceiptDefaultsForm } from "@/components/settings/user-receipt-defaults-form";
 import { SettingsModeSwitch } from "@/components/settings/settings-mode-switch";
+import { TemplateSelector } from "@/components/settings/template-selector";
 import { connection } from "next/server";
+import type { UiTemplate } from "@/lib/validation";
 
 export default async function UserSettingsPage() {
   await connection();
@@ -22,6 +24,7 @@ export default async function UserSettingsPage() {
         name: true,
         role: true,
         pinHash: true,
+        uiTemplate: true,
         defaultCountryId: true,
         defaultVehicleId: true,
         defaultPurposeId: true,
@@ -52,6 +55,15 @@ export default async function UserSettingsPage() {
         <p className="text-sm text-muted-foreground">
           {user.name} &middot; {user.email} &middot; {user.role}
         </p>
+      </div>
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <h2 className="text-xl font-semibold tracking-tight">Darstellung</h2>
+          <p className="text-sm text-muted-foreground">
+            Waehle das Erscheinungsbild der App.
+          </p>
+        </div>
+        <TemplateSelector currentTemplate={user.uiTemplate as UiTemplate} />
       </div>
       <NavigationDisplayForm />
       <UserReceiptDefaultsForm
