@@ -113,11 +113,11 @@ textarea {
 
 .template-modern {
   --background: #E4E9ED;
-  --foreground: #2D3748;
+  --foreground: #1a202c;
   --card: #E4E9ED;
-  --card-foreground: #2D3748;
+  --card-foreground: #1a202c;
   --muted: #D0D5DA;
-  --muted-foreground: #718096;
+  --muted-foreground: #4a5568;
   --border: transparent;
   --primary: #00C9B7;
   --primary-foreground: #FFFFFF;

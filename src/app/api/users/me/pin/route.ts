@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { changePinSchema } from "@/lib/validation";
-import { hashSecret } from "@/lib/auth/hash";
+import { hashSecret, compareSecret } from "@/lib/auth/hash";
 
 export async function PUT(request: NextRequest) {
   const { session, error } = await requireAuth();
@@ -35,6 +35,24 @@ export async function PUT(request: NextRequest) {
       { error: "Benutzer nicht gefunden." },
       { status: 404 },
     );
+  }
+
+  const otherUsersWithPin = await prisma.user.findMany({
+    where: {
+      id: { not: session.userId },
+      active: true,
+      pinHash: { not: null },
+    },
+    select: { pinHash: true },
+  });
+
+  for (const other of otherUsersWithPin) {
+    if (await compareSecret(parsed.data.pin, other.pinHash!)) {
+      return NextResponse.json(
+        { error: "Diese PIN ist bereits vergeben." },
+        { status: 409 },
+      );
+    }
   }
 
   const pinHash = await hashSecret(parsed.data.pin);

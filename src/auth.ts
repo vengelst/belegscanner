@@ -60,40 +60,33 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       id: "pin-login",
       name: "PIN-Login",
       credentials: {
-        email: { label: "E-Mail", type: "email" },
         pin: { label: "PIN", type: "password" },
       },
       async authorize(rawCredentials) {
-        const parsed = pinLoginSchema
-          .extend({ email: loginSchema.shape.email })
-          .safeParse(rawCredentials);
+        const parsed = pinLoginSchema.safeParse(rawCredentials);
         if (!parsed.success) return null;
 
-        const user = await prisma.user.findUnique({
-          where: { email: parsed.data.email },
+        const usersWithPin = await prisma.user.findMany({
+          where: { active: true, pinHash: { not: null } },
         });
-        if (!user || !user.active || !user.pinHash) {
-          await compareSecret(parsed.data.pin, DUMMY_PASSWORD_HASH);
-          return null;
+
+        for (const user of usersWithPin) {
+          if (await isLoginLocked(user)) continue;
+
+          const isValid = await compareSecret(parsed.data.pin, user.pinHash!);
+          if (isValid) {
+            await resetLoginAttempts(user.id);
+            return {
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              role: user.role,
+            };
+          }
         }
 
-        // Brute-force protection (shared counter with password login)
-        if (await isLoginLocked(user)) return null;
-
-        const isValid = await compareSecret(parsed.data.pin, user.pinHash);
-        if (!isValid) {
-          await recordFailedLogin(user.id);
-          return null;
-        }
-
-        await resetLoginAttempts(user.id);
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-        };
+        await compareSecret(parsed.data.pin, DUMMY_PASSWORD_HASH);
+        return null;
       },
     }),
   ],

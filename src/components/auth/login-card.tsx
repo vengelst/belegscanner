@@ -9,7 +9,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 async function authenticate(provider: "email-password" | "pin-login", formData: FormData) {
   const response = await signIn(provider, {
     redirect: false,
-    email: String(formData.get("email") ?? ""),
+    ...(provider === "email-password" && { email: String(formData.get("email") ?? "") }),
     password: String(formData.get("password") ?? ""),
     pin: String(formData.get("pin") ?? "")
   });
@@ -77,11 +77,10 @@ export function LoginCard() {
               <div>
                 <h2 className="text-xl font-semibold tracking-tight">PIN-Login</h2>
                 <p className="text-sm text-muted-foreground">
-                  Fuer Kiosk und mobile Erfassung. Im MVP erfolgt die Zuordnung ueber E-Mail plus PIN.
+                  Schneller Zugang mit deiner 4-stelligen PIN.
                 </p>
               </div>
               <form onSubmit={submit("pin-login")} className="space-y-3">
-                <Input label="E-Mail" name="email" type="email" placeholder="name@firma.de" required />
                 <Input label="PIN" name="pin" inputMode="numeric" pattern="[0-9]{4}" maxLength={4} placeholder="1234" required />
                 <button
                   type="submit"
