@@ -9,14 +9,14 @@ export function SelectField({
   children: React.ReactNode;
 }) {
   return (
-    <label className="grid gap-1 text-sm font-medium">
+    <label className="bb-select-wrapper grid gap-1 text-sm font-medium">
       <span className="text-xs text-muted-foreground">{label}</span>
       <select
         name={name}
         required={required}
         value={value}
         onChange={onChange ? (event) => onChange(event.target.value) : undefined}
-        className="input-3d h-10 rounded-xl px-3 text-sm outline-none transition-all duration-150 focus:ring-2 focus:ring-primary/20"
+        className="bb-select input-3d h-10 rounded-xl px-3 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20"
       >
         {children}
       </select>

@@ -43,7 +43,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   return (
     <div className={hideSidebar ? "" : "grid gap-6 xl:grid-cols-[16rem_minmax(0,1fr)]"}>
       {!hideSidebar ? (
-        <aside className="rounded-[calc(var(--radius)+0.5rem)] border border-border bg-card p-4 shadow-soft">
+        <aside className="bb-card rounded-[calc(var(--radius)+0.5rem)] border border-border bg-card p-4 shadow-soft transition-shadow duration-200">
           {navGroups.map((group, index) => (
             <div key={group.title ?? `group-${index}`} className="mb-5 last:mb-0">
               {group.title ? (
@@ -56,7 +56,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   <Link
                     key={link.href}
                     href={link.href}
-                    className="block rounded-xl px-3 py-2 text-sm font-medium transition hover:bg-primary/5 hover:text-primary"
+                    className="bb-sidebar-link block rounded-xl px-3 py-2 text-sm font-medium transition duration-200 hover:bg-primary/5 hover:text-primary"
                   >
                     {link.label}
                   </Link>

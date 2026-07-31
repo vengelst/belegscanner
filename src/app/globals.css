@@ -107,3 +107,337 @@ textarea {
   border-color: var(--primary);
 }
 
+/* ========================================
+   Modern Template (Neumorphism/Soft UI)
+   ======================================== */
+
+.template-modern {
+  --background: #E4E9ED;
+  --foreground: #2D3748;
+  --card: #E4E9ED;
+  --card-foreground: #2D3748;
+  --muted: #D0D5DA;
+  --muted-foreground: #718096;
+  --border: transparent;
+  --primary: #00C9B7;
+  --primary-foreground: #FFFFFF;
+  --accent: #00C9B7;
+  --accent-foreground: #2D3748;
+  --danger: #E53E3E;
+  --radius: 1.25rem;
+  
+  /* Neumorphism shadows */
+  --neu-shadow-raised: 8px 8px 16px #c8ccd0, -8px -8px 16px #ffffff;
+  --neu-shadow-raised-sm: 4px 4px 8px #c8ccd0, -4px -4px 8px #ffffff;
+  --neu-shadow-inset: inset 4px 4px 8px #c8ccd0, inset -4px -4px 8px #ffffff;
+  --neu-shadow-hover: 4px 4px 8px #c8ccd0, -4px -4px 8px #ffffff;
+  --neu-shadow-active: inset 2px 2px 4px #c8ccd0, inset -2px -2px 4px #ffffff;
+  
+  /* Override soft shadow for neumorphism */
+  --shadow-soft: var(--neu-shadow-raised);
+  
+  /* Input overrides */
+  --input-bg: #E4E9ED;
+  --input-shadow-inset: var(--neu-shadow-inset);
+  --input-border-top: transparent;
+  --input-border-bottom: transparent;
+}
+
+/* Modern template background - flat, no gradient */
+.template-modern {
+  background: var(--background) !important;
+}
+
+/* ----------------------------------------
+   Modern Template - Card Styles
+   ---------------------------------------- */
+.template-modern .bb-card,
+.template-modern .neu-card {
+  border: none !important;
+  background: var(--card);
+  box-shadow: var(--neu-shadow-raised);
+  border-radius: var(--radius);
+  transition: box-shadow 0.2s ease;
+}
+
+.template-modern .bb-card:hover,
+.template-modern .neu-card:hover {
+  box-shadow: var(--neu-shadow-hover);
+}
+
+/* ----------------------------------------
+   Modern Template - Button Styles
+   ---------------------------------------- */
+.template-modern .bb-button,
+.template-modern .neu-button {
+  border: none !important;
+  background: var(--background);
+  box-shadow: var(--neu-shadow-raised-sm);
+  transition: all 0.2s ease;
+}
+
+.template-modern .bb-button:hover,
+.template-modern .neu-button:hover {
+  box-shadow: var(--neu-shadow-hover);
+}
+
+.template-modern .bb-button:active,
+.template-modern .bb-button.active,
+.template-modern .neu-button:active,
+.template-modern .neu-button.active {
+  box-shadow: var(--neu-shadow-active);
+}
+
+.template-modern .bb-button-primary,
+.template-modern .neu-button-primary {
+  background: var(--primary) !important;
+  color: var(--primary-foreground);
+  box-shadow: var(--neu-shadow-raised-sm);
+}
+
+.template-modern .bb-button-primary:hover,
+.template-modern .neu-button-primary:hover {
+  box-shadow: var(--neu-shadow-hover);
+  opacity: 0.95;
+}
+
+.template-modern .bb-button-primary:active,
+.template-modern .neu-button-primary:active {
+  box-shadow: var(--neu-shadow-active);
+}
+
+.template-modern .bb-button-secondary {
+  background: var(--background);
+  border: none !important;
+  box-shadow: var(--neu-shadow-raised-sm);
+}
+
+.template-modern .bb-button-secondary:hover {
+  box-shadow: var(--neu-shadow-hover);
+  color: var(--primary);
+}
+
+.template-modern .bb-button-secondary:active {
+  box-shadow: var(--neu-shadow-active);
+}
+
+.template-modern .bb-button-danger {
+  background: var(--background);
+  border: none !important;
+  box-shadow: var(--neu-shadow-raised-sm);
+}
+
+.template-modern .bb-button-danger:hover {
+  box-shadow: var(--neu-shadow-hover);
+}
+
+.template-modern .bb-button-danger:active {
+  box-shadow: var(--neu-shadow-active);
+}
+
+.template-modern .bb-button-ghost {
+  background: transparent;
+  box-shadow: none;
+}
+
+.template-modern .bb-button-ghost:hover {
+  background: var(--muted);
+  box-shadow: var(--neu-shadow-raised-sm);
+}
+
+.template-modern .bb-button-ghost:active {
+  box-shadow: var(--neu-shadow-active);
+}
+
+/* ----------------------------------------
+   Modern Template - Input Styles
+   ---------------------------------------- */
+.template-modern .bb-input,
+.template-modern .bb-select,
+.template-modern .input-3d {
+  border: none !important;
+  background: var(--background);
+  box-shadow: var(--neu-shadow-inset);
+  border-radius: calc(var(--radius) - 0.25rem);
+}
+
+.template-modern .bb-input:focus,
+.template-modern .bb-select:focus,
+.template-modern .input-3d:focus {
+  box-shadow: var(--neu-shadow-inset), 0 0 0 2px var(--primary);
+  border: none !important;
+  outline: none;
+}
+
+.template-modern .bb-input:focus-visible,
+.template-modern .bb-select:focus-visible,
+.template-modern .input-3d:focus-visible {
+  outline: none;
+  ring: none;
+}
+
+/* ----------------------------------------
+   Modern Template - Badge Styles
+   ---------------------------------------- */
+.template-modern .bb-badge,
+.template-modern .neu-badge {
+  background: var(--background);
+  box-shadow: 3px 3px 6px #c8ccd0, -3px -3px 6px #ffffff;
+  border-radius: 9999px;
+}
+
+.template-modern .bb-badge-primary,
+.template-modern .bb-badge-success {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.template-modern .bb-badge-warning {
+  background: var(--background);
+  color: var(--accent-foreground);
+}
+
+.template-modern .bb-badge-danger {
+  background: var(--background);
+  color: var(--danger);
+}
+
+/* ----------------------------------------
+   Modern Template - Dialog Styles
+   ---------------------------------------- */
+.template-modern .bb-dialog,
+.template-modern .neu-dialog {
+  border: none;
+  background: var(--background);
+  box-shadow: var(--neu-shadow-raised), 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+  border-radius: var(--radius);
+}
+
+/* ----------------------------------------
+   Modern Template - Navigation Styles
+   ---------------------------------------- */
+.template-modern .neu-nav-item {
+  border: none;
+  background: var(--background);
+  box-shadow: var(--neu-shadow-raised-sm);
+  transition: all 0.2s ease;
+}
+
+.template-modern .neu-nav-item:hover {
+  box-shadow: var(--neu-shadow-hover);
+  color: var(--primary);
+}
+
+.template-modern .neu-nav-item:active,
+.template-modern .neu-nav-item.active {
+  box-shadow: var(--neu-shadow-active);
+}
+
+/* ----------------------------------------
+   Modern Template - Header Styles
+   ---------------------------------------- */
+.template-modern .neu-header {
+  border: none;
+  background: var(--background);
+  box-shadow: var(--neu-shadow-raised);
+  border-radius: var(--radius);
+}
+
+/* ----------------------------------------
+   Modern Template - Form Section Styles
+   ---------------------------------------- */
+.template-modern .neu-section {
+  border: none;
+  background: var(--background);
+  box-shadow: var(--neu-shadow-raised);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+}
+
+/* ----------------------------------------
+   Modern Template - Login Card Styles
+   ---------------------------------------- */
+.template-modern .bb-login-card {
+  overflow: hidden;
+}
+
+.template-modern .bb-login-hero {
+  background: var(--background) !important;
+}
+
+.template-modern .bb-login-section {
+  border-top: none !important;
+  padding-top: 1.5rem;
+  margin-top: 1.5rem;
+  position: relative;
+}
+
+.template-modern .bb-login-section::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #c8ccd0, transparent);
+  border-radius: 1px;
+}
+
+/* ----------------------------------------
+   Modern Template - Table Styles
+   ---------------------------------------- */
+.template-modern table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.template-modern th,
+.template-modern td {
+  border: none !important;
+}
+
+.template-modern thead {
+  background: var(--background);
+}
+
+.template-modern tbody tr {
+  background: var(--background);
+  box-shadow: var(--neu-shadow-raised-sm);
+  border-radius: var(--radius);
+  margin-bottom: 0.5rem;
+}
+
+.template-modern tbody tr:hover {
+  box-shadow: var(--neu-shadow-hover);
+}
+
+/* ----------------------------------------
+   Modern Template - Sidebar Link Styles
+   ---------------------------------------- */
+.template-modern .bb-sidebar-link {
+  background: transparent;
+  transition: all 0.2s ease;
+}
+
+.template-modern .bb-sidebar-link:hover {
+  background: var(--muted);
+  box-shadow: var(--neu-shadow-raised-sm);
+  color: var(--primary);
+}
+
+.template-modern .bb-sidebar-link:active {
+  box-shadow: var(--neu-shadow-active);
+}
+
+/* ----------------------------------------
+   Modern Template - Misc Utility Styles
+   ---------------------------------------- */
+.template-modern .border-t,
+.template-modern .border-b,
+.template-modern .border-l,
+.template-modern .border-r,
+.template-modern .border {
+  border-color: transparent !important;
+}
+

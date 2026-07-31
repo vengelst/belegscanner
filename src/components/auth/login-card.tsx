@@ -39,9 +39,9 @@ export function LoginCard() {
   };
 
   return (
-    <Card className="w-full max-w-5xl overflow-hidden p-0">
+    <Card className="bb-login-card w-full max-w-5xl overflow-hidden p-0">
       <div className="grid md:grid-cols-[1.2fr_0.8fr]">
-        <div className="bg-[linear-gradient(135deg,color-mix(in_oklab,var(--primary)_20%,transparent),transparent),linear-gradient(180deg,color-mix(in_oklab,var(--accent)_18%,transparent),transparent)] p-8 text-card-foreground sm:p-10">
+        <div className="bb-login-hero bg-[linear-gradient(135deg,color-mix(in_oklab,var(--primary)_20%,transparent),transparent),linear-gradient(180deg,color-mix(in_oklab,var(--accent)_18%,transparent),transparent)] p-8 text-card-foreground sm:p-10">
           <p className="text-sm font-medium uppercase tracking-[0.3em] text-muted-foreground">
             BelegBox
           </p>
@@ -67,13 +67,13 @@ export function LoginCard() {
                 <button
                   type="submit"
                   disabled={isPending}
-                  className="w-full rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="bb-button bb-button-primary w-full rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition duration-200 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {isPending ? "Pruefe Zugang..." : "Anmelden"}
                 </button>
               </form>
             </section>
-            <section className="space-y-3 border-t border-border pt-6">
+            <section className="bb-login-section space-y-3 border-t border-border pt-6">
               <div>
                 <h2 className="text-xl font-semibold tracking-tight">PIN-Login</h2>
                 <p className="text-sm text-muted-foreground">
@@ -86,7 +86,7 @@ export function LoginCard() {
                 <button
                   type="submit"
                   disabled={isPending}
-                  className="w-full rounded-2xl border border-border bg-card px-4 py-3 text-sm font-semibold transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-70"
+                  className="bb-button bb-button-secondary w-full rounded-2xl border border-border bg-card px-4 py-3 text-sm font-semibold transition duration-200 hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {isPending ? "Pruefe PIN..." : "Mit PIN anmelden"}
                 </button>

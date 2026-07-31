@@ -59,7 +59,7 @@ export function ChangePasswordForm() {
           <button
             type="submit"
             disabled={isPending}
-            className="rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+            className="bb-button bb-button-primary rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition duration-200 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
           >
             {isPending ? "Wird geaendert..." : "Passwort aendern"}
           </button>

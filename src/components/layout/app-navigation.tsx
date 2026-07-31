@@ -11,12 +11,14 @@ import {
   primaryNav,
   settingsNavItem,
 } from "@/components/layout/navigation-config";
+import type { UiTemplate } from "@/lib/validation";
 
 type AppNavigationProps = {
   userRole: "ADMIN" | "USER";
+  uiTemplate?: UiTemplate;
 };
 
-export function AppNavigation({ userRole }: AppNavigationProps) {
+export function AppNavigation({ userRole, uiTemplate = "classic" }: AppNavigationProps) {
   const [displayMode, setDisplayMode] = useState<NavigationDisplayMode>("icons");
 
   useEffect(() => {
@@ -40,16 +42,17 @@ export function AppNavigation({ userRole }: AppNavigationProps) {
 
   const iconOnly = displayMode === "icons";
   const leftItems = userRole === "ADMIN" ? [...primaryNav, ...adminNav] : primaryNav;
+  const isModern = uiTemplate === "modern";
 
   return (
     <nav className={cn("mt-4 flex items-start gap-2", iconOnly ? "flex-wrap" : "flex-wrap")}>
       <div className={cn("gap-2", iconOnly ? "flex flex-wrap" : "grid grid-cols-2 sm:flex sm:flex-wrap")}>
         {leftItems.map((item) => (
-          <NavLink key={item.href} item={item} iconOnly={iconOnly} userRole={userRole} />
+          <NavLink key={item.href} item={item} iconOnly={iconOnly} userRole={userRole} isModern={isModern} />
         ))}
       </div>
       <div className="ml-auto">
-        <NavLink item={settingsNavItem} iconOnly={iconOnly} userRole={userRole} />
+        <NavLink item={settingsNavItem} iconOnly={iconOnly} userRole={userRole} isModern={isModern} />
       </div>
     </nav>
   );
@@ -59,10 +62,12 @@ function NavLink({
   item,
   iconOnly,
   userRole,
+  isModern,
 }: {
   item: NavItem;
   iconOnly: boolean;
   userRole: "ADMIN" | "USER";
+  isModern: boolean;
 }) {
   return (
     <Link
@@ -70,7 +75,10 @@ function NavLink({
       aria-label={item.label}
       title={item.label}
       className={cn(
-        "rounded-2xl border border-border/80 bg-background/80 text-sm font-medium transition hover:border-primary/40 hover:bg-primary/5 hover:text-primary",
+        "rounded-2xl text-sm font-medium transition",
+        isModern
+          ? "neu-nav-item"
+          : "border border-border/80 bg-background/80 hover:border-primary/40 hover:bg-primary/5 hover:text-primary",
         iconOnly ? "block px-3 py-3" : "block px-4 py-3 text-left",
       )}
     >

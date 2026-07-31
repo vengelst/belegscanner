@@ -5,13 +5,13 @@ import { cn } from "@/lib/utils";
 
 const variantStyles = {
   primary:
-    "bg-primary text-primary-foreground hover:opacity-90",
+    "bb-button-primary bg-primary text-primary-foreground hover:opacity-90",
   secondary:
-    "border border-border bg-card hover:border-primary/40 hover:text-primary",
+    "bb-button-secondary border border-border bg-card hover:border-primary/40 hover:text-primary",
   danger:
-    "border border-danger/30 bg-danger/5 text-danger hover:bg-danger/10",
+    "bb-button-danger border border-danger/30 bg-danger/5 text-danger hover:bg-danger/10",
   ghost:
-    "hover:bg-muted/60 hover:text-primary",
+    "bb-button-ghost hover:bg-muted/60 hover:text-primary",
 } as const;
 
 const sizeStyles = {
@@ -36,7 +36,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={disabled || loading}
         className={cn(
-          "inline-flex items-center justify-center gap-2 rounded-2xl font-semibold transition disabled:cursor-not-allowed disabled:opacity-50",
+          "bb-button inline-flex items-center justify-center gap-2 rounded-2xl font-semibold transition duration-200 disabled:cursor-not-allowed disabled:opacity-50",
           variantStyles[variant],
           sizeStyles[size],
           className,

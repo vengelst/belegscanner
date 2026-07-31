@@ -43,7 +43,7 @@ export function Dialog({ open, onClose, title, description, children, className 
         aria-modal="true"
         aria-label={title}
         className={cn(
-          "relative z-10 w-full max-w-md rounded-2xl bg-popover p-6 shadow-soft",
+          "bb-dialog relative z-10 w-full max-w-md rounded-2xl bg-card p-6 shadow-soft transition-shadow duration-200",
           className,
         )}
       >

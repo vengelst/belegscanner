@@ -575,7 +575,7 @@ function ActionLink({ href, children, target, title }: { href: string; children:
       target={target}
       title={title}
       aria-label={title}
-      className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-border bg-card text-xs font-semibold transition hover:border-primary/40 hover:text-primary"
+      className="bb-button bb-button-secondary inline-flex h-8 w-8 items-center justify-center rounded-xl border border-border bg-card text-xs font-semibold transition duration-200 hover:border-primary/40 hover:text-primary"
     >
       {children}
     </a>
@@ -602,7 +602,7 @@ function ActionButton({
       disabled={disabled}
       title={title}
       aria-label={title}
-      className={`inline-flex h-8 w-8 items-center justify-center rounded-xl border text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${danger ? "border-danger/30 bg-danger/5 text-danger hover:bg-danger/10" : "border-border bg-card hover:border-primary/40 hover:text-primary"}`}
+      className={`bb-button inline-flex h-8 w-8 items-center justify-center rounded-xl border text-xs font-semibold transition duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${danger ? "bb-button-danger border-danger/30 bg-danger/5 text-danger hover:bg-danger/10" : "bb-button-secondary border-border bg-card hover:border-primary/40 hover:text-primary"}`}
     >
       {children}
     </button>
@@ -610,9 +610,9 @@ function ActionButton({
 }
 
 function Tag({ children, accent, danger }: { children: React.ReactNode; accent?: boolean; danger?: boolean }) {
-  let cls = "rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground";
-  if (accent) cls = "rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-semibold text-accent-foreground";
-  if (danger) cls = "rounded-full bg-danger/10 px-2 py-0.5 text-[10px] font-semibold text-danger";
+  let cls = "bb-badge bb-badge-default rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground";
+  if (accent) cls = "bb-badge bb-badge-warning rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-semibold text-accent-foreground";
+  if (danger) cls = "bb-badge bb-badge-danger rounded-full bg-danger/10 px-2 py-0.5 text-[10px] font-semibold text-danger";
   return <span className={cls}>{children}</span>;
 }
 
