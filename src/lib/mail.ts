@@ -324,6 +324,11 @@ async function buildDatevAttachment(
 
   // Image receipts → generate DATEV PDF with embedded image + business data
   // Uses the send-time exchange rate, not the stored one
+
+  // Optimize large images before PDF generation to avoid @react-pdf/renderer issues
+  const { optimizeImageForPdf } = await import("@/lib/image-utils");
+  const optimized = await optimizeImageForPdf(fileBuffer, file.mimeType);
+
   const { generateDatevPdf } = await import("@/lib/datev-pdf");
   const fmtDate = (d: Date) => format(d, "dd.MM.yyyy", { locale: de });
   const fmtAmount = (n: number) =>
@@ -350,8 +355,8 @@ async function buildDatevAttachment(
           location: receipt.hospitality.location,
         }
       : null,
-    imageBase64: fileBuffer.toString("base64"),
-    imageMimeType: file.mimeType,
+    imageBase64: optimized.buffer.toString("base64"),
+    imageMimeType: optimized.mimeType,
   });
 
   // Filename: replace image extension with .pdf
