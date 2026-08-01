@@ -30,9 +30,12 @@ export type DatevPdfData = {
   exchangeRate: string | null;
   exchangeRateDate: string | null;
   purposeName: string;
+  categoryName: string;
   countryName: string | null;
   vehiclePlate: string | null;
   remark: string | null;
+  processorName: string;
+  processorEmail: string;
   hospitality: {
     occasion: string;
     guests: string;
@@ -114,8 +117,10 @@ function buildDatevDocument(data: DatevPdfData) {
 
   if (data.supplier) cells.push({ label: "Lieferant", value: data.supplier });
   cells.push({ label: "Zweck", value: data.purposeName });
+  cells.push({ label: "Zahlungsart", value: data.categoryName });
   if (data.countryName) cells.push({ label: "Land", value: data.countryName });
   if (data.vehiclePlate) cells.push({ label: "Kfz", value: data.vehiclePlate });
+  cells.push({ label: "Bearbeiter", value: `${data.processorName} (${data.processorEmail})` });
   if (data.remark) cells.push({ label: "Bemerkung", value: data.remark });
 
   return React.createElement(

@@ -343,11 +343,14 @@ async function buildDatevAttachment(
     exchangeRate: sendExchangeRate ? String(sendExchangeRate) : null,
     exchangeRateDate: sendExchangeRateDate ? fmtDate(sendExchangeRateDate) : null,
     purposeName: receipt.purpose.name,
+    categoryName: receipt.category.name,
     countryName: receipt.country
       ? `${receipt.country.name}${receipt.country.code ? ` (${receipt.country.code})` : ""}`
       : null,
     vehiclePlate: receipt.vehicle?.plate ?? null,
     remark: receipt.remark,
+    processorName: receipt.user.name,
+    processorEmail: receipt.user.email,
     hospitality: receipt.hospitality
       ? {
           occasion: receipt.hospitality.occasion,
