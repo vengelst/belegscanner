@@ -136,6 +136,8 @@ model User {
   reviewedReceipts  Receipt[]        @relation("reviewer")
   comments          ReceiptComment[]
   auditLogs         AuditLog[]
+  backups           Backup[]
+  restoreLogs       RestoreLog[]
 
   @@index([email])
   @@index([active])
@@ -339,5 +341,63 @@ model AuditLog {
   @@index([userId])
   @@index([entity, entityId])
   @@index([createdAt])
+}
+
+// ============================================================
+// Backup-System
+// ============================================================
+
+// Backup-Konfiguration (Singleton-Zeile)
+model BackupConfig {
+  id                String   @id @default("singleton")
+  storageType       String   @default("local") // "local" | "s3"
+  localPath         String   @default("/backups")
+  s3Endpoint        String?
+  s3Bucket          String?
+  s3AccessKey       String?
+  s3SecretKeyEnc    String?  // verschluesselt wie SMTP-Passwort
+  s3Region          String?
+  scheduleEnabled   Boolean  @default(false)
+  scheduleCron      String   @default("0 2 * * *") // taeglich 2:00
+  retentionDays     Int      @default(30)
+  updatedAt         DateTime @updatedAt
+}
+
+// Backup-Eintraege
+model Backup {
+  id            String       @id @default(cuid())
+  type          String       // "full" | "database" | "files"
+  status        String       // "pending" | "running" | "completed" | "failed"
+  fileName      String?
+  fileSize      Int?
+  dbRecords     Int?
+  filesCount    Int?
+  errorMessage  String?      @db.Text
+  triggeredBy   String       // "manual" | "scheduled"
+  userId        String?
+  user          User?        @relation(fields: [userId], references: [id])
+  startedAt     DateTime     @default(now())
+  completedAt   DateTime?
+  restoreLogs   RestoreLog[]
+
+  @@index([status])
+  @@index([startedAt])
+  @@index([userId])
+}
+
+// Wiederherstellungs-Protokoll
+model RestoreLog {
+  id            String    @id @default(cuid())
+  backupId      String
+  backup        Backup    @relation(fields: [backupId], references: [id], onDelete: Cascade)
+  status        String    // "pending" | "running" | "completed" | "failed"
+  errorMessage  String?   @db.Text
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  @@index([backupId])
+  @@index([userId])
 }
 

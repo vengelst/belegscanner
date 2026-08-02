@@ -94,6 +94,52 @@ export const categorySchema = z.object({
 });
 
 // ============================================================
+// Backup-System schemas
+// ============================================================
+
+export const backupConfigSchema = z.object({
+  storageType: z.enum(["local", "s3"]).default("local"),
+  localPath: z.string().min(1, "Lokaler Pfad ist erforderlich.").default("/backups"),
+  s3Endpoint: z.string().url("Gueltige S3-Endpoint-URL erforderlich.").nullable().optional(),
+  s3Bucket: z.string().min(1).nullable().optional(),
+  s3AccessKey: z.string().min(1).nullable().optional(),
+  s3SecretKey: z.string().min(1).nullable().optional(),
+  s3Region: z.string().min(1).nullable().optional(),
+  scheduleEnabled: z.boolean().default(false),
+  scheduleCron: z.string().min(1, "Cron-Expression ist erforderlich.").default("0 2 * * *"),
+  retentionDays: z.coerce.number().int().min(1).max(365).default(30),
+}).superRefine((data, ctx) => {
+  // Bei S3-Storage muessen alle S3-Felder ausgefuellt sein
+  if (data.storageType === "s3") {
+    if (!data.s3Endpoint) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "S3-Endpoint ist bei S3-Storage erforderlich.",
+        path: ["s3Endpoint"],
+      });
+    }
+    if (!data.s3Bucket) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "S3-Bucket ist bei S3-Storage erforderlich.",
+        path: ["s3Bucket"],
+      });
+    }
+    if (!data.s3AccessKey) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "S3-Access-Key ist bei S3-Storage erforderlich.",
+        path: ["s3AccessKey"],
+      });
+    }
+  }
+});
+
+export const createBackupSchema = z.object({
+  type: z.enum(["full", "database", "files"]).default("full"),
+});
+
+// ============================================================
 // SMTP schema
 // ============================================================
 
