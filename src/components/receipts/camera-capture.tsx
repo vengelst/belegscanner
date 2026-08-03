@@ -332,7 +332,7 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
                 />
                 <div
                   className={`scan-beam ${detection?.autoCaptureEligible ? "scan-beam--active" : ""}`}
-                  style={{ "--scan-container-height": "100%" } as React.CSSProperties}
+                  aria-hidden="true"
                 />
                 {overlayStyle ? (
                   <div

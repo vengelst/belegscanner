@@ -565,65 +565,96 @@ select.input-3d {
    ---------------------------------------- */
 @keyframes scan-beam {
   0% {
-    transform: translateY(-100%) rotate(-2deg);
+    top: 0%;
     opacity: 0;
   }
-  10% {
+  8% {
     opacity: 1;
   }
-  90% {
+  92% {
     opacity: 1;
   }
   100% {
-    transform: translateY(calc(var(--scan-container-height, 300px))) rotate(-2deg);
+    top: 100%;
     opacity: 0;
   }
 }
 
 .scan-beam {
   position: absolute;
-  inset-inline: 0;
+  left: 0;
+  right: 0;
   top: 0;
-  height: 3px;
+  height: 2.5rem;
+  margin-top: -1.25rem;
   pointer-events: none;
-  z-index: 10;
+  z-index: 20;
   background: linear-gradient(
-    90deg,
+    180deg,
     transparent 0%,
-    rgba(0, 201, 183, 0.3) 15%,
-    rgba(0, 201, 183, 0.7) 40%,
-    rgba(0, 201, 183, 0.9) 50%,
-    rgba(0, 201, 183, 0.7) 60%,
-    rgba(0, 201, 183, 0.3) 85%,
+    rgba(0, 201, 183, 0.15) 30%,
+    rgba(0, 201, 183, 0.85) 50%,
+    rgba(0, 201, 183, 0.15) 70%,
     transparent 100%
   );
-  box-shadow: 0 0 12px 2px rgba(0, 201, 183, 0.25), 0 0 4px 1px rgba(0, 201, 183, 0.4);
-  border-radius: 2px;
-  animation: scan-beam 2.8s ease-in-out infinite;
+  box-shadow: 0 0 28px 8px rgba(0, 201, 183, 0.35);
+  animation: scan-beam 2.4s linear infinite;
 }
 
 .scan-beam--active {
-  height: 4px;
+  height: 3rem;
+  margin-top: -1.5rem;
   background: linear-gradient(
-    90deg,
+    180deg,
     transparent 0%,
-    rgba(0, 201, 183, 0.5) 10%,
-    rgba(0, 201, 183, 0.9) 35%,
+    rgba(0, 201, 183, 0.25) 25%,
     rgba(0, 201, 183, 1) 50%,
-    rgba(0, 201, 183, 0.9) 65%,
-    rgba(0, 201, 183, 0.5) 90%,
+    rgba(0, 201, 183, 0.25) 75%,
     transparent 100%
   );
-  box-shadow: 0 0 20px 4px rgba(0, 201, 183, 0.4), 0 0 8px 2px rgba(0, 201, 183, 0.6);
-  animation: scan-beam 1.6s ease-in-out infinite;
+  box-shadow: 0 0 36px 12px rgba(0, 201, 183, 0.5);
+  animation: scan-beam 1.4s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .scan-beam,
   .scan-beam--active {
     animation: none;
-    transform: translateY(50%) rotate(0deg);
-    opacity: 0.4;
+    top: 45%;
+    opacity: 0.55;
   }
+}
+
+/* ----------------------------------------
+   Receipt list status row tints
+   ---------------------------------------- */
+.receipt-row--sent {
+  background: color-mix(in oklab, #10b981 16%, transparent) !important;
+}
+
+.receipt-row--sent:hover {
+  background: color-mix(in oklab, #10b981 24%, transparent) !important;
+}
+
+.receipt-row--pending {
+  background: color-mix(in oklab, #eab308 14%, transparent) !important;
+}
+
+.receipt-row--pending:hover {
+  background: color-mix(in oklab, #eab308 22%, transparent) !important;
+}
+
+.receipt-row--failed {
+  background: color-mix(in oklab, #ef4444 14%, transparent) !important;
+}
+
+.receipt-row--failed:hover {
+  background: color-mix(in oklab, #ef4444 22%, transparent) !important;
+}
+
+.template-modern tbody tr.receipt-row--sent,
+.template-modern tbody tr.receipt-row--pending,
+.template-modern tbody tr.receipt-row--failed {
+  box-shadow: none;
 }
 

@@ -173,6 +173,12 @@ function fmtAmount(n: number) {
   return n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function receiptRowToneClass(sendStatus: string) {
+  if (sendStatus === "SENT") return "receipt-row--sent";
+  if (sendStatus === "FAILED" || sendStatus === "RETRY") return "receipt-row--failed";
+  return "receipt-row--pending";
+}
+
 // ============================================================
 // Main component
 // ============================================================
@@ -373,11 +379,7 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
               <Link
                 key={r.id}
                 href={`/receipts/${r.id}`}
-                className={`bb-card flex items-center gap-2 rounded-xl border border-border/80 px-3 py-1.5 shadow-soft transition hover:bg-muted/40 ${
-                  r.sendStatus === "SENT"
-                    ? "border-emerald-300/70 bg-emerald-50 text-emerald-950"
-                    : "bg-card text-card-foreground"
-                }`}
+                className={`bb-card receipt-row flex items-center gap-2 rounded-xl border border-border/80 px-3 py-1.5 text-card-foreground shadow-soft transition ${receiptRowToneClass(r.sendStatus)}`}
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">
@@ -425,9 +427,7 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                         openReceipt(r.id);
                       }
                     }}
-                    className={`cursor-pointer border-b border-border/50 transition hover:bg-muted/30 ${
-                      r.sendStatus === "SENT" ? "bg-emerald-50/90 text-emerald-950 hover:bg-emerald-100/90" : ""
-                    }`}
+                    className={`cursor-pointer border-b border-border/50 transition ${receiptRowToneClass(r.sendStatus)}`}
                   >
                     {visibleColumns.map((columnKey, index) => (
                       <td key={`${r.id}-${columnKey}-${index}`} className="px-4 py-1">
