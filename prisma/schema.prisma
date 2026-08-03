@@ -347,6 +347,17 @@ model AuditLog {
 // Backup-System
 // ============================================================
 
+// KI-Konfiguration (Singleton-Zeile)
+model AiConfig {
+  id            String   @id @default("singleton")
+  provider      String   @default("openai")  // openai, anthropic, google
+  model         String   @default("gpt-4o-mini")
+  apiKeyEnc     String?  // verschluesselt wie SMTP
+  baseUrl       String?  // Optional fuer custom endpoints
+  ocrServiceUrl String?  @default("http://ocr-service:8000")
+  updatedAt     DateTime @updatedAt
+}
+
 // Backup-Konfiguration (Singleton-Zeile)
 model BackupConfig {
   id                String   @id @default("singleton")

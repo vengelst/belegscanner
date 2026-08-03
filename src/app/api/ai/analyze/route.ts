@@ -149,13 +149,23 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("[Analyze] Fehler:", {
       ...fileMeta,
       totalDurationMs: Date.now() - startedAt,
       error: error instanceof Error ? { name: error.name, message: error.message } : { message: String(error) },
     });
+
+    const isKnownError = errorMessage.includes(":")
+      && (errorMessage.includes("API-Key")
+        || errorMessage.includes("Guthaben")
+        || errorMessage.includes("Rate-Limit")
+        || errorMessage.includes("Modell")
+        || errorMessage.includes("Provider")
+        || errorMessage.includes("Verbindung"));
+
     return NextResponse.json(
-      { error: "Die KI-Auslese konnte derzeit nicht ausgefuehrt werden. Bitte Datei pruefen und fehlende Angaben manuell ergaenzen." },
+      { error: isKnownError ? errorMessage : "Die KI-Auslese konnte derzeit nicht ausgefuehrt werden. Bitte Datei pruefen und fehlende Angaben manuell ergaenzen." },
       { status: 500 },
     );
   }

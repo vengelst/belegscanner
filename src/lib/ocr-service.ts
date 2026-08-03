@@ -1,3 +1,5 @@
+import { getOcrServiceUrl } from "@/lib/ai";
+
 export type OcrServiceResult = {
   text: string;
   blocks: Array<{ text: string; confidence: number; box: number[][] }>;
@@ -9,10 +11,6 @@ const IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png"]);
 const OCR_TIMEOUT_MS = 30_000;
 const HEALTH_TIMEOUT_MS = 3_000;
 
-function getServiceUrl(): string | null {
-  return process.env.OCR_SERVICE_URL || null;
-}
-
 export async function extractTextWithOcrService(
   buffer: Buffer,
   mimeType: string,
@@ -21,7 +19,7 @@ export async function extractTextWithOcrService(
     return null;
   }
 
-  const baseUrl = getServiceUrl();
+  const baseUrl = await getOcrServiceUrl();
   if (!baseUrl) {
     console.info("[OCR-Service] OCR_SERVICE_URL nicht konfiguriert – uebersprungen");
     return null;
@@ -62,7 +60,7 @@ export async function extractTextWithOcrService(
 }
 
 export async function isOcrServiceAvailable(): Promise<boolean> {
-  const baseUrl = getServiceUrl();
+  const baseUrl = await getOcrServiceUrl();
   if (!baseUrl) return false;
 
   try {

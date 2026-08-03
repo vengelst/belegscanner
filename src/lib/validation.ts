@@ -140,6 +140,18 @@ export const createBackupSchema = z.object({
 });
 
 // ============================================================
+// AI Config schema
+// ============================================================
+
+export const aiConfigSchema = z.object({
+  provider: z.enum(["openai", "anthropic", "google"]),
+  model: z.string().min(1, "Modell ist erforderlich."),
+  apiKey: z.string().min(1, "API-Key ist erforderlich.").optional(),
+  baseUrl: z.string().url("Gueltige URL erforderlich.").nullable().optional(),
+  ocrServiceUrl: z.string().url("Gueltige URL erforderlich.").nullable().optional(),
+});
+
+// ============================================================
 // SMTP schema
 // ============================================================
 
