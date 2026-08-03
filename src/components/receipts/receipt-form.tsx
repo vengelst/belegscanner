@@ -31,6 +31,8 @@ import { ReceiptFormDataSection } from "@/components/receipts/receipt-form-data-
 import { ReceiptFormAssignmentSection } from "@/components/receipts/receipt-form-assignment-section";
 import { ReceiptFormHospitalitySection } from "@/components/receipts/receipt-form-hospitality-section";
 import { ReceiptFormActions } from "@/components/receipts/receipt-form-actions";
+import { DuplicateWarning } from "@/components/receipts/duplicate-warning";
+import { useDuplicateCheck } from "@/hooks/useDuplicateCheck";
 
 function formatAmountInput(value: number): string {
   return value.toFixed(2).replace(".", ",");
@@ -358,6 +360,11 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
       return;
     }
 
+    if (duplicateCheck.hasDuplicates) {
+      setError("Bitte pruefen Sie den moeglichen Duplikat-Beleg und bestaetigen Sie mit 'Trotzdem speichern'.");
+      return;
+    }
+
     const body = buildBody(formData);
     const action = (formData.get("_action") as string) || "save";
     const shouldContinue = action === "save_next";
@@ -441,6 +448,12 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
 
     return body;
   }
+
+  const duplicateCheck = useDuplicateCheck();
+
+  useEffect(() => {
+    duplicateCheck.check({ date, amount, supplier, invoiceNumber });
+  }, [date, amount, supplier, invoiceNumber]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasDetectedValues = ocrResult ? hasDetectedOcrValues(ocrResult) : false;
 
@@ -549,6 +562,13 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
             setGuests={setGuests}
             setHospitalityLocationManual={setHospitalityLocationManual}
             setHospitalityLocation={setHospitalityLocation}
+          />
+        ) : null}
+
+        {duplicateCheck.hasDuplicates ? (
+          <DuplicateWarning
+            candidates={duplicateCheck.candidates}
+            onDismiss={duplicateCheck.dismiss}
           />
         ) : null}
 

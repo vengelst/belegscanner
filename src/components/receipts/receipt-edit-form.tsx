@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { splitGrossByVatRate } from "@/lib/receipts/form-helpers";
+import { DuplicateWarning } from "@/components/receipts/duplicate-warning";
+import { useDuplicateCheck } from "@/hooks/useDuplicateCheck";
 
 type Purpose = { id: string; name: string; isHospitality: boolean };
 type Category = { id: string; name: string };
@@ -65,6 +67,21 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
   const [error, setError] = useState<string | null>(null);
   const [exchangeRateInfo, setExchangeRateInfo] = useState<string | null>(null);
   const [exchangeRateLoading, setExchangeRateLoading] = useState(false);
+  const [date, setDate] = useState(receipt.date);
+  const [supplier, setSupplier] = useState(receipt.supplier ?? "");
+  const [invoiceNumber, setInvoiceNumber] = useState(receipt.invoiceNumber ?? "");
+
+  const duplicateCheck = useDuplicateCheck();
+
+  useEffect(() => {
+    duplicateCheck.check({
+      date,
+      amount,
+      supplier,
+      invoiceNumber,
+      excludeReceiptId: receipt.id,
+    });
+  }, [date, amount, supplier, invoiceNumber]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedPurpose = purposes.find((p) => p.id === purposeId);
   const isHospitality = selectedPurpose?.isHospitality ?? false;
@@ -159,6 +176,11 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
   function handleSubmit(formData: FormData) {
     setError(null);
 
+    if (duplicateCheck.hasDuplicates) {
+      setError("Bitte pruefen Sie den moeglichen Duplikat-Beleg und bestaetigen Sie mit 'Trotzdem speichern'.");
+      return;
+    }
+
     const amountValue = parseFloat((formData.get("amount") as string).replace(",", "."));
     const currencyValue = (formData.get("currency") as string) || "EUR";
 
@@ -238,7 +260,7 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
       <Card>
         <h2 className="text-lg font-semibold tracking-tight">Belegdaten</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Input label="Belegdatum" name="date" type="date" required defaultValue={receipt.date} />
+          <Input label="Belegdatum" name="date" type="date" required value={date} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setDate(event.target.value)} />
           <SelectField label="Belegrichtung" name="partyRole" value={partyRole} onChange={(v) => setPartyRole(v as "CREDITOR" | "DEBTOR")}>
             <option value="CREDITOR">Kreditor (Eingangsbeleg)</option>
             <option value="DEBTOR">Debitor (Ausgangsbeleg)</option>
@@ -256,7 +278,7 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
               onChange={(event: React.ChangeEvent<HTMLInputElement>) => setAmount(event.target.value)}
             />
           )}
-          <Input label="Rechnungsnummer" name="invoiceNumber" maxLength={80} defaultValue={receipt.invoiceNumber ?? ""} />
+          <Input label="Rechnungsnummer" name="invoiceNumber" maxLength={80} value={invoiceNumber} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setInvoiceNumber(event.target.value)} />
           {requiresExchangeRate ? (
             <Input
               label={`Rechnungsbetrag (${normalizedCurrency})`}
@@ -297,7 +319,8 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
           <Input
             label={partyRole === "DEBTOR" ? "Kunde / Debitor" : "Lieferant / Kreditor"}
             name="supplier"
-            defaultValue={receipt.supplier ?? ""}
+            value={supplier}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => setSupplier(event.target.value)}
           />
           <Input
             label={requiresExchangeRate ? "Wechselkurs *" : "Wechselkurs (optional)"}
@@ -411,6 +434,13 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
             <Input label="Ort" name="location" required defaultValue={receipt.hospitality?.location ?? ""} />
           </div>
         </Card>
+      ) : null}
+
+      {duplicateCheck.hasDuplicates ? (
+        <DuplicateWarning
+          candidates={duplicateCheck.candidates}
+          onDismiss={duplicateCheck.dismiss}
+        />
       ) : null}
 
       {error ? <p className="text-sm font-medium text-danger">{error}</p> : null}
