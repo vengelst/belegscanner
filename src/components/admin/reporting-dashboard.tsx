@@ -226,7 +226,7 @@ export function ReportingDashboard() {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Auswertung drucken</title>
+    <title>Dashboard drucken</title>
     ${headMarkup}
     <style>
       @page { size: A4 portrait; margin: 14mm; }
@@ -403,8 +403,8 @@ export function ReportingDashboard() {
               <div className="report-print-section border-b border-slate-300 pb-4">
                 <div className="flex items-start justify-between gap-6">
                   <div className="space-y-1">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Auswertung</p>
-                    <h1 className="text-2xl font-semibold text-black">Druckansicht Reporting</h1>
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Dashboard</p>
+                    <h1 className="text-2xl font-semibold text-black">Druckansicht Dashboard</h1>
                   </div>
                   <p className="text-xs text-slate-500">Erstellt am {printTimestamp}</p>
                 </div>
