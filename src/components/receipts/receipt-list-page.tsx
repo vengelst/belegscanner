@@ -3,10 +3,8 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Eye, Pencil, Printer, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ConfirmDialog } from "@/components/ui/dialog";
 import { ReceiptFilterBar } from "@/components/receipts/receipt-filter-bar";
 import { getReviewStatusBadgeClass, getReviewStatusLabel } from "@/lib/receipts/review-status";
 
@@ -182,8 +180,6 @@ function fmtAmount(n: number) {
 export function ReceiptListPage({ receipts, pagination, filters, filterOptions, isAdmin }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(DEFAULT_VISIBLE_COLUMNS);
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
 
@@ -245,23 +241,9 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
     setParams({ sortBy, sortDir: nextDir });
   }, [filters.sortBy, filters.sortDir, setParams]);
 
-  const confirmDelete = useCallback(async () => {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      const response = await fetch(`/api/receipts/${deleteTarget}`, { method: "DELETE" });
-      const data = await response.json().catch(() => null);
-      if (!response.ok) {
-        const message = data && typeof data === "object" && "error" in data ? String(data.error) : "Beleg konnte nicht geloescht werden.";
-        window.alert(message);
-        return;
-      }
-      router.refresh();
-    } finally {
-      setDeleting(false);
-      setDeleteTarget(null);
-    }
-  }, [deleteTarget, router]);
+  const openReceipt = useCallback((id: string) => {
+    router.push(`/receipts/${id}`);
+  }, [router]);
 
   return (
     <div className="space-y-4">
@@ -373,14 +355,18 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
         </Card>
       ) : (
         <>
-          {/* Mobile: eine Zeile pro Beleg */}
-          <div className="space-y-2 lg:hidden">
+          {/* Mobile: eine kompakte Zeile pro Beleg */}
+          <div className="space-y-1.5 lg:hidden">
             {receipts.map((r) => (
-              <Card key={r.id} className="flex items-center gap-2 p-2.5">
+              <Link
+                key={r.id}
+                href={`/receipts/${r.id}`}
+                className="bb-card flex items-center gap-2 rounded-xl border border-border/80 bg-card px-3 py-1.5 text-card-foreground shadow-soft transition hover:bg-muted/40"
+              >
                 <div className="min-w-0 flex-1">
-                  <Link href={`/receipts/${r.id}`} className="block truncate text-sm font-medium hover:text-primary hover:underline">
+                  <p className="truncate text-sm font-medium">
                     {r.supplier ?? "Beleg"}
-                  </Link>
+                  </p>
                   <p className="truncate text-[11px] text-muted-foreground">
                     {fmtDate(r.date)} · {fmtAmount(r.amount)} {r.currency}
                     {!r.hasFile ? " · Datei fehlt" : ""}
@@ -388,24 +374,12 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                   </p>
                 </div>
                 <StatusBadge status={r.sendStatus} />
-                <div className="flex shrink-0 gap-1">
-                  <ActionLink href={`/receipts/${r.id}`} title="Oeffnen"><Eye size={14} /></ActionLink>
-                  <ActionLink href={`/receipts/${r.id}/edit`} title="Bearbeiten"><Pencil size={14} /></ActionLink>
-                  <ActionButton
-                    danger
-                    disabled={deleting && deleteTarget === r.id}
-                    onClick={() => setDeleteTarget(r.id)}
-                    title="Loeschen"
-                  >
-                    <Trash2 size={14} />
-                  </ActionButton>
-                </div>
-              </Card>
+              </Link>
             ))}
           </div>
 
           {/* Desktop table */}
-          <Card className="hidden overflow-x-auto p-0 lg:block">
+          <Card className="hidden overflow-x-auto !p-0 lg:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-muted-foreground">
@@ -419,21 +393,28 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                   {isColumnVisible("reviewStatus") ? <SortableHeader label="Pruefung" columnKey="reviewStatus" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
                   {isColumnVisible("sendStatus") ? <SortableHeader label="Versand" columnKey="sendStatus" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
                   {isColumnVisible("sentAt") ? <SortableHeader label="Gesendet" columnKey="sentAt" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
-                  <th className="px-4 py-2 font-medium">Aktionen</th>
                 </tr>
               </thead>
               <tbody>
                 {receipts.map((r) => (
-                  <tr key={r.id} className="border-b border-border/50 transition hover:bg-muted/30">
+                  <tr
+                    key={r.id}
+                    role="link"
+                    tabIndex={0}
+                    onClick={() => openReceipt(r.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        openReceipt(r.id);
+                      }
+                    }}
+                    className="cursor-pointer border-b border-border/50 transition hover:bg-muted/30"
+                  >
                     {isColumnVisible("date") ? (
-                      <td className="px-4 py-1.5 whitespace-nowrap">
-                        <Link href={`/receipts/${r.id}`} className="hover:text-primary hover:underline">
-                          {fmtDate(r.date)}
-                        </Link>
-                      </td>
+                      <td className="whitespace-nowrap px-4 py-1">{fmtDate(r.date)}</td>
                     ) : null}
                     {isColumnVisible("supplier") ? (
-                      <td className="max-w-[160px] px-4 py-1.5 truncate">
+                      <td className="max-w-[160px] truncate px-4 py-1">
                         <span className="mr-1 rounded bg-muted px-1 py-0.5 text-[10px] font-semibold text-muted-foreground">
                           {r.partyRole === "DEBTOR" ? "D" : "K"}
                         </span>
@@ -442,47 +423,32 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                       </td>
                     ) : null}
                     {isColumnVisible("amount") ? (
-                      <td className="px-4 py-1.5 tabular-nums whitespace-nowrap">
+                      <td className="whitespace-nowrap px-4 py-1 tabular-nums">
                         {fmtAmount(r.amount)} {r.currency}
                         {r.currency !== "EUR" ? (
                           <span className="ml-1 text-xs text-muted-foreground">({fmtAmount(r.amountEur)} EUR)</span>
                         ) : null}
                       </td>
                     ) : null}
-                    {isColumnVisible("purpose") ? <td className="px-4 py-1.5">{r.purposeName}</td> : null}
-                    {isColumnVisible("category") ? <td className="px-4 py-1.5">{r.categoryName}</td> : null}
-                    {isColumnVisible("country") ? <td className="px-4 py-1.5 text-muted-foreground">{r.countryName ?? "—"}</td> : null}
-                    {isColumnVisible("user") ? <td className="px-4 py-1.5 text-muted-foreground">{r.userName}</td> : null}
+                    {isColumnVisible("purpose") ? <td className="px-4 py-1">{r.purposeName}</td> : null}
+                    {isColumnVisible("category") ? <td className="px-4 py-1">{r.categoryName}</td> : null}
+                    {isColumnVisible("country") ? <td className="px-4 py-1 text-muted-foreground">{r.countryName ?? "—"}</td> : null}
+                    {isColumnVisible("user") ? <td className="px-4 py-1 text-muted-foreground">{r.userName}</td> : null}
                     {isColumnVisible("reviewStatus") ? (
-                      <td className="px-4 py-1.5">
+                      <td className="px-4 py-1">
                         <ReviewBadge status={r.reviewStatus} />
                       </td>
                     ) : null}
                     {isColumnVisible("sendStatus") ? (
-                      <td className="px-4 py-1.5">
+                      <td className="px-4 py-1">
                         <StatusBadge status={r.sendStatus} />
                       </td>
                     ) : null}
                     {isColumnVisible("sentAt") ? (
-                      <td className="px-4 py-1.5 text-xs text-muted-foreground whitespace-nowrap">
+                      <td className="whitespace-nowrap px-4 py-1 text-xs text-muted-foreground">
                         {r.sendStatus === "SENT" && r.sendStatusUpdatedAt ? fmtDateTime(r.sendStatusUpdatedAt) : "—"}
                       </td>
                     ) : null}
-                    <td className="px-4 py-1.5">
-                      <div className="flex flex-wrap gap-2">
-                        <ActionLink href={`/receipts/${r.id}`} title="Oeffnen"><Eye size={14} /></ActionLink>
-                        <ActionLink href={`/receipts/${r.id}/edit`} title="Bearbeiten"><Pencil size={14} /></ActionLink>
-                        <ActionLink href={`/receipts/${r.id}/print`} target="_blank" title="Drucken"><Printer size={14} /></ActionLink>
-                        <ActionButton
-                          danger
-                          disabled={deleting && deleteTarget === r.id}
-                          onClick={() => setDeleteTarget(r.id)}
-                          title="Loeschen"
-                        >
-                          <Trash2 size={14} />
-                        </ActionButton>
-                      </div>
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -517,17 +483,6 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
           ) : null}
         </>
       )}
-
-      <ConfirmDialog
-        open={deleteTarget !== null}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={() => void confirmDelete()}
-        title="Beleg loeschen"
-        message="Diesen Beleg wirklich loeschen? Diese Aktion kann nicht rueckgaengig gemacht werden."
-        confirmLabel="Loeschen"
-        variant="danger"
-        loading={deleting}
-      />
     </div>
   );
 }
@@ -552,47 +507,6 @@ function ReviewBadge({ status }: { status: string }) {
   );
 }
 
-function ActionLink({ href, children, target, title }: { href: string; children: React.ReactNode; target?: string; title?: string }) {
-  return (
-    <a
-      href={href}
-      target={target}
-      title={title}
-      aria-label={title}
-      className="bb-button bb-button-secondary inline-flex h-8 w-8 items-center justify-center rounded-xl border border-border bg-card text-xs font-semibold transition duration-200 hover:border-primary/40 hover:text-primary"
-    >
-      {children}
-    </a>
-  );
-}
-
-function ActionButton({
-  children,
-  onClick,
-  disabled,
-  danger,
-  title,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-  danger?: boolean;
-  title?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      aria-label={title}
-      className={`bb-button inline-flex h-8 w-8 items-center justify-center rounded-xl border text-xs font-semibold transition duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${danger ? "bb-button-danger border-danger/30 bg-danger/5 text-danger hover:bg-danger/10" : "bb-button-secondary border-border bg-card hover:border-primary/40 hover:text-primary"}`}
-    >
-      {children}
-    </button>
-  );
-}
-
 function SortableHeader({
   label,
   columnKey,
@@ -611,11 +525,11 @@ function SortableHeader({
   const directionIcon = active ? (activeSortDir === "asc" ? "▲" : "▼") : "↕";
 
   if (!mappedSortBy) {
-    return <th className="px-4 py-1.5 font-medium">{label}</th>;
+    return <th className="px-4 py-1 font-medium">{label}</th>;
   }
 
   return (
-    <th className="px-4 py-1.5 font-medium">
+    <th className="px-4 py-1 font-medium">
       <button
         type="button"
         onClick={() => onClick(mappedSortBy)}
