@@ -305,9 +305,30 @@ export function ReportingDashboard() {
           {/* KPIs */}
           <div className="report-screen-only grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <KpiCard label="Belege gesamt" value={String(data.totalReceipts)} />
-            <KpiCard label="Summe EUR" value={fmtEur(data.totalAmountEur)} />
+            <KpiCard
+              label="Kreditoren (Eingang)"
+              value={fmtEur((data.byPartyRole ?? []).find((r) => r.partyRole === "CREDITOR")?.sumEur ?? 0)}
+            />
+            <KpiCard
+              label="Debitoren (Ausgang)"
+              value={fmtEur((data.byPartyRole ?? []).find((r) => r.partyRole === "DEBTOR")?.sumEur ?? 0)}
+            />
             <KpiCard label="Versandfehler" value={String(data.failedSends)} danger={data.failedSends > 0} />
+          </div>
+          <div className="report-screen-only grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <KpiCard
+              label="Kreditorenbelege"
+              value={String((data.byPartyRole ?? []).find((r) => r.partyRole === "CREDITOR")?.count ?? 0)}
+            />
+            <KpiCard
+              label="Debitorenbelege"
+              value={String((data.byPartyRole ?? []).find((r) => r.partyRole === "DEBTOR")?.count ?? 0)}
+            />
             <KpiCard label="Fremdwaehrungsbelege" value={String(data.foreignCurrencyReceipts)} />
+            <KpiCard
+              label="Summe gesamt (nur Info)"
+              value={fmtEur(data.totalAmountEur)}
+            />
           </div>
 
           {/* Problem overview */}

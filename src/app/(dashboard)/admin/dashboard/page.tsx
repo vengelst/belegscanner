@@ -54,14 +54,16 @@ export default async function AdminDashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <StatCard
-          label="Kreditorenbelege"
-          value={creditorStats._count}
-          detail={fmtEur(Number(creditorStats._sum.amountEur ?? 0))}
+          label="Kreditoren (Eingangsbelege)"
+          value={fmtEur(Number(creditorStats._sum.amountEur ?? 0))}
+          detail={`${creditorStats._count} ${creditorStats._count === 1 ? "Beleg" : "Belege"}`}
+          primaryAsText
         />
         <StatCard
-          label="Debitorenbelege"
-          value={debtorStats._count}
-          detail={fmtEur(Number(debtorStats._sum.amountEur ?? 0))}
+          label="Debitoren (Ausgangsbelege)"
+          value={fmtEur(Number(debtorStats._sum.amountEur ?? 0))}
+          detail={`${debtorStats._count} ${debtorStats._count === 1 ? "Beleg" : "Belege"}`}
+          primaryAsText
         />
       </div>
 
@@ -85,7 +87,21 @@ export default async function AdminDashboardPage() {
   );
 }
 
-function StatCard({ label, value, muted, danger, detail }: { label: string; value: number; muted?: boolean; danger?: boolean; detail?: string }) {
+function StatCard({
+  label,
+  value,
+  muted,
+  danger,
+  detail,
+  primaryAsText,
+}: {
+  label: string;
+  value: number | string;
+  muted?: boolean;
+  danger?: boolean;
+  detail?: string;
+  primaryAsText?: boolean;
+}) {
   let valueColor = "text-foreground";
   if (muted) valueColor = "text-muted-foreground";
   if (danger) valueColor = "text-danger";
@@ -93,7 +109,9 @@ function StatCard({ label, value, muted, danger, detail }: { label: string; valu
   return (
     <div className="rounded-[calc(var(--radius)+0.5rem)] border border-border/80 bg-card p-5 shadow-soft">
       <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className={`mt-2 text-3xl font-semibold tabular-nums ${valueColor}`}>{value}</p>
+      <p className={`mt-2 tabular-nums ${primaryAsText ? "text-2xl font-semibold" : "text-3xl font-semibold"} ${valueColor}`}>
+        {value}
+      </p>
       {detail ? <p className="mt-1 text-sm text-muted-foreground tabular-nums">{detail}</p> : null}
     </div>
   );
