@@ -57,7 +57,7 @@ export function CreateUserForm() {
           <select
             id="role"
             name="role"
-            className="h-12 rounded-2xl border border-border bg-background px-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
+            className="bb-select input-3d h-10 rounded-xl px-3 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20"
           >
             <option value="USER">User</option>
             <option value="ADMIN">Admin</option>

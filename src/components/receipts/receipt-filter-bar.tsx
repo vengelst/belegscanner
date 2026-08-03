@@ -210,7 +210,7 @@ export function ReceiptFilterBar({
               type="date"
               value={filters.dateFrom}
               onChange={(e) => onFilterChange({ dateFrom: e.target.value })}
-              className="h-9 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+              className="bb-input input-3d h-9 rounded-xl px-3 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20"
             />
           </label>
           <label className="grid gap-1 text-sm">
@@ -219,7 +219,7 @@ export function ReceiptFilterBar({
               type="date"
               value={filters.dateTo}
               onChange={(e) => onFilterChange({ dateTo: e.target.value })}
-              className="h-9 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+              className="bb-input input-3d h-9 rounded-xl px-3 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20"
             />
           </label>
           <div className="flex items-end">
@@ -249,7 +249,7 @@ function FilterSelect({ label, value, onChange, options }: {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-9 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+        className="bb-select input-3d h-9 rounded-xl px-3 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20"
       >
         <option value="">Alle</option>
         {options.map((o) => (

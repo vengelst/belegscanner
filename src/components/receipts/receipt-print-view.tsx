@@ -10,6 +10,8 @@ type PrintReceipt = {
   supplier: string | null;
   amount: number;
   currency: string;
+  reverseCharge: boolean;
+  vatRatePercent: number | null;
   exchangeRate: number | null;
   exchangeRateDate: string | null;
   amountEur: number;
@@ -184,6 +186,11 @@ export function ReceiptPrintView({ receipt }: { receipt: PrintReceipt }) {
             ) : (
               <DataRow label="Rechnungsbetrag (EUR)" value={`${fmtAmount(receipt.amountEur)} EUR`} />
             )}
+            {receipt.reverseCharge ? (
+              <DataRow label="Umsatzsteuer" value="Reverse Charge — Steuerschuldnerschaft des Leistungsempfaengers" />
+            ) : receipt.vatRatePercent != null ? (
+              <DataRow label="USt-Satz" value={`${receipt.vatRatePercent} %`} />
+            ) : null}
             <DataRow label="Zweck" value={receipt.purposeName} />
             <DataRow label="Kategorie" value={receipt.categoryName} />
             <DataRow label="Land" value={receipt.countryName ? `${receipt.countryName}${receipt.countryCode ? ` (${receipt.countryCode})` : ""}` : "—"} />

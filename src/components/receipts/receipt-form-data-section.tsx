@@ -17,6 +17,7 @@ type Props = {
   invoiceNumber: string;
   netAmount: string;
   taxAmount: string;
+  reverseCharge: boolean;
   currency: string;
   supplier: string;
   exchangeRate: string;
@@ -34,6 +35,7 @@ type Props = {
   setInvoiceNumber: (v: string) => void;
   setNetAmount: (v: string) => void;
   setTaxAmount: (v: string) => void;
+  setReverseCharge: (v: boolean) => void;
   setCurrency: (v: string) => void;
   setSupplier: (v: string) => void;
   setExchangeRate: (v: string) => void;
@@ -48,6 +50,7 @@ export function ReceiptFormDataSection({
   invoiceNumber,
   netAmount,
   taxAmount,
+  reverseCharge,
   currency,
   supplier,
   exchangeRate,
@@ -65,6 +68,7 @@ export function ReceiptFormDataSection({
   setInvoiceNumber,
   setNetAmount,
   setTaxAmount,
+  setReverseCharge,
   setCurrency,
   setSupplier,
   setExchangeRate,
@@ -214,6 +218,23 @@ export function ReceiptFormDataSection({
           value={exchangeRateDate}
           onChange={(event: React.ChangeEvent<HTMLInputElement>) => setExchangeRateDate(event.target.value)}
         />
+        <label className="col-span-2 flex items-start gap-2 text-sm font-medium lg:col-span-3">
+          <input
+            type="checkbox"
+            name="reverseCharge"
+            checked={reverseCharge}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => setReverseCharge(event.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
+          />
+          <span>
+            <span className="block">Reverse Charge</span>
+            {reverseCharge ? (
+              <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                Steuerschuldnerschaft des Leistungsempfaengers
+              </span>
+            ) : null}
+          </span>
+        </label>
       </div>
       {requiresExchangeRate ? (
         <div className="mt-3 space-y-1 text-sm text-muted-foreground">

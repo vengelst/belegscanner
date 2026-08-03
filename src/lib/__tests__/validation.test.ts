@@ -107,6 +107,28 @@ describe("receiptSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("setzt reverseCharge standardmaessig auf false", () => {
+    const result = receiptSchema.safeParse(validReceipt);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.reverseCharge).toBe(false);
+    }
+  });
+
+  it("akzeptiert reverseCharge und vatRatePercent", () => {
+    const result = receiptSchema.safeParse({
+      ...validReceipt,
+      reverseCharge: true,
+      vatRatePercent: 19,
+      taxAmount: 0,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.reverseCharge).toBe(true);
+      expect(result.data.vatRatePercent).toBe(19);
+    }
+  });
+
   it("scheitert wenn purposeId fehlt", () => {
     const { purposeId: _, ...withoutPurpose } = validReceipt;
     const result = receiptSchema.safeParse(withoutPurpose);

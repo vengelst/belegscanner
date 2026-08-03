@@ -282,7 +282,7 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
               <select
                 value={filters.sortBy}
                 onChange={(e) => setParams({ sortBy: e.target.value })}
-                className="h-9 rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                className="bb-select input-3d h-9 rounded-xl px-3 text-sm text-foreground outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20"
               >
                 {SORT_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -296,7 +296,7 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
               <select
                 value={filters.sortDir}
                 onChange={(e) => setParams({ sortDir: e.target.value })}
-                className="h-9 rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
+                className="bb-select input-3d h-9 rounded-xl px-3 text-sm text-foreground outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20"
               >
                 <option value="desc">absteigend</option>
                 <option value="asc">aufsteigend</option>

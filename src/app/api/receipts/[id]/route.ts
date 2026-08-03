@@ -89,6 +89,8 @@ export async function PUT(
   if (input.currency !== undefined) data.currency = input.currency;
   if (input.netAmount !== undefined) data.netAmount = input.netAmount ?? null;
   if (input.taxAmount !== undefined) data.taxAmount = input.taxAmount ?? null;
+  if (input.reverseCharge !== undefined) data.reverseCharge = input.reverseCharge;
+  if (input.vatRatePercent !== undefined) data.vatRatePercent = input.vatRatePercent ?? null;
   if (input.exchangeRate !== undefined) data.exchangeRate = input.exchangeRate ?? null;
   if (input.exchangeRateDate !== undefined) {
     data.exchangeRateDate = input.exchangeRateDate ? new Date(input.exchangeRateDate) : null;

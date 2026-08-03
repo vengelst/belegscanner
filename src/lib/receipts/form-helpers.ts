@@ -2,7 +2,21 @@ import type { OcrResult } from "@/lib/document-analysis";
 
 export type Purpose = { id: string; name: string; isHospitality: boolean };
 export type Category = { id: string; name: string };
-export type Country = { id: string; name: string; code: string | null; currencyCode: string | null };
+export type Country = {
+  id: string;
+  name: string;
+  code: string | null;
+  currencyCode: string | null;
+  vatRatePercent: number | null;
+};
+
+/** Split gross amount into net + tax using a VAT percent (e.g. 19). */
+export function splitGrossByVatRate(amount: number, vatRatePercent: number): { net: number; tax: number } {
+  const rate = vatRatePercent / 100;
+  const net = Math.round((amount / (1 + rate)) * 100) / 100;
+  const tax = Math.round((amount - net) * 100) / 100;
+  return { net, tax };
+}
 export type Vehicle = { id: string; plate: string; description: string | null };
 
 export type ReceiptSelectionState = {

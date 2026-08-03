@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Field } from "./field";
 
 type ReceiptCoreDataProps = {
@@ -9,6 +10,8 @@ type ReceiptCoreDataProps = {
   amount: string;
   netAmount: string | null;
   taxAmount: string | null;
+  reverseCharge: boolean;
+  vatRatePercent: number | null;
   amountEur: string;
   exchangeRate: string | null;
   exchangeRateDate: string | null;
@@ -30,6 +33,8 @@ export function ReceiptCoreData({
   amount,
   netAmount,
   taxAmount,
+  reverseCharge,
+  vatRatePercent,
   amountEur,
   exchangeRate,
   exchangeRateDate,
@@ -47,7 +52,15 @@ export function ReceiptCoreData({
 
   return (
     <Card>
-      <h2 className="text-lg font-semibold tracking-tight">Belegdaten</h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold tracking-tight">Belegdaten</h2>
+        {reverseCharge ? <Badge variant="warning">Reverse Charge</Badge> : null}
+      </div>
+      {reverseCharge ? (
+        <p className="mt-2 text-sm text-muted-foreground">
+          Steuerschuldnerschaft des Leistungsempfaengers
+        </p>
+      ) : null}
       <div className="mt-4 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
         <Field label="Belegdatum" value={date} />
         <Field label="Belegrichtung" value={partyRoleLabel} />
@@ -56,7 +69,10 @@ export function ReceiptCoreData({
           <Field label={`Rechnungsbetrag (${currency})`} value={`${amount} ${currency}`} />
         ) : null}
         {netAmount ? <Field label="Nettobetrag" value={`${netAmount} ${currency}`} /> : null}
-        {taxAmount ? <Field label="Steuerbetrag" value={`${taxAmount} ${currency}`} /> : null}
+        {taxAmount != null ? <Field label="Steuerbetrag" value={`${taxAmount} ${currency}`} /> : null}
+        {!reverseCharge && vatRatePercent != null ? (
+          <Field label="USt-Satz" value={`${vatRatePercent} %`} />
+        ) : null}
         <Field label="Rechnungsbetrag (EUR)" value={`${amountEur} EUR`} />
         {currency !== "EUR" ? (
           <>

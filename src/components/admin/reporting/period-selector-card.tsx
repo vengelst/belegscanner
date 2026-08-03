@@ -31,7 +31,7 @@ export function PeriodSelectorCard({
           <select
             value={value}
             onChange={(event) => onChange(event.target.value)}
-            className="h-10 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+            className="bb-select input-3d h-10 rounded-xl px-3 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20"
           >
             {options.length === 0 ? <option value="">Keine Daten</option> : null}
             {options.map((option) => (

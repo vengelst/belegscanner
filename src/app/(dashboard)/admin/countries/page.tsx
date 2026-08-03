@@ -6,6 +6,7 @@ const fields: FieldDef[] = [
   { key: "name", label: "Name", type: "text", required: true, placeholder: "z.B. Deutschland" },
   { key: "code", label: "ISO-Code", type: "text", placeholder: "z.B. DE" },
   { key: "currencyCode", label: "Waehrung", type: "text", placeholder: "z.B. EUR" },
+  { key: "vatRatePercent", label: "USt-Satz %", type: "number", placeholder: "z.B. 19" },
 ];
 
 export default async function CountriesPage() {
@@ -17,7 +18,11 @@ export default async function CountriesPage() {
       description="Laender mit optionalem ISO-Code und Waehrungscode pflegen."
       apiPath="/api/master/countries"
       fields={fields}
-      items={items.map((i) => ({ ...i, currencyCode: i.currencyCode ?? "" }))}
+      items={items.map((i) => ({
+        ...i,
+        currencyCode: i.currencyCode ?? "",
+        vatRatePercent: i.vatRatePercent != null ? Number(i.vatRatePercent) : "",
+      }))}
     />
   );
 }

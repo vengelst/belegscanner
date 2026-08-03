@@ -118,7 +118,7 @@ export function AiSettingsForm({ initial }: { initial: AiInitial }) {
             <select
               value={provider}
               onChange={(e) => handleProviderChange(e.target.value as AiProvider)}
-              className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+              className="bb-select input-3d h-10 w-full rounded-xl px-3 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20"
             >
               {Object.entries(AI_PROVIDERS).map(([key, value]) => (
                 <option key={key} value={key}>
@@ -133,7 +133,7 @@ export function AiSettingsForm({ initial }: { initial: AiInitial }) {
             <select
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+              className="bb-select input-3d h-10 w-full rounded-xl px-3 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20"
             >
               {availableModels.map((m) => (
                 <option key={m.id} value={m.id}>

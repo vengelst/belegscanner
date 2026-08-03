@@ -168,6 +168,8 @@ export async function POST(request: NextRequest) {
       currency: d.currency,
       netAmount: d.netAmount ?? null,
       taxAmount: d.taxAmount ?? null,
+      reverseCharge: d.reverseCharge ?? false,
+      vatRatePercent: d.vatRatePercent ?? null,
       exchangeRate: exchangeRate,
       exchangeRateDate: exchangeRateDate ? new Date(exchangeRateDate) : null,
       amountEur,

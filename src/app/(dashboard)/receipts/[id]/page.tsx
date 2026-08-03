@@ -248,8 +248,10 @@ export default async function ReceiptDetailPage({ params }: Props) {
         invoiceNumber={receipt.invoiceNumber}
         currency={receipt.currency}
         amount={fmtAmount(receipt.amount)}
-        netAmount={receipt.netAmount ? fmtAmount(receipt.netAmount) : null}
-        taxAmount={receipt.taxAmount ? fmtAmount(receipt.taxAmount) : null}
+        netAmount={receipt.netAmount != null ? fmtAmount(receipt.netAmount) : null}
+        taxAmount={receipt.taxAmount != null ? fmtAmount(receipt.taxAmount) : null}
+        reverseCharge={receipt.reverseCharge}
+        vatRatePercent={receipt.vatRatePercent != null ? Number(receipt.vatRatePercent) : null}
         amountEur={fmtAmount(receipt.amountEur)}
         exchangeRate={receipt.exchangeRate ? String(Number(receipt.exchangeRate)) : null}
         exchangeRateDate={receipt.exchangeRateDate ? fmtDate(receipt.exchangeRateDate) : null}

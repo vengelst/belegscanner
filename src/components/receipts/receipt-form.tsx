@@ -17,6 +17,7 @@ import {
   getApiErrorMessage,
   parseLocalizedNumber,
   persistLastSelections,
+  splitGrossByVatRate,
   type CaptureSource,
   type CaptureTrigger,
   type Purpose,
@@ -30,6 +31,10 @@ import { ReceiptFormDataSection } from "@/components/receipts/receipt-form-data-
 import { ReceiptFormAssignmentSection } from "@/components/receipts/receipt-form-assignment-section";
 import { ReceiptFormHospitalitySection } from "@/components/receipts/receipt-form-hospitality-section";
 import { ReceiptFormActions } from "@/components/receipts/receipt-form-actions";
+
+function formatAmountInput(value: number): string {
+  return value.toFixed(2).replace(".", ",");
+}
 
 type Props = {
   purposes: Purpose[];
@@ -63,6 +68,8 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
   const [amount, setAmount] = useState("");
   const [netAmount, setNetAmount] = useState("");
   const [taxAmount, setTaxAmount] = useState("");
+  const [reverseCharge, setReverseCharge] = useState(false);
+  const [vatRatePercent, setVatRatePercent] = useState<number | null>(null);
   const [currency, setCurrency] = useState("EUR");
   const [supplier, setSupplier] = useState("");
   const [countryManuallyChanged, setCountryManuallyChanged] = useState(false);
@@ -206,6 +213,36 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
       setSupplier, setCountryId, setHospitalityLocation,
     },
   });
+
+  useEffect(() => {
+    const parsedAmount = parseLocalizedNumber(amount);
+    if (reverseCharge) {
+      setVatRatePercent(null);
+      setTaxAmount("0");
+      if (parsedAmount !== null && !manualOverrides.netAmount) {
+        setNetAmount(formatAmountInput(parsedAmount));
+      }
+      return;
+    }
+
+    const selectedCountry = countries.find((country) => country.id === countryId);
+    const countryRate = selectedCountry?.vatRatePercent ?? null;
+    if (countryRate == null || countryRate < 0) {
+      setVatRatePercent(null);
+      return;
+    }
+    if (parsedAmount === null) return;
+
+    if (manualOverrides.taxAmount && manualOverrides.netAmount) {
+      setVatRatePercent(countryRate);
+      return;
+    }
+
+    const { net, tax } = splitGrossByVatRate(parsedAmount, countryRate);
+    setVatRatePercent(countryRate);
+    if (!manualOverrides.netAmount) setNetAmount(formatAmountInput(net));
+    if (!manualOverrides.taxAmount) setTaxAmount(formatAmountInput(tax));
+  }, [amount, countryId, countries, reverseCharge, manualOverrides.netAmount, manualOverrides.taxAmount]);
 
   useEffect(() => {
     return () => {
@@ -366,7 +403,8 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     if (exchangeRateValue) parsedExchangeRate = parseFloat(exchangeRateValue.replace(",", "."));
 
     const parsedNet = netAmount ? parseFloat(netAmount.replace(",", ".")) : null;
-    const parsedTax = taxAmount ? parseFloat(taxAmount.replace(",", ".")) : null;
+    let parsedTax = taxAmount ? parseFloat(taxAmount.replace(",", ".")) : null;
+    if (reverseCharge) parsedTax = 0;
 
     const body: Record<string, unknown> = {
       date: formData.get("date"),
@@ -379,6 +417,8 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
       currency: selectedCurrency,
       netAmount: parsedNet !== null && !isNaN(parsedNet) ? parsedNet : null,
       taxAmount: parsedTax !== null && !isNaN(parsedTax) ? parsedTax : null,
+      reverseCharge,
+      vatRatePercent: reverseCharge ? null : vatRatePercent,
       exchangeRate: parsedExchangeRate,
       exchangeRateDate: formData.get("exchangeRateDate") || exchangeRateDate || null,
       countryId: formData.get("countryId") || null,
@@ -450,6 +490,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
           invoiceNumber={invoiceNumber}
           netAmount={netAmount}
           taxAmount={taxAmount}
+          reverseCharge={reverseCharge}
           currency={currency}
           supplier={supplier}
           exchangeRate={exchangeRate}
@@ -467,6 +508,14 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
           setInvoiceNumber={setInvoiceNumber}
           setNetAmount={setNetAmount}
           setTaxAmount={setTaxAmount}
+          setReverseCharge={(value) => {
+            if (value) {
+              setManualOverrides((current) => ({ ...current, taxAmount: false, netAmount: false }));
+            } else {
+              setManualOverrides((current) => ({ ...current, taxAmount: false }));
+            }
+            setReverseCharge(value);
+          }}
           setCurrency={setCurrency}
           setSupplier={setSupplier}
           setExchangeRate={setExchangeRate}

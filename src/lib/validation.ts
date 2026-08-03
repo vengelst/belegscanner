@@ -69,6 +69,7 @@ export const countrySchema = z.object({
   name: z.string().min(1, "Name ist erforderlich.").max(100),
   code: z.string().max(2).nullable().optional(),
   currencyCode: z.string().length(3).nullable().optional(),
+  vatRatePercent: z.union([z.coerce.number().min(0).max(100), z.null()]).optional(),
   active: z.boolean().optional(),
   sortOrder: z.coerce.number().int().min(0).optional(),
 });
@@ -350,6 +351,8 @@ const receiptSchemaBase = z.object({
     .default("EUR"),
   netAmount: z.coerce.number().nonnegative().nullable().optional(),
   taxAmount: z.coerce.number().nonnegative().nullable().optional(),
+  reverseCharge: z.boolean().optional().default(false),
+  vatRatePercent: z.union([z.coerce.number().min(0).max(100), z.null()]).optional(),
   exchangeRate: z.coerce.number().positive().nullable().optional(),
   exchangeRateDate: z.string().date().nullable().optional(),
   amountEur: z.coerce.number().nonnegative().nullable().optional(),

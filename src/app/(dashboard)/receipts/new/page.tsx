@@ -50,7 +50,13 @@ export default async function NewReceiptPage({ searchParams }: Props) {
       <ReceiptForm
         purposes={purposes.map((p) => ({ id: p.id, name: p.name, isHospitality: p.isHospitality }))}
         categories={categories.map((c) => ({ id: c.id, name: c.name }))}
-        countries={countries.map((c) => ({ id: c.id, name: c.name, code: c.code, currencyCode: c.currencyCode }))}
+        countries={countries.map((c) => ({
+          id: c.id,
+          name: c.name,
+          code: c.code,
+          currencyCode: c.currencyCode,
+          vatRatePercent: c.vatRatePercent != null ? Number(c.vatRatePercent) : null,
+        }))}
         vehicles={vehicles.map((v) => ({ id: v.id, plate: v.plate, description: v.description }))}
         userDefaults={{
           defaultCountryId: user?.defaultCountryId ?? null,

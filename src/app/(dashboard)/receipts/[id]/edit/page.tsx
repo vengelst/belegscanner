@@ -56,8 +56,10 @@ export default async function EditReceiptPage({ params }: Props) {
           dueDate: receipt.dueDate?.toISOString().split("T")[0] ?? null,
           amount: Number(receipt.amount),
           currency: receipt.currency,
-          netAmount: receipt.netAmount ? Number(receipt.netAmount) : null,
-          taxAmount: receipt.taxAmount ? Number(receipt.taxAmount) : null,
+          netAmount: receipt.netAmount != null ? Number(receipt.netAmount) : null,
+          taxAmount: receipt.taxAmount != null ? Number(receipt.taxAmount) : null,
+          reverseCharge: receipt.reverseCharge,
+          vatRatePercent: receipt.vatRatePercent != null ? Number(receipt.vatRatePercent) : null,
           exchangeRate: receipt.exchangeRate ? Number(receipt.exchangeRate) : null,
           exchangeRateDate: receipt.exchangeRateDate?.toISOString().split("T")[0] ?? null,
           countryId: receipt.countryId,
@@ -74,7 +76,13 @@ export default async function EditReceiptPage({ params }: Props) {
         hasOriginalFile={receipt.files.length > 0}
         purposes={purposes.map((p) => ({ id: p.id, name: p.name, isHospitality: p.isHospitality }))}
         categories={categories.map((c) => ({ id: c.id, name: c.name }))}
-        countries={countries.map((c) => ({ id: c.id, name: c.name, code: c.code, currencyCode: c.currencyCode }))}
+        countries={countries.map((c) => ({
+          id: c.id,
+          name: c.name,
+          code: c.code,
+          currencyCode: c.currencyCode,
+          vatRatePercent: c.vatRatePercent != null ? Number(c.vatRatePercent) : null,
+        }))}
         vehicles={vehicles.map((v) => ({ id: v.id, plate: v.plate, description: v.description }))}
       />
     </div>

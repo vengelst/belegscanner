@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
       name: parsed.data.name,
       code: parsed.data.code ?? null,
       currencyCode: parsed.data.currencyCode ?? null,
+      vatRatePercent: parsed.data.vatRatePercent ?? null,
       sortOrder: parsed.data.sortOrder ?? (maxSort._max.sortOrder ?? -1) + 1,
     },
   });

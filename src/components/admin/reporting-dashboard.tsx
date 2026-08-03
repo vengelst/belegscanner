@@ -282,11 +282,11 @@ export function ReportingDashboard() {
       <Card className="report-screen-only flex flex-wrap items-end gap-4 p-4">
         <label className="grid gap-1 text-sm font-medium">
           <span className="text-xs text-muted-foreground">Von</span>
-          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-9 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary" />
+          <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bb-input input-3d h-9 rounded-xl px-3 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20" />
         </label>
         <label className="grid gap-1 text-sm font-medium">
           <span className="text-xs text-muted-foreground">Bis</span>
-          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-9 rounded-xl border border-border bg-background px-3 text-sm outline-none focus:border-primary" />
+          <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bb-input input-3d h-9 rounded-xl px-3 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20" />
         </label>
         {(dateFrom || dateTo) ? (
           <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); }} className="h-9 rounded-xl border border-border px-3 text-sm text-muted-foreground hover:text-danger">

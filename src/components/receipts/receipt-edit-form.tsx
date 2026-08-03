@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { splitGrossByVatRate } from "@/lib/receipts/form-helpers";
 
 type Purpose = { id: string; name: string; isHospitality: boolean };
 type Category = { id: string; name: string };
-type Country = { id: string; name: string; code: string | null; currencyCode: string | null };
+type Country = { id: string; name: string; code: string | null; currencyCode: string | null; vatRatePercent: number | null };
 type Vehicle = { id: string; plate: string; description: string | null };
 
 type ReceiptData = {
@@ -22,6 +23,8 @@ type ReceiptData = {
   currency: string;
   netAmount: number | null;
   taxAmount: number | null;
+  reverseCharge: boolean;
+  vatRatePercent: number | null;
   exchangeRate: number | null;
   exchangeRateDate: string | null;
   countryId: string | null;
@@ -46,8 +49,16 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
   const [isPending, startTransition] = useTransition();
   const [purposeId, setPurposeId] = useState(receipt.purposeId);
   const [partyRole, setPartyRole] = useState<"CREDITOR" | "DEBTOR">(receipt.partyRole);
+  const [countryId, setCountryId] = useState(receipt.countryId ?? "");
   const [currency, setCurrency] = useState(receipt.currency);
   const [amount, setAmount] = useState(String(receipt.amount).replace(".", ","));
+  const [netAmount, setNetAmount] = useState(receipt.netAmount != null ? String(receipt.netAmount).replace(".", ",") : "");
+  const [taxAmount, setTaxAmount] = useState(receipt.taxAmount != null ? String(receipt.taxAmount).replace(".", ",") : "");
+  const [reverseCharge, setReverseCharge] = useState(receipt.reverseCharge);
+  const [vatRatePercent, setVatRatePercent] = useState<number | null>(receipt.vatRatePercent);
+  const [netManuallyOverridden, setNetManuallyOverridden] = useState(false);
+  const [taxManuallyOverridden, setTaxManuallyOverridden] = useState(false);
+  const skipInitialVatEffect = useRef(true);
   const [exchangeRate, setExchangeRate] = useState(receipt.exchangeRate ? formatLocalizedNumber(receipt.exchangeRate, 4) : "");
   const [exchangeRateDate, setExchangeRateDate] = useState(receipt.exchangeRateDate ?? "");
   const [file, setFile] = useState<File | null>(null);
@@ -110,22 +121,54 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
     };
   }, [currency, requiresExchangeRate]);
 
+  useEffect(() => {
+    if (skipInitialVatEffect.current) {
+      skipInitialVatEffect.current = false;
+      return;
+    }
+
+    const parsedAmount = parseLocalizedNumber(amount);
+    if (reverseCharge) {
+      setVatRatePercent(null);
+      setTaxAmount("0");
+      if (parsedAmount !== null && !netManuallyOverridden) {
+        setNetAmount(formatAmountInput(parsedAmount));
+      }
+      return;
+    }
+
+    const selectedCountry = countries.find((country) => country.id === countryId);
+    const countryRate = selectedCountry?.vatRatePercent ?? null;
+    if (countryRate == null) {
+      setVatRatePercent(null);
+      return;
+    }
+    if (parsedAmount === null) return;
+
+    if (taxManuallyOverridden && netManuallyOverridden) {
+      setVatRatePercent(countryRate);
+      return;
+    }
+
+    const { net, tax } = splitGrossByVatRate(parsedAmount, countryRate);
+    setVatRatePercent(countryRate);
+    if (!netManuallyOverridden) setNetAmount(formatAmountInput(net));
+    if (!taxManuallyOverridden) setTaxAmount(formatAmountInput(tax));
+  }, [amount, countryId, countries, reverseCharge, netManuallyOverridden, taxManuallyOverridden]);
+
   function handleSubmit(formData: FormData) {
     setError(null);
 
-    const amount = parseFloat((formData.get("amount") as string).replace(",", "."));
-    const currency = (formData.get("currency") as string) || "EUR";
+    const amountValue = parseFloat((formData.get("amount") as string).replace(",", "."));
+    const currencyValue = (formData.get("currency") as string) || "EUR";
 
     let parsedExchangeRate: number | null = null;
     const erVal = (formData.get("exchangeRate") as string) || exchangeRate;
     if (erVal) parsedExchangeRate = parseFloat(erVal.replace(",", "."));
 
-    const netAmountRaw = requiresExchangeRate
-      ? (receipt.netAmount != null ? String(receipt.netAmount).replace(".", ",") : "")
-      : ((formData.get("netAmount") as string) || "");
-    const taxAmountRaw = (formData.get("taxAmount") as string) || "";
-    const parsedNet = netAmountRaw ? parseFloat(netAmountRaw.replace(",", ".")) : null;
-    const parsedTax = taxAmountRaw ? parseFloat(taxAmountRaw.replace(",", ".")) : null;
+    const parsedNet = netAmount ? parseFloat(netAmount.replace(",", ".")) : null;
+    let parsedTax = taxAmount ? parseFloat(taxAmount.replace(",", ".")) : null;
+    if (reverseCharge) parsedTax = 0;
 
     const body: Record<string, unknown> = {
       date: formData.get("date"),
@@ -134,10 +177,12 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
       invoiceNumber: formData.get("invoiceNumber") || null,
       serviceDate: receipt.serviceDate,
       dueDate: receipt.dueDate,
-      amount: isNaN(amount) ? 0 : amount,
-      currency,
+      amount: isNaN(amountValue) ? 0 : amountValue,
+      currency: currencyValue,
       netAmount: parsedNet !== null && !isNaN(parsedNet) ? parsedNet : null,
       taxAmount: parsedTax !== null && !isNaN(parsedTax) ? parsedTax : null,
+      reverseCharge,
+      vatRatePercent: reverseCharge ? null : vatRatePercent,
       exchangeRate: parsedExchangeRate,
       exchangeRateDate: formData.get("exchangeRateDate") || exchangeRateDate || null,
       countryId: formData.get("countryId") || null,
@@ -223,9 +268,29 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
               onChange={(event: React.ChangeEvent<HTMLInputElement>) => setAmount(event.target.value)}
             />
           ) : (
-            <Input label="Nettobetrag" name="netAmount" type="text" inputMode="decimal" defaultValue={receipt.netAmount != null ? String(receipt.netAmount).replace(".", ",") : ""} />
+            <Input
+              label="Nettobetrag"
+              name="netAmount"
+              type="text"
+              inputMode="decimal"
+              value={netAmount}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                setNetManuallyOverridden(true);
+                setNetAmount(event.target.value);
+              }}
+            />
           )}
-          <Input label="Steuerbetrag" name="taxAmount" type="text" inputMode="decimal" defaultValue={receipt.taxAmount != null ? String(receipt.taxAmount).replace(".", ",") : ""} />
+          <Input
+            label="Steuerbetrag"
+            name="taxAmount"
+            type="text"
+            inputMode="decimal"
+            value={taxAmount}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+              setTaxManuallyOverridden(true);
+              setTaxAmount(event.target.value);
+            }}
+          />
           <SelectField label="Waehrung" name="currency" value={currency} onChange={setCurrency}>
             {currencyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </SelectField>
@@ -251,6 +316,26 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
             onChange={(event: React.ChangeEvent<HTMLInputElement>) => setExchangeRateDate(event.target.value)}
             required={requiresExchangeRate}
           />
+          <label className="flex items-start gap-2 text-sm font-medium sm:col-span-2 lg:col-span-3">
+            <input
+              type="checkbox"
+              name="reverseCharge"
+              checked={reverseCharge}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                setTaxManuallyOverridden(false);
+                setReverseCharge(event.target.checked);
+              }}
+              className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
+            />
+            <span>
+              <span className="block">Reverse Charge</span>
+              {reverseCharge ? (
+                <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                  Steuerschuldnerschaft des Leistungsempfaengers
+                </span>
+              ) : null}
+            </span>
+          </label>
         </div>
         {requiresExchangeRate ? (
           <div className="mt-3 space-y-1 text-sm text-muted-foreground">
@@ -295,7 +380,11 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
           <SelectField label="Kategorie" name="categoryId" required defaultValue={receipt.categoryId}>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </SelectField>
-          <SelectField label="Land" name="countryId" defaultValue={receipt.countryId ?? ""}>
+          <SelectField label="Land" name="countryId" value={countryId} onChange={(value) => {
+            setTaxManuallyOverridden(false);
+            setNetManuallyOverridden(false);
+            setCountryId(value);
+          }}>
             <option value="">-- optional --</option>
             {countries.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </SelectField>
@@ -356,6 +445,10 @@ function getApiErrorMessage(data: unknown, fallback: string): string {
 
   if (details.length === 0) return error;
   return `${error} ${details.join(" ")}`.trim();
+}
+
+function formatAmountInput(value: number): string {
+  return value.toFixed(2).replace(".", ",");
 }
 
 function parseLocalizedNumber(value: string): number | null {

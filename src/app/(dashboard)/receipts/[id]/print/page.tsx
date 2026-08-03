@@ -44,6 +44,8 @@ export default async function PrintReceiptPage({ params }: Props) {
         supplier: receipt.supplier,
         amount: Number(receipt.amount),
         currency: receipt.currency,
+        reverseCharge: receipt.reverseCharge,
+        vatRatePercent: receipt.vatRatePercent != null ? Number(receipt.vatRatePercent) : null,
         exchangeRate: receipt.exchangeRate ? Number(receipt.exchangeRate) : null,
         exchangeRateDate: receipt.exchangeRateDate?.toISOString() ?? null,
         amountEur: Number(receipt.amountEur),

@@ -101,6 +101,7 @@ model Country {
   code                 String?   @unique
   name                 String
   currencyCode         String?   @db.VarChar(3)
+  vatRatePercent       Decimal?  @db.Decimal(5, 2)
   active               Boolean   @default(true)
   sortOrder            Int       @default(0)
   createdAt            DateTime  @default(now())
@@ -176,6 +177,8 @@ model Receipt {
   currency            String     @default("EUR") @db.VarChar(3)
   netAmount           Decimal?   @db.Decimal(12, 2)
   taxAmount           Decimal?   @db.Decimal(12, 2)
+  reverseCharge       Boolean    @default(false)
+  vatRatePercent      Decimal?   @db.Decimal(5, 2)
   exchangeRate        Decimal?   @db.Decimal(18, 8)
   exchangeRateDate    DateTime?  @db.Date
   amountEur           Decimal    @db.Decimal(12, 2)
