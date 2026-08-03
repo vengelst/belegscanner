@@ -22,7 +22,8 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Sharp requires vips for image processing
-RUN apk add --no-cache vips-dev
+# PostgreSQL client for database backups (pg_dump)
+RUN apk add --no-cache vips-dev postgresql-client
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
