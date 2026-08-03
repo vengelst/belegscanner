@@ -12,6 +12,10 @@ const variantStyles = {
     "bb-button-danger border border-danger/30 bg-danger/5 text-danger hover:bg-danger/10",
   ghost:
     "bb-button-ghost hover:bg-muted/60 hover:text-primary",
+  outline:
+    "bb-button-outline border border-border/60 text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5",
+  "danger-outline":
+    "bb-button-danger-outline border border-danger/30 text-danger hover:bg-danger/10",
 } as const;
 
 const sizeStyles = {

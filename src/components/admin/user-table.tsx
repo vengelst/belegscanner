@@ -150,7 +150,7 @@ function UserRow({ user }: { user: UserRow }) {
                 type="button"
                 onClick={handleRemovePin}
                 disabled={isPending}
-                className="text-xs text-danger hover:underline disabled:opacity-50"
+                className="rounded-lg border border-danger/30 px-2 py-0.5 text-xs text-danger transition hover:bg-danger/10 disabled:opacity-50"
               >
                 entfernen
               </button>
@@ -160,7 +160,7 @@ function UserRow({ user }: { user: UserRow }) {
               type="button"
               onClick={() => setShowPinForm(!showPinForm)}
               disabled={isPending}
-              className="text-xs text-muted-foreground hover:text-primary hover:underline disabled:opacity-50"
+              className="rounded-lg border border-border/60 px-2 py-0.5 text-xs text-muted-foreground transition hover:border-primary/40 hover:text-primary disabled:opacity-50"
             >
               setzen
             </button>
@@ -185,8 +185,10 @@ function UserRow({ user }: { user: UserRow }) {
             type="button"
             onClick={handleToggleActive}
             disabled={isPending}
-            className={`text-xs font-medium hover:underline disabled:opacity-50 ${
-              user.active ? "text-danger" : "text-primary"
+            className={`rounded-lg border px-2 py-0.5 text-xs font-medium transition disabled:opacity-50 ${
+              user.active 
+                ? "border-danger/30 text-danger hover:bg-danger/10" 
+                : "border-primary/30 text-primary hover:bg-primary/10"
             }`}
           >
             {user.active ? "Deaktivieren" : "Aktivieren"}

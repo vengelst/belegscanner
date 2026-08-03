@@ -317,7 +317,7 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                     <button
                       type="button"
                       onClick={resetColumns}
-                      className="text-xs font-medium text-muted-foreground transition hover:text-primary"
+                      className="rounded-lg border border-border/60 px-2 py-0.5 text-xs font-medium text-muted-foreground transition hover:border-primary/40 hover:text-primary"
                     >
                       Standard
                     </button>

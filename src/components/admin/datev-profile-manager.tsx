@@ -165,11 +165,11 @@ function ProfileCard({ profile }: { profile: Profile }) {
         </div>
         <div className="flex gap-2">
           {!profile.isDefault && profile.active ? (
-            <button type="button" onClick={handleSetDefault} disabled={isPending} className="text-xs font-medium text-primary hover:underline disabled:opacity-50">
+            <button type="button" onClick={handleSetDefault} disabled={isPending} className="rounded-lg border border-primary/30 px-2 py-0.5 text-xs font-medium text-primary transition hover:bg-primary/10 disabled:opacity-50">
               Als Standard
             </button>
           ) : null}
-          <button type="button" onClick={handleToggleActive} disabled={isPending} className={`text-xs font-medium hover:underline disabled:opacity-50 ${profile.active ? "text-danger" : "text-primary"}`}>
+          <button type="button" onClick={handleToggleActive} disabled={isPending} className={`rounded-lg border px-2 py-0.5 text-xs font-medium transition disabled:opacity-50 ${profile.active ? "border-danger/30 text-danger hover:bg-danger/10" : "border-primary/30 text-primary hover:bg-primary/10"}`}>
             {profile.active ? "Deaktivieren" : "Aktivieren"}
           </button>
         </div>

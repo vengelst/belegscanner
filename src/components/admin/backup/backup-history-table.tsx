@@ -191,14 +191,14 @@ export function BackupHistoryTable({ backups, pagination }: BackupHistoryTablePr
                       {backup.status === "completed" && backup.fileName && (
                         <>
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
                             onClick={() => handleDownload(backup.id)}
                           >
                             Download
                           </Button>
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
                             onClick={() => setRestoreBackup(backup)}
                           >
@@ -207,7 +207,7 @@ export function BackupHistoryTable({ backups, pagination }: BackupHistoryTablePr
                         </>
                       )}
                       <Button
-                        variant="ghost"
+                        variant="danger-outline"
                         size="sm"
                         onClick={() => setDeleteId(backup.id)}
                         disabled={backup.status === "running" || backup.status === "pending"}

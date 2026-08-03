@@ -260,7 +260,7 @@ function ItemRow({ item, apiPath, fields }: { item: MasterDataItem; apiPath: str
               type="submit"
               form={`edit-${item.id}`}
               disabled={isPending}
-              className="text-xs font-medium text-primary hover:underline disabled:opacity-50"
+              className="rounded-lg border border-primary/30 px-2 py-0.5 text-xs font-medium text-primary transition hover:bg-primary/10 disabled:opacity-50"
               onClick={(e) => {
                 e.preventDefault();
                 const form = document.getElementById(`edit-${item.id}`) as HTMLFormElement;
@@ -286,7 +286,7 @@ function ItemRow({ item, apiPath, fields }: { item: MasterDataItem; apiPath: str
             <button
               type="button"
               onClick={() => setEditing(false)}
-              className="text-xs text-muted-foreground hover:text-foreground"
+              className="rounded-lg border border-border/60 px-2 py-0.5 text-xs text-muted-foreground transition hover:border-border hover:text-foreground"
             >
               Abbrechen
             </button>
@@ -311,11 +311,11 @@ function ItemRow({ item, apiPath, fields }: { item: MasterDataItem; apiPath: str
         </span>
       </td>
       <td className="px-4 py-3">
-        <div className="flex gap-3">
-          <button type="button" onClick={() => setEditing(true)} disabled={isPending} className="text-xs font-medium text-primary hover:underline disabled:opacity-50">
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setEditing(true)} disabled={isPending} className="rounded-lg border border-border/60 px-2 py-0.5 text-xs font-medium text-muted-foreground transition hover:border-primary/40 hover:text-primary disabled:opacity-50">
             Bearbeiten
           </button>
-          <button type="button" onClick={handleToggleActive} disabled={isPending} className={`text-xs font-medium hover:underline disabled:opacity-50 ${item.active ? "text-danger" : "text-primary"}`}>
+          <button type="button" onClick={handleToggleActive} disabled={isPending} className={`rounded-lg border px-2 py-0.5 text-xs font-medium transition disabled:opacity-50 ${item.active ? "border-danger/30 text-danger hover:bg-danger/10" : "border-primary/30 text-primary hover:bg-primary/10"}`}>
             {item.active ? "Deaktivieren" : "Aktivieren"}
           </button>
         </div>
