@@ -19,7 +19,9 @@ export default async function ReceiptsPage({ searchParams }: Props) {
 
   // Parse query params
   const page = Math.max(1, Number(sp.page ?? 1));
-  const pageSize = 20;
+  const pageSizeRaw = typeof sp.pageSize === "string" ? sp.pageSize : "25";
+  const allowedSizes = new Set(["25", "50", "75", "100", "all"]);
+  const pageSizeParam = allowedSizes.has(pageSizeRaw) ? pageSizeRaw : "25";
   const search = typeof sp.search === "string" ? sp.search.trim() : "";
   const sendStatus = typeof sp.sendStatus === "string" ? sp.sendStatus : "";
   const purposeId = typeof sp.purposeId === "string" ? sp.purposeId : "";
@@ -85,7 +87,12 @@ export default async function ReceiptsPage({ searchParams }: Props) {
       : { date: sortDir };
 
   // Load data
-  const [receipts, total, purposes, categories, countries, vehicles, users] = await Promise.all([
+  const total = await prisma.receipt.count({ where });
+  const pageSize = pageSizeParam === "all" ? Math.max(total, 1) : Number(pageSizeParam);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(page, totalPages);
+
+  const [receipts, purposes, categories, countries, vehicles, users] = await Promise.all([
     prisma.receipt.findMany({
       where,
       include: {
@@ -98,10 +105,10 @@ export default async function ReceiptsPage({ searchParams }: Props) {
         files: { where: { type: "ORIGINAL" }, select: { id: true, mimeType: true }, take: 1 },
       },
       orderBy,
-      skip: (page - 1) * pageSize,
-      take: pageSize,
+      ...(pageSizeParam === "all"
+        ? {}
+        : { skip: (safePage - 1) * pageSize, take: pageSize }),
     }),
-    prisma.receipt.count({ where }),
     prisma.purpose.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" }, select: { id: true, name: true } }),
     prisma.category.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" }, select: { id: true, name: true } }),
     prisma.country.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" }, select: { id: true, name: true, code: true } }),
@@ -136,7 +143,13 @@ export default async function ReceiptsPage({ searchParams }: Props) {
   return (
     <ReceiptListPage
       receipts={mapped}
-      pagination={{ page, pageSize, total, totalPages: Math.ceil(total / pageSize) }}
+      pagination={{
+        page: safePage,
+        pageSize,
+        pageSizeParam,
+        total,
+        totalPages: pageSizeParam === "all" ? 1 : totalPages,
+      }}
       filters={{ search, sendStatus, reviewStatus, purposeId, categoryId, countryId, vehicleId, userId, dateFrom, dateTo, sortBy, sortDir }}
       filterOptions={{
         purposes: purposes,

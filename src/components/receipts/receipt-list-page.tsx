@@ -39,6 +39,7 @@ type ReceiptRow = {
 type Pagination = {
   page: number;
   pageSize: number;
+  pageSizeParam: string;
   total: number;
   totalPages: number;
 };
@@ -373,6 +374,12 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
         </Card>
       ) : (
         <>
+          <ListToolbar
+            pagination={pagination}
+            onPageChange={(nextPage) => setParams({ page: String(nextPage) })}
+            onPageSizeChange={(nextSize) => setParams({ pageSize: nextSize, page: "1" })}
+          />
+
           {/* Mobile: eine kompakte Zeile pro Beleg */}
           <div className="space-y-1.5 lg:hidden">
             {receipts.map((r) => (
@@ -439,33 +446,6 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
               </tbody>
             </table>
           </Card>
-
-          {/* Pagination */}
-          {pagination.totalPages > 1 ? (
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-sm text-muted-foreground">
-                Seite {pagination.page} von {pagination.totalPages}
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  variant="secondary"
-                  size="md"
-                  disabled={pagination.page <= 1}
-                  onClick={() => setParams({ page: String(pagination.page - 1) })}
-                >
-                  Zurueck
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="md"
-                  disabled={pagination.page >= pagination.totalPages}
-                  onClick={() => setParams({ page: String(pagination.page + 1) })}
-                >
-                  Weiter
-                </Button>
-              </div>
-            </div>
-          ) : null}
         </>
       )}
     </div>
@@ -475,6 +455,79 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
 // ============================================================
 // Sub-components
 // ============================================================
+
+const PAGE_SIZE_OPTIONS = [
+  { value: "25", label: "25" },
+  { value: "50", label: "50" },
+  { value: "75", label: "75" },
+  { value: "100", label: "100" },
+  { value: "all", label: "Alle" },
+] as const;
+
+function ListToolbar({
+  pagination,
+  onPageChange,
+  onPageSizeChange,
+}: {
+  pagination: Pagination;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: string) => void;
+}) {
+  const canPage = pagination.pageSizeParam !== "all" && pagination.totalPages > 1;
+
+  return (
+    <div className="bb-card flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/80 bg-card px-3 py-2 shadow-soft">
+      <p className="text-sm font-medium text-foreground">
+        {pagination.total} {pagination.total === 1 ? "Beleg" : "Belege"} gesamt
+      </p>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>Pro Seite</span>
+          <select
+            value={pagination.pageSizeParam}
+            onChange={(event) => onPageSizeChange(event.target.value)}
+            className="bb-select input-3d h-8 rounded-xl px-2 text-sm text-foreground outline-none"
+          >
+            {PAGE_SIZE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={!canPage || pagination.page <= 1}
+            onClick={() => onPageChange(pagination.page - 1)}
+            className="bb-chip-button inline-flex h-8 w-8 items-center justify-center rounded-xl text-sm disabled:opacity-40"
+            aria-label="Vorherige Seite"
+            title="Vorherige Seite"
+          >
+            ←
+          </button>
+          <p className="min-w-[7rem] text-center text-sm text-muted-foreground">
+            {pagination.pageSizeParam === "all"
+              ? "Alle Belege"
+              : `Seite ${pagination.page} / ${pagination.totalPages}`}
+          </p>
+          <button
+            type="button"
+            disabled={!canPage || pagination.page >= pagination.totalPages}
+            onClick={() => onPageChange(pagination.page + 1)}
+            className="bb-chip-button inline-flex h-8 w-8 items-center justify-center rounded-xl text-sm disabled:opacity-40"
+            aria-label="Naechste Seite"
+            title="Naechste Seite"
+          >
+            →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function StatusBadge({ status }: { status: string }) {
   return (
