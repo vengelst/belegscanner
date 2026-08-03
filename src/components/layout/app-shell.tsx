@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { AppNavigation } from "@/components/layout/app-navigation";
+import { InstallPrompt } from "@/components/pwa/install-prompt";
 import { cn } from "@/lib/utils";
 import type { UiTemplate } from "@/lib/validation";
 
@@ -56,6 +57,7 @@ export function AppShell({ children, userName, userRole, uiTemplate = "classic" 
         </header>
         <main className="flex-1 py-6">{children}</main>
       </div>
+      <InstallPrompt />
     </div>
   );
 }
