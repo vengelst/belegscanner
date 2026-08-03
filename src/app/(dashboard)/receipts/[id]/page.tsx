@@ -6,6 +6,7 @@ import { SendActions } from "@/components/receipts/send-actions";
 import { SendLogTable } from "@/components/receipts/send-log-table";
 import { ReviewActions } from "@/components/receipts/review-actions";
 import { ReceiptComments } from "@/components/receipts/receipt-comments";
+import { ReceiptDeleteButton } from "@/components/receipts/receipt-delete-button";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import Link from "next/link";
@@ -170,6 +171,7 @@ export default async function ReceiptDetailPage({ params }: Props) {
           >
             PDF
           </a>
+          <ReceiptDeleteButton receiptId={receipt.id} />
         </div>
       </div>
 
