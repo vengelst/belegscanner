@@ -99,7 +99,7 @@ export const categorySchema = z.object({
 
 export const backupConfigSchema = z.object({
   storageType: z.enum(["local", "s3"]).default("local"),
-  localPath: z.string().min(1, "Lokaler Pfad ist erforderlich.").default("/backups"),
+  localPath: z.string().min(1, "Lokaler Pfad ist erforderlich.").default("/app/storage/backups"),
   s3Endpoint: z.string().url("Gueltige S3-Endpoint-URL erforderlich.").nullable().optional(),
   s3Bucket: z.string().min(1).nullable().optional(),
   s3AccessKey: z.string().min(1).nullable().optional(),

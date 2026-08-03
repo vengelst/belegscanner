@@ -350,7 +350,7 @@ model AuditLog {
 model BackupConfig {
   id                String   @id @default("singleton")
   storageType       String   @default("local") // "local" | "s3"
-  localPath         String   @default("/backups")
+  localPath         String   @default("/app/storage/backups")
   s3Endpoint        String?
   s3Bucket          String?
   s3AccessKey       String?
