@@ -6,6 +6,7 @@ import {
   type DocumentDetectionResult,
   type NormalizedDocumentBounds,
 } from "@/components/receipts/document-detector";
+import { CropEditor } from "@/components/receipts/crop-editor";
 
 type CapturePayload = {
   file: File;
@@ -19,7 +20,7 @@ type Props = {
   onCapture: (payload: CapturePayload) => void;
 };
 
-type CameraState = "camera" | "review";
+type CameraState = "camera" | "crop" | "review";
 
 const ANALYZE_INTERVAL_MS = 280;
 const AUTO_CAPTURE_HOLD_MS = 800;
@@ -209,8 +210,8 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
     setCapturedFile(file);
     setCapturedPreviewUrl(URL.createObjectURL(blob));
     setCaptureTrigger(trigger);
-    setState("review");
     setDetection(detectionSnapshot ?? latestDetectionRef.current);
+    setState("crop");
     stopCamera();
   }
 
@@ -228,6 +229,32 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
     onCapture({
       file: capturedFile,
       detection,
+      trigger: captureTrigger,
+    });
+    handleClose();
+  }
+
+  function handleCropConfirm(cropBounds: { x: number; y: number; width: number; height: number }) {
+    if (!capturedFile) return;
+    const adjustedDetection: DocumentDetectionResult | null = detection
+      ? { ...detection, bounds: cropBounds }
+      : { status: "ready", bounds: cropBounds, angleDeg: 0, metrics: { brightness: 0, contrast: 0, blur: 0, motion: 0, coverage: 0, rectangularity: 0 }, hint: "", autoCaptureEligible: false };
+    onCapture({
+      file: capturedFile,
+      detection: adjustedDetection,
+      trigger: captureTrigger,
+    });
+    handleClose();
+  }
+
+  function handleCropSkip() {
+    if (!capturedFile) return;
+    const noBoundsDetection: DocumentDetectionResult | null = detection
+      ? { ...detection, bounds: null }
+      : null;
+    onCapture({
+      file: capturedFile,
+      detection: noBoundsDetection,
       trigger: captureTrigger,
     });
     handleClose();
@@ -259,7 +286,7 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
     setCaptureTrigger("manual");
     setDetection(null);
     setError(null);
-    setState("review");
+    setState("crop");
     stopCamera();
   }
 
@@ -293,8 +320,8 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
         </div>
 
         <div className="flex flex-1 flex-col justify-between gap-4 p-4">
-          <div ref={containerRef} className="flex-1 overflow-hidden rounded-[2rem] border border-border bg-black/90">
-            {state === "camera" ? (
+          {state === "camera" ? (
+            <div ref={containerRef} className="flex-1 overflow-hidden rounded-[2rem] border border-border bg-black/90">
               <div className="relative h-full min-h-[18rem]">
                 <video
                   ref={videoRef}
@@ -318,23 +345,32 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
                   </p>
                 </div>
               </div>
-            ) : capturedPreviewUrl ? (
-              <img src={capturedPreviewUrl} alt="Aufgenommener Beleg" className="h-full w-full object-contain" />
-            ) : null}
-          </div>
+            </div>
+          ) : null}
 
-          <div className="space-y-3">
+          {state === "crop" && capturedPreviewUrl ? (
+            <div className="flex flex-1 flex-col">
+              <CropEditor
+                imageUrl={capturedPreviewUrl}
+                initialBounds={detection?.bounds ?? null}
+                onConfirm={handleCropConfirm}
+                onSkip={handleCropSkip}
+                onRetake={handleRetake}
+              />
+            </div>
+          ) : null}
+
+          {state === "review" && capturedPreviewUrl ? (
+            <div className="flex-1 overflow-hidden rounded-[2rem] border border-border bg-black/90">
+              <img src={capturedPreviewUrl} alt="Aufgenommener Beleg" className="h-full w-full object-contain" />
+            </div>
+          ) : null}
+
+          <div className={`space-y-3 ${state === "crop" ? "hidden" : ""}`}>
             {error ? <p className="text-sm font-medium text-danger">{error}</p> : null}
             {!error && state === "camera" ? (
               <p className="text-sm text-muted-foreground">
                 Auto-Capture loest nur aus, wenn Dokumentgroesse, Schaerfe, Helligkeit, Kontrast und Stabilitaet ausreichen. Manuelles Ausloesen und die native Handy-Kamera bleiben immer moeglich.
-              </p>
-            ) : null}
-            {state === "review" ? (
-              <p className="text-sm text-muted-foreground">
-                {captureTrigger === "auto"
-                  ? "Auto-Capture hat aufgenommen. Bild pruefen, dann uebernehmen oder neu aufnehmen."
-                  : "Bild pruefen, dann uebernehmen oder neu aufnehmen."}
               </p>
             ) : null}
 
