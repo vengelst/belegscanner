@@ -17,14 +17,13 @@ export async function GET() {
   const schedulerStatus = await getSchedulerStatus();
 
   if (!config) {
-    // Standard-Konfiguration zurueckgeben
     return NextResponse.json({
       storageType: "local",
-      localPath: "/backups",
+      localPath: "/app/storage/backups",
       s3Endpoint: null,
       s3Bucket: null,
       s3AccessKey: null,
-      s3SecretKey: null, // Nie zurueckgeben
+      s3SecretKey: null,
       s3Region: null,
       scheduleEnabled: false,
       scheduleCron: "0 2 * * *",

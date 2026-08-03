@@ -71,11 +71,10 @@ async function loadBackupConfig(): Promise<{
   });
 
   if (!config) {
-    // Standard-Konfiguration: Lokaler Storage
     return {
       storageConfig: {
         type: "local",
-        localPath: "/backups",
+        localPath: "/app/storage/backups",
       },
       retentionDays: 30,
     };
