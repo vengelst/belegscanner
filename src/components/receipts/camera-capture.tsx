@@ -303,6 +303,10 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
                   muted
                   autoPlay
                 />
+                <div
+                  className={`scan-beam ${detection?.autoCaptureEligible ? "scan-beam--active" : ""}`}
+                  style={{ "--scan-container-height": "100%" } as React.CSSProperties}
+                />
                 {overlayStyle ? (
                   <div
                     className={`pointer-events-none absolute rounded-[1.25rem] border-2 ${getOverlayClass(detection?.status ?? "not_found")}`}
