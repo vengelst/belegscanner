@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { AdminShell } from "@/components/admin/admin-shell";
 import { AiSettingsForm } from "@/components/admin/ai-settings-form";
 
 export const dynamic = "force-dynamic";
@@ -26,16 +25,14 @@ export default async function AiSettingsPage() {
       };
 
   return (
-    <AdminShell>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">KI-Einstellungen</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Konfigurieren Sie den KI-Provider für die Beleganalyse.
-          </p>
-        </div>
-        <AiSettingsForm initial={initial} />
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">KI-Einstellungen</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Konfigurieren Sie den KI-Provider fuer die Beleganalyse.
+        </p>
       </div>
-    </AdminShell>
+      <AiSettingsForm initial={initial} />
+    </div>
   );
 }

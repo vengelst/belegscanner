@@ -230,6 +230,18 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
     });
   }, []);
 
+  const setColumnAt = useCallback((index: number, nextKey: ColumnKey) => {
+    setVisibleColumns((current) => {
+      const existingIndex = current.indexOf(nextKey);
+      const next = [...current];
+      if (existingIndex >= 0 && existingIndex !== index) {
+        next[existingIndex] = current[index];
+      }
+      next[index] = nextKey;
+      return next;
+    });
+  }, []);
+
   const resetColumns = useCallback(() => {
     setVisibleColumns(DEFAULT_VISIBLE_COLUMNS);
   }, []);
@@ -361,7 +373,11 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
               <Link
                 key={r.id}
                 href={`/receipts/${r.id}`}
-                className="bb-card flex items-center gap-2 rounded-xl border border-border/80 bg-card px-3 py-1.5 text-card-foreground shadow-soft transition hover:bg-muted/40"
+                className={`bb-card flex items-center gap-2 rounded-xl border border-border/80 px-3 py-1.5 shadow-soft transition hover:bg-muted/40 ${
+                  r.sendStatus === "SENT"
+                    ? "border-emerald-300/70 bg-emerald-50 text-emerald-950"
+                    : "bg-card text-card-foreground"
+                }`}
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">
@@ -383,16 +399,17 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-muted-foreground">
-                  {isColumnVisible("date") ? <SortableHeader label="Datum" columnKey="date" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
-                  {isColumnVisible("supplier") ? <SortableHeader label="Lieferant" columnKey="supplier" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
-                  {isColumnVisible("amount") ? <SortableHeader label="Betrag" columnKey="amount" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
-                  {isColumnVisible("purpose") ? <SortableHeader label="Zweck" columnKey="purpose" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
-                  {isColumnVisible("category") ? <SortableHeader label="Kategorie" columnKey="category" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
-                  {isColumnVisible("country") ? <SortableHeader label="Land" columnKey="country" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
-                  {isColumnVisible("user") ? <SortableHeader label="Benutzer" columnKey="user" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
-                  {isColumnVisible("reviewStatus") ? <SortableHeader label="Pruefung" columnKey="reviewStatus" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
-                  {isColumnVisible("sendStatus") ? <SortableHeader label="Versand" columnKey="sendStatus" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
-                  {isColumnVisible("sentAt") ? <SortableHeader label="Gesendet" columnKey="sentAt" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
+                  {visibleColumns.map((columnKey, index) => (
+                    <ColumnHeader
+                      key={`${columnKey}-${index}`}
+                      columnKey={columnKey}
+                      index={index}
+                      activeSortBy={filters.sortBy}
+                      activeSortDir={filters.sortDir}
+                      onSort={handleSortClick}
+                      onFieldChange={setColumnAt}
+                    />
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -408,47 +425,15 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                         openReceipt(r.id);
                       }
                     }}
-                    className="cursor-pointer border-b border-border/50 transition hover:bg-muted/30"
+                    className={`cursor-pointer border-b border-border/50 transition hover:bg-muted/30 ${
+                      r.sendStatus === "SENT" ? "bg-emerald-50/90 text-emerald-950 hover:bg-emerald-100/90" : ""
+                    }`}
                   >
-                    {isColumnVisible("date") ? (
-                      <td className="whitespace-nowrap px-4 py-1">{fmtDate(r.date)}</td>
-                    ) : null}
-                    {isColumnVisible("supplier") ? (
-                      <td className="max-w-[160px] truncate px-4 py-1">
-                        <span className="mr-1 rounded bg-muted px-1 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                          {r.partyRole === "DEBTOR" ? "D" : "K"}
-                        </span>
-                        {r.supplier ?? "—"}
-                        {r.hasHospitality ? <span className="ml-1 rounded bg-accent/20 px-1 py-0.5 text-[10px] font-semibold text-accent-foreground">B</span> : null}
+                    {visibleColumns.map((columnKey, index) => (
+                      <td key={`${r.id}-${columnKey}-${index}`} className="px-4 py-1">
+                        <ColumnCell receipt={r} columnKey={columnKey} />
                       </td>
-                    ) : null}
-                    {isColumnVisible("amount") ? (
-                      <td className="whitespace-nowrap px-4 py-1 tabular-nums">
-                        {fmtAmount(r.amount)} {r.currency}
-                        {r.currency !== "EUR" ? (
-                          <span className="ml-1 text-xs text-muted-foreground">({fmtAmount(r.amountEur)} EUR)</span>
-                        ) : null}
-                      </td>
-                    ) : null}
-                    {isColumnVisible("purpose") ? <td className="px-4 py-1">{r.purposeName}</td> : null}
-                    {isColumnVisible("category") ? <td className="px-4 py-1">{r.categoryName}</td> : null}
-                    {isColumnVisible("country") ? <td className="px-4 py-1 text-muted-foreground">{r.countryName ?? "—"}</td> : null}
-                    {isColumnVisible("user") ? <td className="px-4 py-1 text-muted-foreground">{r.userName}</td> : null}
-                    {isColumnVisible("reviewStatus") ? (
-                      <td className="px-4 py-1">
-                        <ReviewBadge status={r.reviewStatus} />
-                      </td>
-                    ) : null}
-                    {isColumnVisible("sendStatus") ? (
-                      <td className="px-4 py-1">
-                        <StatusBadge status={r.sendStatus} />
-                      </td>
-                    ) : null}
-                    {isColumnVisible("sentAt") ? (
-                      <td className="whitespace-nowrap px-4 py-1 text-xs text-muted-foreground">
-                        {r.sendStatus === "SENT" && r.sendStatusUpdatedAt ? fmtDateTime(r.sendStatusUpdatedAt) : "—"}
-                      </td>
-                    ) : null}
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -507,37 +492,104 @@ function ReviewBadge({ status }: { status: string }) {
   );
 }
 
-function SortableHeader({
-  label,
+function ColumnHeader({
   columnKey,
+  index,
   activeSortBy,
   activeSortDir,
-  onClick,
+  onSort,
+  onFieldChange,
 }: {
-  label: string;
   columnKey: ColumnKey;
+  index: number;
   activeSortBy: string;
   activeSortDir: string;
-  onClick: (sortBy: string) => void;
+  onSort: (sortBy: string) => void;
+  onFieldChange: (index: number, nextKey: ColumnKey) => void;
 }) {
   const mappedSortBy = COLUMN_SORT_MAP[columnKey];
   const active = mappedSortBy === activeSortBy;
   const directionIcon = active ? (activeSortDir === "asc" ? "▲" : "▼") : "↕";
 
-  if (!mappedSortBy) {
-    return <th className="px-4 py-1 font-medium">{label}</th>;
-  }
-
   return (
-    <th className="px-4 py-1 font-medium">
-      <button
-        type="button"
-        onClick={() => onClick(mappedSortBy)}
-        className={`inline-flex items-center gap-1 transition hover:text-foreground ${active ? "text-foreground" : ""}`}
-      >
-        <span>{label}</span>
-        <span className="text-[10px]">{directionIcon}</span>
-      </button>
+    <th className="px-2 py-1 font-medium">
+      <div className="flex min-w-[8.5rem] items-center gap-1">
+        <select
+          value={columnKey}
+          onClick={(event) => event.stopPropagation()}
+          onChange={(event) => {
+            event.stopPropagation();
+            onFieldChange(index, event.target.value as ColumnKey);
+          }}
+          className="bb-select input-3d h-8 min-w-0 flex-1 rounded-lg px-2 text-xs text-foreground outline-none"
+          aria-label={`Feld fuer Spalte ${index + 1}`}
+        >
+          {COLUMN_OPTIONS.map((option) => (
+            <option key={option.key} value={option.key}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        {mappedSortBy ? (
+          <button
+            type="button"
+            onClick={() => onSort(mappedSortBy)}
+            className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[10px] transition hover:bg-muted/60 ${active ? "text-foreground" : "text-muted-foreground"}`}
+            title="Sortieren"
+            aria-label="Sortieren"
+          >
+            {directionIcon}
+          </button>
+        ) : null}
+      </div>
     </th>
   );
+}
+
+function ColumnCell({ receipt, columnKey }: { receipt: ReceiptRow; columnKey: ColumnKey }) {
+  switch (columnKey) {
+    case "date":
+      return <span className="whitespace-nowrap">{fmtDate(receipt.date)}</span>;
+    case "supplier":
+      return (
+        <span className="inline-flex max-w-[160px] items-center truncate">
+          <span className="mr-1 rounded bg-muted px-1 py-0.5 text-[10px] font-semibold text-muted-foreground">
+            {receipt.partyRole === "DEBTOR" ? "D" : "K"}
+          </span>
+          {receipt.supplier ?? "—"}
+          {receipt.hasHospitality ? (
+            <span className="ml-1 rounded bg-accent/20 px-1 py-0.5 text-[10px] font-semibold text-accent-foreground">B</span>
+          ) : null}
+        </span>
+      );
+    case "amount":
+      return (
+        <span className="whitespace-nowrap tabular-nums">
+          {fmtAmount(receipt.amount)} {receipt.currency}
+          {receipt.currency !== "EUR" ? (
+            <span className="ml-1 text-xs text-muted-foreground">({fmtAmount(receipt.amountEur)} EUR)</span>
+          ) : null}
+        </span>
+      );
+    case "purpose":
+      return <>{receipt.purposeName}</>;
+    case "category":
+      return <>{receipt.categoryName}</>;
+    case "country":
+      return <span className="text-muted-foreground">{receipt.countryName ?? "—"}</span>;
+    case "user":
+      return <span className="text-muted-foreground">{receipt.userName}</span>;
+    case "reviewStatus":
+      return <ReviewBadge status={receipt.reviewStatus} />;
+    case "sendStatus":
+      return <StatusBadge status={receipt.sendStatus} />;
+    case "sentAt":
+      return (
+        <span className="whitespace-nowrap text-xs text-muted-foreground">
+          {receipt.sendStatus === "SENT" && receipt.sendStatusUpdatedAt ? fmtDateTime(receipt.sendStatusUpdatedAt) : "—"}
+        </span>
+      );
+    default:
+      return null;
+  }
 }
