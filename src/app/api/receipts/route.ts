@@ -159,6 +159,7 @@ export async function POST(request: NextRequest) {
     data: {
       userId: session.userId,
       date: new Date(d.date),
+      partyRole: d.partyRole ?? "CREDITOR",
       supplier: d.supplier ?? null,
       invoiceNumber: d.invoiceNumber ?? null,
       serviceDate: d.serviceDate ? new Date(d.serviceDate) : null,

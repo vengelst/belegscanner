@@ -112,6 +112,7 @@ export default async function ReceiptsPage({ searchParams }: Props) {
   const mapped = receipts.map((r) => ({
     id: r.id,
     date: r.date.toISOString(),
+    partyRole: r.partyRole,
     supplier: r.supplier,
     amount: Number(r.amount),
     currency: r.currency,

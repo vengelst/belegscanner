@@ -27,6 +27,7 @@ type SummaryData = {
   byUser: { userName: string; count: number; sumEur: number }[];
   byCountry: { name: string; count: number; sumEur: number }[];
   byPurpose: { name: string; count: number; sumEur: number }[];
+  byPartyRole: { partyRole: string; name: string; count: number; sumEur: number }[];
   byPaymentMethod: { name: string; count: number; sumEur: number }[];
   byCurrency: { currency: string; count: number; sumOriginal: number }[];
   problems: {
@@ -430,6 +431,7 @@ export function ReportingDashboard() {
             <CurrencyTable rows={data.byCurrency} />
             <GroupTable title="Nach Benutzer" rows={data.byUser.map((u) => ({ name: u.userName, count: u.count, sumEur: u.sumEur }))} showSum />
             <GroupTable title="Nach Zweck" rows={data.byPurpose.map((p) => ({ name: p.name, count: p.count, sumEur: p.sumEur }))} showSum />
+            <GroupTable title="Nach Belegrichtung" rows={(data.byPartyRole ?? []).map((p) => ({ name: p.name, count: p.count, sumEur: p.sumEur }))} showSum />
             <GroupTable title="Nach Zahlungsweise" rows={data.byPaymentMethod.map((c) => ({ name: c.name, count: c.count, sumEur: c.sumEur }))} showSum />
             <GroupTable title="Nach Land" rows={data.byCountry.map((c) => ({ name: c.name, count: c.count, sumEur: c.sumEur }))} showSum />
           </div>

@@ -23,12 +23,18 @@ export async function GET(request: NextRequest) {
   if (dateTo) dateConditions.push(Prisma.sql`date <= ${new Date(dateTo)}`);
   const rawWhere = Prisma.sql`WHERE ${Prisma.join(dateConditions, " AND ")}`;
 
+  const PARTY_ROLE_LABELS: Record<string, string> = {
+    CREDITOR: "Kreditorenbelege",
+    DEBTOR: "Debitorenbelege",
+  };
+
   const [
     totalReceipts,
     byStatus,
     byUser,
     byCountry,
     byPurpose,
+    byPartyRole,
     byCurrency,
     foreignCurrencyReceipts,
     totals,
@@ -99,6 +105,24 @@ export async function GET(request: NextRequest) {
         sumEur: Number(g._sum.amountEur ?? 0),
       })).sort((a, b) => b.count - a.count);
     }),
+
+    prisma.receipt.groupBy({
+      by: ["partyRole"],
+      where,
+      _count: true,
+      _sum: { amountEur: true },
+    }).then((groups) => groups
+      .map((g) => ({
+        partyRole: g.partyRole,
+        name: PARTY_ROLE_LABELS[g.partyRole] ?? g.partyRole,
+        count: g._count,
+        sumEur: Number(g._sum.amountEur ?? 0),
+      }))
+      .sort((a, b) => {
+        if (a.partyRole === "CREDITOR") return -1;
+        if (b.partyRole === "CREDITOR") return 1;
+        return b.count - a.count;
+      })),
 
     prisma.receipt.groupBy({
       by: ["currency"],
@@ -287,6 +311,7 @@ export async function GET(request: NextRequest) {
     byUser,
     byCountry,
     byPurpose,
+    byPartyRole,
     byPaymentMethod,
     byCurrency,
     problems,

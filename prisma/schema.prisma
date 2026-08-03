@@ -46,6 +46,11 @@ enum FileType {
   PRINT_PDF
 }
 
+enum PartyRole {
+  CREDITOR
+  DEBTOR
+}
+
 // ============================================================
 // Stammdaten
 // ============================================================
@@ -160,6 +165,7 @@ model Receipt {
 
   // Belegdaten
   date                DateTime   @db.Date
+  partyRole           PartyRole  @default(CREDITOR)
   supplier            String?
   invoiceNumber       String?    @db.VarChar(80)
   serviceDate         DateTime?  @db.Date

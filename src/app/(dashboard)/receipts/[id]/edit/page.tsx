@@ -49,6 +49,7 @@ export default async function EditReceiptPage({ params }: Props) {
         receipt={{
           id: receipt.id,
           date: receipt.date.toISOString().split("T")[0],
+          partyRole: receipt.partyRole,
           supplier: receipt.supplier,
           invoiceNumber: receipt.invoiceNumber,
           serviceDate: receipt.serviceDate?.toISOString().split("T")[0] ?? null,

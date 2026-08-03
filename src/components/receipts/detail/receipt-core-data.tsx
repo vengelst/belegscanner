@@ -3,6 +3,7 @@ import { Field } from "./field";
 
 type ReceiptCoreDataProps = {
   date: string;
+  partyRole: "CREDITOR" | "DEBTOR";
   invoiceNumber: string | null;
   currency: string;
   amount: string;
@@ -23,6 +24,7 @@ type ReceiptCoreDataProps = {
 
 export function ReceiptCoreData({
   date,
+  partyRole,
   invoiceNumber,
   currency,
   amount,
@@ -40,11 +42,15 @@ export function ReceiptCoreData({
   detectedCardLastDigits,
   remark,
 }: ReceiptCoreDataProps) {
+  const supplierLabel = partyRole === "DEBTOR" ? "Kunde / Debitor" : "Lieferant / Kreditor";
+  const partyRoleLabel = partyRole === "DEBTOR" ? "Debitor (Ausgangsbeleg)" : "Kreditor (Eingangsbeleg)";
+
   return (
     <Card>
       <h2 className="text-lg font-semibold tracking-tight">Belegdaten</h2>
       <div className="mt-4 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
         <Field label="Belegdatum" value={date} />
+        <Field label="Belegrichtung" value={partyRoleLabel} />
         {invoiceNumber ? <Field label="Rechnungsnummer" value={invoiceNumber} /> : null}
         {currency !== "EUR" ? (
           <Field label={`Rechnungsbetrag (${currency})`} value={`${amount} ${currency}`} />
@@ -58,7 +64,7 @@ export function ReceiptCoreData({
             <Field label="Kursdatum" value={exchangeRateDate ?? "—"} />
           </>
         ) : null}
-        <Field label="Lieferant" value={supplier ?? "—"} />
+        <Field label={supplierLabel} value={supplier ?? "—"} />
         <Field label="Zweck" value={purposeName} />
         <Field label="Kategorie" value={categoryName} />
         <Field label="Land" value={countryDisplay} />

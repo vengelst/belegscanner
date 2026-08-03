@@ -80,6 +80,7 @@ export async function PUT(
   const data: Record<string, unknown> = {};
 
   if (input.date !== undefined) data.date = new Date(input.date);
+  if (input.partyRole !== undefined) data.partyRole = input.partyRole;
   if (input.supplier !== undefined) data.supplier = input.supplier ?? null;
   if (input.invoiceNumber !== undefined) data.invoiceNumber = input.invoiceNumber ?? null;
   if (input.serviceDate !== undefined) data.serviceDate = input.serviceDate ? new Date(input.serviceDate) : null;

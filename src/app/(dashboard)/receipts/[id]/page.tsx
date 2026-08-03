@@ -244,6 +244,7 @@ export default async function ReceiptDetailPage({ params }: Props) {
       {/* Core Data */}
       <ReceiptCoreData
         date={fmtDate(receipt.date)}
+        partyRole={receipt.partyRole}
         invoiceNumber={receipt.invoiceNumber}
         currency={receipt.currency}
         amount={fmtAmount(receipt.amount)}

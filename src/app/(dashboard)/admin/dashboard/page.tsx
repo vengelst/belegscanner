@@ -8,6 +8,8 @@ export default async function AdminDashboardPage() {
     openReceipts,
     sentReceipts,
     failedReceipts,
+    creditorStats,
+    debtorStats,
     totalUsers,
     smtpConfigured,
     datevProfiles,
@@ -16,10 +18,23 @@ export default async function AdminDashboardPage() {
     prisma.receipt.count({ where: { sendStatus: "OPEN", deletedAt: null } }),
     prisma.receipt.count({ where: { sendStatus: "SENT", deletedAt: null } }),
     prisma.receipt.count({ where: { sendStatus: "FAILED", deletedAt: null } }),
+    prisma.receipt.aggregate({
+      where: { deletedAt: null, partyRole: "CREDITOR" },
+      _count: true,
+      _sum: { amountEur: true },
+    }),
+    prisma.receipt.aggregate({
+      where: { deletedAt: null, partyRole: "DEBTOR" },
+      _count: true,
+      _sum: { amountEur: true },
+    }),
     prisma.user.count({ where: { active: true } }),
     prisma.smtpConfig.findUnique({ where: { id: "default" }, select: { id: true } }),
     prisma.datevProfile.count({ where: { active: true } }),
   ]);
+
+  const fmtEur = (value: number) =>
+    value.toLocaleString("de-DE", { style: "currency", currency: "EUR" });
 
   return (
     <div className="space-y-8">
@@ -35,6 +50,19 @@ export default async function AdminDashboardPage() {
         <StatCard label="Offen" value={openReceipts} muted={openReceipts === 0} />
         <StatCard label="Gesendet" value={sentReceipts} />
         <StatCard label="Fehlgeschlagen" value={failedReceipts} danger={failedReceipts > 0} />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <StatCard
+          label="Kreditorenbelege"
+          value={creditorStats._count}
+          detail={fmtEur(Number(creditorStats._sum.amountEur ?? 0))}
+        />
+        <StatCard
+          label="Debitorenbelege"
+          value={debtorStats._count}
+          detail={fmtEur(Number(debtorStats._sum.amountEur ?? 0))}
+        />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -57,7 +85,7 @@ export default async function AdminDashboardPage() {
   );
 }
 
-function StatCard({ label, value, muted, danger }: { label: string; value: number; muted?: boolean; danger?: boolean }) {
+function StatCard({ label, value, muted, danger, detail }: { label: string; value: number; muted?: boolean; danger?: boolean; detail?: string }) {
   let valueColor = "text-foreground";
   if (muted) valueColor = "text-muted-foreground";
   if (danger) valueColor = "text-danger";
@@ -66,6 +94,7 @@ function StatCard({ label, value, muted, danger }: { label: string; value: numbe
     <div className="rounded-[calc(var(--radius)+0.5rem)] border border-border/80 bg-card p-5 shadow-soft">
       <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
       <p className={`mt-2 text-3xl font-semibold tabular-nums ${valueColor}`}>{value}</p>
+      {detail ? <p className="mt-1 text-sm text-muted-foreground tabular-nums">{detail}</p> : null}
     </div>
   );
 }

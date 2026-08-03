@@ -254,6 +254,7 @@ textarea {
    ---------------------------------------- */
 .template-modern .bb-input,
 .template-modern .bb-select,
+.template-modern .bb-textarea,
 .template-modern .input-3d {
   border: none !important;
   background: var(--background);
@@ -263,6 +264,7 @@ textarea {
 
 .template-modern .bb-input:focus,
 .template-modern .bb-select:focus,
+.template-modern .bb-textarea:focus,
 .template-modern .input-3d:focus {
   box-shadow: var(--neu-shadow-inset), 0 0 0 2px var(--primary);
   border: none !important;
@@ -271,6 +273,7 @@ textarea {
 
 .template-modern .bb-input:focus-visible,
 .template-modern .bb-select:focus-visible,
+.template-modern .bb-textarea:focus-visible,
 .template-modern .input-3d:focus-visible {
   outline: none;
   ring: none;

@@ -13,6 +13,7 @@ type Vehicle = { id: string; plate: string; description: string | null };
 type ReceiptData = {
   id: string;
   date: string;
+  partyRole: "CREDITOR" | "DEBTOR";
   supplier: string | null;
   invoiceNumber: string | null;
   serviceDate: string | null;
@@ -44,6 +45,7 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [purposeId, setPurposeId] = useState(receipt.purposeId);
+  const [partyRole, setPartyRole] = useState<"CREDITOR" | "DEBTOR">(receipt.partyRole);
   const [currency, setCurrency] = useState(receipt.currency);
   const [amount, setAmount] = useState(String(receipt.amount).replace(".", ","));
   const [exchangeRate, setExchangeRate] = useState(receipt.exchangeRate ? formatLocalizedNumber(receipt.exchangeRate, 4) : "");
@@ -127,6 +129,7 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
 
     const body: Record<string, unknown> = {
       date: formData.get("date"),
+      partyRole: formData.get("partyRole") || partyRole || "CREDITOR",
       supplier: formData.get("supplier") || null,
       invoiceNumber: formData.get("invoiceNumber") || null,
       serviceDate: receipt.serviceDate,
@@ -191,6 +194,10 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
         <h2 className="text-lg font-semibold tracking-tight">Belegdaten</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <Input label="Belegdatum" name="date" type="date" required defaultValue={receipt.date} />
+          <SelectField label="Belegrichtung" name="partyRole" value={partyRole} onChange={(v) => setPartyRole(v as "CREDITOR" | "DEBTOR")}>
+            <option value="CREDITOR">Kreditor (Eingangsbeleg)</option>
+            <option value="DEBTOR">Debitor (Ausgangsbeleg)</option>
+          </SelectField>
           {requiresExchangeRate ? (
             <Input label="Rechnungsbetrag (EUR)" name="amountEurPreview" type="text" value={amountEurPreview} readOnly />
           ) : (
@@ -222,7 +229,11 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
           <SelectField label="Waehrung" name="currency" value={currency} onChange={setCurrency}>
             {currencyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </SelectField>
-          <Input label="Lieferant" name="supplier" defaultValue={receipt.supplier ?? ""} />
+          <Input
+            label={partyRole === "DEBTOR" ? "Kunde / Debitor" : "Lieferant / Kreditor"}
+            name="supplier"
+            defaultValue={receipt.supplier ?? ""}
+          />
           <Input
             label={requiresExchangeRate ? "Wechselkurs *" : "Wechselkurs (optional)"}
             name="exchangeRate"
@@ -294,7 +305,7 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
           </SelectField>
           <label className="grid gap-1 text-sm font-medium sm:col-span-2">
             <span className="text-xs text-muted-foreground">Bemerkung</span>
-            <textarea name="remark" rows={2} maxLength={2000} defaultValue={receipt.remark ?? ""} className="rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10" />
+            <textarea name="remark" rows={2} maxLength={2000} defaultValue={receipt.remark ?? ""} className="bb-input bb-textarea input-3d rounded-xl px-3 py-2.5 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20" />
           </label>
         </div>
       </Card>
@@ -306,7 +317,7 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
             <Input label="Anlass" name="occasion" required defaultValue={receipt.hospitality?.occasion ?? ""} />
             <label className="grid gap-1 text-sm font-medium">
               <span className="text-xs text-muted-foreground">Gaeste</span>
-              <textarea name="guests" required rows={2} defaultValue={receipt.hospitality?.guests ?? ""} className="rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10" />
+              <textarea name="guests" required rows={2} defaultValue={receipt.hospitality?.guests ?? ""} className="bb-input bb-textarea input-3d rounded-xl px-3 py-2.5 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20" />
             </label>
             <Input label="Ort" name="location" required defaultValue={receipt.hospitality?.location ?? ""} />
           </div>

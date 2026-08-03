@@ -78,7 +78,7 @@ function CreateProfileForm() {
             name="bodyTemplate"
             rows={3}
             placeholder="Platzhalter: {date}, {supplier}, {amount}, {currency}, {user}"
-            className="rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
+            className="bb-input bb-textarea input-3d rounded-xl px-3 py-2.5 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20"
           />
         </label>
         <label className="flex items-center gap-2 text-sm font-medium">

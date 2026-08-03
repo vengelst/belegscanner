@@ -7,9 +7,12 @@ import type { OcrFieldKey } from "@/lib/receipts/field-review-states";
 
 type CurrencyOption = { value: string; label: string };
 
+type PartyRole = "CREDITOR" | "DEBTOR";
+
 type Props = {
   today: string;
   date: string;
+  partyRole: PartyRole;
   amount: string;
   invoiceNumber: string;
   netAmount: string;
@@ -26,6 +29,7 @@ type Props = {
   currencyOptions: CurrencyOption[];
   markManualOverride: (field: OcrFieldKey) => void;
   setDate: (v: string) => void;
+  setPartyRole: (v: PartyRole) => void;
   setAmount: (v: string) => void;
   setInvoiceNumber: (v: string) => void;
   setNetAmount: (v: string) => void;
@@ -39,6 +43,7 @@ type Props = {
 export function ReceiptFormDataSection({
   today,
   date,
+  partyRole,
   amount,
   invoiceNumber,
   netAmount,
@@ -55,6 +60,7 @@ export function ReceiptFormDataSection({
   currencyOptions,
   markManualOverride,
   setDate,
+  setPartyRole,
   setAmount,
   setInvoiceNumber,
   setNetAmount,
@@ -64,6 +70,8 @@ export function ReceiptFormDataSection({
   setExchangeRate,
   setExchangeRateDate,
 }: Props) {
+  const supplierLabel = partyRole === "DEBTOR" ? "Kunde / Debitor" : "Lieferant / Kreditor";
+
   return (
     <Card>
       <h2 className="text-base font-semibold tracking-tight">Belegdaten</h2>
@@ -80,6 +88,15 @@ export function ReceiptFormDataSection({
           }}
           max={today}
         />
+        <SelectField
+          label="Belegrichtung"
+          name="partyRole"
+          value={partyRole}
+          onChange={(value) => setPartyRole(value as PartyRole)}
+        >
+          <option value="CREDITOR">Kreditor (Eingangsbeleg)</option>
+          <option value="DEBTOR">Debitor (Ausgangsbeleg)</option>
+        </SelectField>
         {requiresExchangeRate ? (
           <Input
             label="Betrag (EUR)"
@@ -169,7 +186,7 @@ export function ReceiptFormDataSection({
         </SelectField>
         <div className="col-span-2 lg:col-span-1">
           <Input
-            label="Lieferant"
+            label={supplierLabel}
             name="supplier"
             placeholder="optional"
             value={supplier}

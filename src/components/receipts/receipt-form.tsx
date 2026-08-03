@@ -56,6 +56,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
 
   const today = new Date().toISOString().split("T")[0];
   const [date, setDate] = useState(today);
+  const [partyRole, setPartyRole] = useState<"CREDITOR" | "DEBTOR">("CREDITOR");
   const [dueDate, setDueDate] = useState("");
   const [serviceDate, setServiceDate] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
@@ -369,6 +370,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
 
     const body: Record<string, unknown> = {
       date: formData.get("date"),
+      partyRole: formData.get("partyRole") || partyRole || "CREDITOR",
       supplier: formData.get("supplier") || null,
       invoiceNumber: formData.get("invoiceNumber") || null,
       serviceDate: null,
@@ -443,6 +445,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
         <ReceiptFormDataSection
           today={today}
           date={date}
+          partyRole={partyRole}
           amount={amount}
           invoiceNumber={invoiceNumber}
           netAmount={netAmount}
@@ -459,6 +462,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
           currencyOptions={currencyOptions}
           markManualOverride={markManualOverride}
           setDate={setDate}
+          setPartyRole={setPartyRole}
           setAmount={setAmount}
           setInvoiceNumber={setInvoiceNumber}
           setNetAmount={setNetAmount}

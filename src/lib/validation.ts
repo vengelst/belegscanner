@@ -334,8 +334,11 @@ export const aiStructuredDataSchema = z.object({
   }),
 }).nullable();
 
+export const partyRoleSchema = z.enum(["CREDITOR", "DEBTOR"]);
+
 const receiptSchemaBase = z.object({
   date: z.string().date(),
+  partyRole: partyRoleSchema.default("CREDITOR"),
   supplier: z.string().max(255).nullable().optional(),
   invoiceNumber: z.string().max(80).nullable().optional(),
   serviceDate: z.string().date().nullable().optional(),

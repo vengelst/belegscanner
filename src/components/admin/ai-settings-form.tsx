@@ -20,6 +20,7 @@ export function AiSettingsForm({ initial }: { initial: AiInitial }) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [ocrResult, setOcrResult] = useState<{ available: boolean; message: string; url?: string | null } | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -88,6 +89,22 @@ export function AiSettingsForm({ initial }: { initial: AiInitial }) {
 
       const data = await res.json();
       setTestResult(data);
+    });
+  }
+
+  function handleOcrTest() {
+    setOcrResult(null);
+    setError(null);
+    setSuccess(null);
+
+    startTransition(async () => {
+      const res = await fetch("/api/admin/ai/ocr-status");
+      const data = await res.json();
+      setOcrResult({
+        available: Boolean(data.available),
+        message: data.message ?? (data.available ? "OCR erreichbar." : "OCR nicht erreichbar."),
+        url: data.url,
+      });
     });
   }
 
@@ -200,6 +217,41 @@ export function AiSettingsForm({ initial }: { initial: AiInitial }) {
             </div>
           ) : null}
         </form>
+      </Card>
+
+      <Card>
+        <h2 className="text-lg font-semibold tracking-tight">OCR-Service</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Prueft den separaten OCR-Dienst (PaddleOCR). Er laeuft nur intern auf dem Server und wird vom Belegscanner angesprochen.
+        </p>
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={handleOcrTest}
+            disabled={isPending}
+            className="rounded-2xl border border-border bg-card px-5 py-3 text-sm font-semibold transition hover:border-primary/40 hover:text-primary disabled:opacity-50"
+          >
+            {isPending ? "Wird geprueft..." : "OCR-Status pruefen"}
+          </button>
+
+          {ocrResult ? (
+            <div
+              className={`mt-4 rounded-xl border p-4 ${
+                ocrResult.available
+                  ? "border-primary/30 bg-primary/5 text-primary"
+                  : "border-danger/30 bg-danger/5 text-danger"
+              }`}
+            >
+              <p className="text-sm font-medium">
+                {ocrResult.available ? "Erreichbar" : "Nicht erreichbar"}
+              </p>
+              <p className="mt-1 text-sm">{ocrResult.message}</p>
+              {ocrResult.url ? (
+                <p className="mt-1 text-xs opacity-80">URL: {ocrResult.url}</p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </Card>
 
       <Card>

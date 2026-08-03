@@ -17,6 +17,7 @@ import { getReviewStatusBadgeClass, getReviewStatusLabel } from "@/lib/receipts/
 type ReceiptRow = {
   id: string;
   date: string;
+  partyRole: "CREDITOR" | "DEBTOR";
   supplier: string | null;
   amount: number;
   currency: string;
@@ -395,6 +396,7 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
+                    <Tag>{r.partyRole === "DEBTOR" ? "Debitor" : "Kreditor"}</Tag>
                     <Tag>{r.purposeName}</Tag>
                     <Tag>{r.categoryName}</Tag>
                     {r.countryName ? <Tag>{r.countryName}</Tag> : null}
@@ -453,6 +455,9 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                     ) : null}
                     {isColumnVisible("supplier") ? (
                       <td className="max-w-[160px] px-4 py-3 truncate">
+                        <span className="mr-1 rounded bg-muted px-1 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                          {r.partyRole === "DEBTOR" ? "D" : "K"}
+                        </span>
                         {r.supplier ?? "—"}
                         {r.hasHospitality ? <span className="ml-1 rounded bg-accent/20 px-1 py-0.5 text-[10px] font-semibold text-accent-foreground">B</span> : null}
                       </td>

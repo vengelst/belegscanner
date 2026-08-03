@@ -51,7 +51,7 @@ export function ReceiptFormHospitalitySection({
             placeholder="Hr. Mueller, Fr. Schmidt"
             value={guests}
             onChange={(event) => setGuests(event.target.value)}
-            className="rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
+            className="bb-input bb-textarea input-3d rounded-xl px-3 py-2.5 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20"
           />
         </label>
         <Input label="Ort" name="location" required placeholder="z.B. Restaurant Adria, Berlin" value={hospitalityLocation} onChange={(event: React.ChangeEvent<HTMLInputElement>) => { setHospitalityLocationManual(true); setHospitalityLocation(event.target.value); }} />

@@ -80,6 +80,33 @@ describe("receiptSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("setzt partyRole standardmaessig auf CREDITOR", () => {
+    const result = receiptSchema.safeParse(validReceipt);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.partyRole).toBe("CREDITOR");
+    }
+  });
+
+  it("akzeptiert partyRole DEBTOR", () => {
+    const result = receiptSchema.safeParse({
+      ...validReceipt,
+      partyRole: "DEBTOR",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.partyRole).toBe("DEBTOR");
+    }
+  });
+
+  it("scheitert bei ungueltigem partyRole", () => {
+    const result = receiptSchema.safeParse({
+      ...validReceipt,
+      partyRole: "UNKNOWN",
+    });
+    expect(result.success).toBe(false);
+  });
+
   it("scheitert wenn purposeId fehlt", () => {
     const { purposeId: _, ...withoutPurpose } = validReceipt;
     const result = receiptSchema.safeParse(withoutPurpose);
