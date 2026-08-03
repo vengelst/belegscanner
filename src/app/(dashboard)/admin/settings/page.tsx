@@ -13,7 +13,6 @@ const adminSections: Array<{
     links: [
       { href: "/admin/smtp", label: "SMTP" },
       { href: "/admin/datev", label: "DATEV-Profile" },
-      { href: "/admin/reports", label: "Reporting" },
     ],
   },
   {
@@ -22,7 +21,7 @@ const adminSections: Array<{
     links: [
       { href: "/admin/users", label: "Benutzer" },
       { href: "/admin/master-data", label: "Stammdaten" },
-      { href: "/admin/dashboard", label: "Admin-Dashboard" },
+      { href: "/admin/dashboard", label: "Admin-Uebersicht" },
     ],
   },
 ];

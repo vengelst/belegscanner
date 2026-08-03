@@ -127,9 +127,9 @@ export const primaryNav: NavItem[] = [
 
 export const adminNav: NavItem[] = [
   {
-    href: "/admin/reports",
-    label: "Auswertung",
-    shortLabel: "Auswertung",
+    href: "/dashboard" as Route,
+    label: "Dashboard",
+    shortLabel: "Dashboard",
     icon: <ReportsIcon />,
     accentClassName: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
   },

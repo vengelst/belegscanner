@@ -274,8 +274,8 @@ export function ReportingDashboard() {
         }
       `}</style>
       <div className="report-screen-only space-y-2">
-        <p className="text-sm font-medium uppercase tracking-[0.24em] text-muted-foreground">Auswertung</p>
-        <h1 className="text-3xl font-semibold tracking-tight">Reporting</h1>
+        <p className="text-sm font-medium uppercase tracking-[0.24em] text-muted-foreground">Dashboard</p>
+        <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
       </div>
 
       {/* Date filter */}

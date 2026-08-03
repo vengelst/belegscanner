@@ -1,5 +1,5 @@
-import { ReportingDashboard } from "@/components/admin/reporting-dashboard";
+import { redirect } from "next/navigation";
 
-export default function ReportsPage() {
-  return <ReportingDashboard />;
+export default function AdminReportsRedirectPage() {
+  redirect("/dashboard");
 }

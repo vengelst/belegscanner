@@ -12,7 +12,7 @@ type NavGroup = {
 const navGroups: NavGroup[] = [
   {
     links: [
-      { href: "/admin/dashboard", label: "Dashboard" },
+      { href: "/admin/dashboard", label: "Uebersicht" },
       { href: "/admin/users", label: "Benutzer" },
     ],
   },
@@ -33,7 +33,6 @@ const navGroups: NavGroup[] = [
       { href: "/admin/datev", label: "DATEV-Profile" },
       { href: "/admin/ai" as Route, label: "KI-Einstellungen" },
       { href: "/admin/backup" as Route, label: "Backup" },
-      { href: "/admin/reports", label: "Reporting" },
     ],
   },
 ];
