@@ -8,10 +8,10 @@ Stand: 2026-08-03
 |---------|--------|-----------|
 | TypeScript / Build | 🟢 | `typecheck` und `npm test` bestehen fehlerfrei |
 | Feature-Implementierung | 🟢 | Belegliste, Kamera, Dashboard, PWA korrekt |
-| Prisma Schema ↔ Migrationen | 🔴 | 12+ Felder/Models im Schema ohne Migration |
-| Migrations-Integritaet | 🟡 | Zwei ueberlappende Init-Migrationen |
+| Prisma Schema ↔ Migrationen | 🟢 | Catch-Up-Migration `20260803230000_add_missing_fields` vorhanden |
+| Migrations-Integritaet | 🟢 | `20260402_stammdaten_erweitert` ist Delta statt Voll-Kopie (Stand 2026-08-04) |
 | Route/Nav-Konsistenz | 🟢 | Guards korrekt, Redirect funktional |
-| Backup-Pfad-Konfiguration | 🟡 | Default-Pfad laeuft ins Leere bei Neuinstallation |
+| Backup-Pfad-Konfiguration | 🟢 | Default `/app/storage/backups` im Code angeglichen |
 | Dokumentation | 🟡 | Phase-2 Docs referenzieren veraltete Routen |
 | Testabdeckung | 🟡 | Nur 4 Test-Dateien, kritische neue APIs ohne Tests |
 
@@ -61,7 +61,7 @@ Stand: 2026-08-03
 - `stammdaten_erweitert`: SmtpConfig hat `replyToAddress`, + `DatevProfile`, `Country.currencyCode`
 - Schema matcht `stammdaten_erweitert`
 
-**Empfehlung:** Die `20260401_init`-Migration aus dem Ordner entfernen oder als `IF NOT EXISTS`-Guards erweitern. Nicht in diesem PR umgesetzt (benoetigt Prod-DB-Abstimmung).
+**Status (2026-08-04):** Behoben. `20260402_stammdaten_erweitert` ist jetzt eine idempotente Delta-Migration (Country/Smtp/DatevProfile). `20260401_init` bleibt als Basis. Prod-Checksum in `_prisma_migrations` muss nach Deploy aktualisiert werden.
 
 #### P1-2: BackupConfig.localPath Default-Pfad laeuft ins Leere
 
