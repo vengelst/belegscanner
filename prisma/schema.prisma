@@ -356,6 +356,13 @@ model AuditLog {
 // Backup-System
 // ============================================================
 
+// Dashboard-Layout (Singleton-Zeile, shared fuer alle User)
+model DashboardConfig {
+  id        String   @id @default("default")
+  widgets   Json     @default("[]")
+  updatedAt DateTime @updatedAt
+}
+
 // KI-Konfiguration (Singleton-Zeile)
 model AiConfig {
   id            String   @id @default("singleton")

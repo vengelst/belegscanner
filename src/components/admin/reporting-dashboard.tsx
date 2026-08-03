@@ -13,6 +13,9 @@ import {
   fmtMonth,
   fmtDay,
 } from "./reporting";
+import { DashboardEditPanel } from "./dashboard-edit-panel";
+import type { WidgetConfig } from "@/lib/dashboard/widget-catalog";
+import { getDefaultLayout } from "@/lib/dashboard/widget-catalog";
 
 type SummaryData = {
   totalReceipts: number;
@@ -83,6 +86,34 @@ export function ReportingDashboard() {
   const [activePeriod, setActivePeriod] = useState<PeriodMode>("month");
   const [printTimestamp, setPrintTimestamp] = useState("");
   const printContentRef = useRef<HTMLDivElement | null>(null);
+
+  const [widgets, setWidgets] = useState<WidgetConfig[]>([]);
+  const [editMode, setEditMode] = useState(false);
+  const [configLoading, setConfigLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/dashboard/config")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => {
+        if (json?.widgets) {
+          setWidgets(json.widgets);
+        } else {
+          setWidgets(getDefaultLayout());
+        }
+      })
+      .catch(() => setWidgets(getDefaultLayout()))
+      .finally(() => setConfigLoading(false));
+  }, []);
+
+  const visibleWidgets = useMemo(
+    () => [...widgets].filter((w) => w.visible).sort((a, b) => a.order - b.order),
+    [widgets],
+  );
+
+  const isWidgetVisible = useCallback(
+    (type: string) => visibleWidgets.some((w) => w.type === type),
+    [visibleWidgets],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -259,6 +290,216 @@ export function ReportingDashboard() {
     });
   }, []);
 
+  const handleSaveConfig = useCallback(async (updated: WidgetConfig[]) => {
+    const res = await fetch("/api/dashboard/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ widgets: updated }),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      setWidgets(json.widgets as WidgetConfig[]);
+      setEditMode(false);
+    }
+  }, []);
+
+  const handleResetConfig = useCallback(async () => {
+    const defaults = getDefaultLayout();
+    const res = await fetch("/api/dashboard/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ widgets: defaults }),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      setWidgets(json.widgets as WidgetConfig[]);
+      setEditMode(false);
+    }
+  }, []);
+
+  if (configLoading) {
+    return <p className="text-sm text-muted-foreground">Dashboard-Konfiguration wird geladen...</p>;
+  }
+
+  if (editMode) {
+    return (
+      <DashboardEditPanel
+        widgets={widgets}
+        onSave={handleSaveConfig}
+        onReset={handleResetConfig}
+        onCancel={() => setEditMode(false)}
+      />
+    );
+  }
+
+  // --- Render helpers for widget types ---
+  function renderKpiWidgets() {
+    if (!data) return null;
+    const kpiTypes = [
+      "kpi_total_receipts", "kpi_creditor_sum", "kpi_debitor_sum", "kpi_failed_sends",
+      "kpi_creditor_count", "kpi_debitor_count", "kpi_foreign_currency", "kpi_total_sum",
+    ];
+    const visibleKpis = visibleWidgets.filter((w) => kpiTypes.includes(w.type));
+    if (visibleKpis.length === 0) return null;
+
+    return (
+      <div className="report-screen-only grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {visibleKpis.map((w) => {
+          const title = w.titleOverride || undefined;
+          switch (w.type) {
+            case "kpi_total_receipts":
+              return <KpiCard key={w.id} label={title ?? "Belege gesamt"} value={String(data.totalReceipts)} />;
+            case "kpi_creditor_sum":
+              return <KpiCard key={w.id} label={title ?? "Kreditoren (Eingang)"} value={fmtEur((data.byPartyRole ?? []).find((r) => r.partyRole === "CREDITOR")?.sumEur ?? 0)} />;
+            case "kpi_debitor_sum":
+              return <KpiCard key={w.id} label={title ?? "Debitoren (Ausgang)"} value={fmtEur((data.byPartyRole ?? []).find((r) => r.partyRole === "DEBTOR")?.sumEur ?? 0)} />;
+            case "kpi_failed_sends":
+              return <KpiCard key={w.id} label={title ?? "Versandfehler"} value={String(data.failedSends)} danger={data.failedSends > 0} />;
+            case "kpi_creditor_count":
+              return <KpiCard key={w.id} label={title ?? "Kreditorenbelege"} value={String((data.byPartyRole ?? []).find((r) => r.partyRole === "CREDITOR")?.count ?? 0)} />;
+            case "kpi_debitor_count":
+              return <KpiCard key={w.id} label={title ?? "Debitorenbelege"} value={String((data.byPartyRole ?? []).find((r) => r.partyRole === "DEBTOR")?.count ?? 0)} />;
+            case "kpi_foreign_currency":
+              return <KpiCard key={w.id} label={title ?? "Fremdwaehrungsbelege"} value={String(data.foreignCurrencyReceipts)} />;
+            case "kpi_total_sum":
+              return <KpiCard key={w.id} label={title ?? "Summe gesamt (nur Info)"} value={fmtEur(data.totalAmountEur)} />;
+            default:
+              return null;
+          }
+        })}
+      </div>
+    );
+  }
+
+  function renderProblems() {
+    if (!data || !isWidgetVisible("problems")) return null;
+    const w = visibleWidgets.find((w) => w.type === "problems");
+    const title = w?.titleOverride;
+
+    if (data.problems.total > 0) {
+      return (
+        <Card className="report-screen-only border-danger/30 bg-danger/5">
+          <h3 className="text-sm font-semibold text-danger">
+            {title ?? "Offene Belege mit Handlungsbedarf"} ({data.problems.total} {data.problems.total === 1 ? "Beleg" : "Belege"})
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Noch nicht versendete Belege mit fehlenden oder unvollstaendigen Angaben. Ein Beleg kann mehrere Probleme haben.
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {data.problems.missingFile > 0 ? <ProblemLink label="Ohne Belegdatei" count={data.problems.missingFile} /> : null}
+            {data.problems.missingCountry > 0 ? <ProblemLink label="Ohne Land" count={data.problems.missingCountry} /> : null}
+            {data.problems.missingSupplier > 0 ? <ProblemLink label="Ohne Lieferant" count={data.problems.missingSupplier} /> : null}
+            {data.problems.missingExchangeRate > 0 ? <ProblemLink label="Fehlender Wechselkurs" count={data.problems.missingExchangeRate} /> : null}
+            {data.problems.sendFailed > 0 ? <ProblemLink label="Versand fehlgeschlagen" count={data.problems.sendFailed} href="/receipts?sendStatus=FAILED" /> : null}
+            {data.problems.missingHospitality > 0 ? <ProblemLink label="Bewirtungsangaben fehlen" count={data.problems.missingHospitality} /> : null}
+          </div>
+        </Card>
+      );
+    }
+
+    return (
+      <Card className="report-screen-only border-primary/20 bg-primary/5">
+        <p className="text-sm font-medium text-primary">Keine offenen Belege mit Handlungsbedarf.</p>
+      </Card>
+    );
+  }
+
+  function renderPeriodSelectors() {
+    const periodTypes = ["period_day", "period_week", "period_month"];
+    const visiblePeriods = visibleWidgets.filter((w) => periodTypes.includes(w.type));
+    if (visiblePeriods.length === 0) return null;
+
+    return (
+      <div className="report-screen-only grid gap-6 xl:grid-cols-3">
+        {visiblePeriods.map((w) => {
+          switch (w.type) {
+            case "period_day":
+              return (
+                <PeriodSelectorCard
+                  key={w.id}
+                  title={w.titleOverride ?? "Nach Tag"}
+                  label="Tag"
+                  value={selectedDay}
+                  onChange={handleDayChange}
+                  options={visibleDayRows.map((row) => ({ value: row.day, label: fmtDay(row.day) }))}
+                  summary={selectedDaySummary}
+                  rows={visibleDayRows.map((row) => ({ key: row.day, label: fmtDay(row.day), count: row.count, sumEur: row.sumEur }))}
+                  listTitle={activePeriod === "month" ? "Tage im gewaehlten Monat" : "Tage in der gewaehlten Woche"}
+                />
+              );
+            case "period_week":
+              return (
+                <PeriodSelectorCard
+                  key={w.id}
+                  title={w.titleOverride ?? "Nach Woche"}
+                  label="Woche"
+                  value={selectedWeek}
+                  onChange={handleWeekChange}
+                  options={monthWeekRows.map((row) => ({ value: row.weekStart, label: row.weekLabel }))}
+                  summary={selectedWeekSummary}
+                  rows={monthWeekRows.map((row) => ({ key: row.weekStart, label: row.weekLabel, count: row.count, sumEur: row.sumEur }))}
+                  listTitle="Wochen im gewaehlten Monat"
+                />
+              );
+            case "period_month":
+              return (
+                <PeriodSelectorCard
+                  key={w.id}
+                  title={w.titleOverride ?? "Nach Monat"}
+                  label="Monat"
+                  value={selectedMonth}
+                  onChange={handleMonthChange}
+                  options={monthRows.map((row) => ({ value: row.month, label: fmtMonth(row.month) }))}
+                  summary={selectedMonthSummary}
+                />
+              );
+            default:
+              return null;
+          }
+        })}
+      </div>
+    );
+  }
+
+  function renderGroupWidgets() {
+    if (!data) return null;
+    const groupTypes = [
+      "group_status", "group_review_status", "group_currency",
+      "group_user", "group_purpose", "group_party_role",
+      "group_payment_method", "group_country",
+    ];
+    const visibleGroups = visibleWidgets.filter((w) => groupTypes.includes(w.type));
+    if (visibleGroups.length === 0) return null;
+
+    return (
+      <div className="report-screen-only grid gap-6 lg:grid-cols-2">
+        {visibleGroups.map((w) => {
+          const title = w.titleOverride;
+          switch (w.type) {
+            case "group_status":
+              return <GroupTable key={w.id} title={title ?? "Versandstatus"} rows={data.byStatus.map((s) => ({ name: STATUS_LABELS[s.status] ?? s.status, count: s.count }))} />;
+            case "group_review_status":
+              return <GroupTable key={w.id} title={title ?? "Pruefstatus"} rows={data.byReviewStatus.map((s) => ({ name: REVIEW_LABELS[s.status] ?? s.status, count: s.count }))} />;
+            case "group_currency":
+              return <CurrencyTable key={w.id} rows={data.byCurrency} />;
+            case "group_user":
+              return <GroupTable key={w.id} title={title ?? "Nach Benutzer"} rows={data.byUser.map((u) => ({ name: u.userName, count: u.count, sumEur: u.sumEur }))} showSum />;
+            case "group_purpose":
+              return <GroupTable key={w.id} title={title ?? "Nach Zweck"} rows={data.byPurpose.map((p) => ({ name: p.name, count: p.count, sumEur: p.sumEur }))} showSum />;
+            case "group_party_role":
+              return <GroupTable key={w.id} title={title ?? "Nach Belegrichtung"} rows={(data.byPartyRole ?? []).map((p) => ({ name: p.name, count: p.count, sumEur: p.sumEur }))} showSum />;
+            case "group_payment_method":
+              return <GroupTable key={w.id} title={title ?? "Nach Zahlungsweise"} rows={data.byPaymentMethod.map((c) => ({ name: c.name, count: c.count, sumEur: c.sumEur }))} showSum />;
+            case "group_country":
+              return <GroupTable key={w.id} title={title ?? "Nach Land"} rows={data.byCountry.map((c) => ({ name: c.name, count: c.count, sumEur: c.sumEur }))} showSum />;
+            default:
+              return null;
+          }
+        })}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <style>{`
@@ -273,9 +514,18 @@ export function ReportingDashboard() {
           .report-print-only { display: none !important; }
         }
       `}</style>
-      <div className="report-screen-only space-y-2">
-        <p className="text-sm font-medium uppercase tracking-[0.24em] text-muted-foreground">Dashboard</p>
-        <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
+      <div className="report-screen-only flex items-center justify-between gap-4">
+        <div className="space-y-2">
+          <p className="text-sm font-medium uppercase tracking-[0.24em] text-muted-foreground">Dashboard</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
+        </div>
+        <button
+          type="button"
+          onClick={() => setEditMode(true)}
+          className="h-9 rounded-xl border border-border px-4 text-sm font-medium text-muted-foreground transition hover:border-primary hover:text-primary"
+        >
+          Layout bearbeiten
+        </button>
       </div>
 
       {/* Date filter */}
@@ -302,101 +552,9 @@ export function ReportingDashboard() {
         <p className="text-sm text-muted-foreground">Daten werden geladen...</p>
       ) : data ? (
         <>
-          {/* KPIs */}
-          <div className="report-screen-only grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiCard label="Belege gesamt" value={String(data.totalReceipts)} />
-            <KpiCard
-              label="Kreditoren (Eingang)"
-              value={fmtEur((data.byPartyRole ?? []).find((r) => r.partyRole === "CREDITOR")?.sumEur ?? 0)}
-            />
-            <KpiCard
-              label="Debitoren (Ausgang)"
-              value={fmtEur((data.byPartyRole ?? []).find((r) => r.partyRole === "DEBTOR")?.sumEur ?? 0)}
-            />
-            <KpiCard label="Versandfehler" value={String(data.failedSends)} danger={data.failedSends > 0} />
-          </div>
-          <div className="report-screen-only grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <KpiCard
-              label="Kreditorenbelege"
-              value={String((data.byPartyRole ?? []).find((r) => r.partyRole === "CREDITOR")?.count ?? 0)}
-            />
-            <KpiCard
-              label="Debitorenbelege"
-              value={String((data.byPartyRole ?? []).find((r) => r.partyRole === "DEBTOR")?.count ?? 0)}
-            />
-            <KpiCard label="Fremdwaehrungsbelege" value={String(data.foreignCurrencyReceipts)} />
-            <KpiCard
-              label="Summe gesamt (nur Info)"
-              value={fmtEur(data.totalAmountEur)}
-            />
-          </div>
-
-          {/* Problem overview */}
-          {data.problems.total > 0 ? (
-            <Card className="report-screen-only border-danger/30 bg-danger/5">
-              <h3 className="text-sm font-semibold text-danger">
-                Offene Belege mit Handlungsbedarf ({data.problems.total} {data.problems.total === 1 ? "Beleg" : "Belege"})
-              </h3>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Noch nicht versendete Belege mit fehlenden oder unvollstaendigen Angaben. Ein Beleg kann mehrere Probleme haben.
-              </p>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {data.problems.missingFile > 0 ? (
-                  <ProblemLink label="Ohne Belegdatei" count={data.problems.missingFile} />
-                ) : null}
-                {data.problems.missingCountry > 0 ? (
-                  <ProblemLink label="Ohne Land" count={data.problems.missingCountry} />
-                ) : null}
-                {data.problems.missingSupplier > 0 ? (
-                  <ProblemLink label="Ohne Lieferant" count={data.problems.missingSupplier} />
-                ) : null}
-                {data.problems.missingExchangeRate > 0 ? (
-                  <ProblemLink label="Fehlender Wechselkurs" count={data.problems.missingExchangeRate} />
-                ) : null}
-                {data.problems.sendFailed > 0 ? (
-                  <ProblemLink label="Versand fehlgeschlagen" count={data.problems.sendFailed} href="/receipts?sendStatus=FAILED" />
-                ) : null}
-                {data.problems.missingHospitality > 0 ? (
-                  <ProblemLink label="Bewirtungsangaben fehlen" count={data.problems.missingHospitality} />
-                ) : null}
-              </div>
-            </Card>
-          ) : (
-            <Card className="report-screen-only border-primary/20 bg-primary/5">
-              <p className="text-sm font-medium text-primary">Keine offenen Belege mit Handlungsbedarf.</p>
-            </Card>
-          )}
-
-          <div className="report-screen-only grid gap-6 xl:grid-cols-3">
-            <PeriodSelectorCard
-              title="Nach Tag"
-              label="Tag"
-              value={selectedDay}
-              onChange={handleDayChange}
-              options={visibleDayRows.map((row) => ({ value: row.day, label: fmtDay(row.day) }))}
-              summary={selectedDaySummary}
-              rows={visibleDayRows.map((row) => ({ key: row.day, label: fmtDay(row.day), count: row.count, sumEur: row.sumEur }))}
-              listTitle={activePeriod === "month" ? "Tage im gewaehlten Monat" : "Tage in der gewaehlten Woche"}
-            />
-            <PeriodSelectorCard
-              title="Nach Woche"
-              label="Woche"
-              value={selectedWeek}
-              onChange={handleWeekChange}
-              options={monthWeekRows.map((row) => ({ value: row.weekStart, label: row.weekLabel }))}
-              summary={selectedWeekSummary}
-              rows={monthWeekRows.map((row) => ({ key: row.weekStart, label: row.weekLabel, count: row.count, sumEur: row.sumEur }))}
-              listTitle="Wochen im gewaehlten Monat"
-            />
-            <PeriodSelectorCard
-              title="Nach Monat"
-              label="Monat"
-              value={selectedMonth}
-              onChange={handleMonthChange}
-              options={monthRows.map((row) => ({ value: row.month, label: fmtMonth(row.month) }))}
-              summary={selectedMonthSummary}
-            />
-          </div>
+          {renderKpiWidgets()}
+          {renderProblems()}
+          {renderPeriodSelectors()}
 
           <div ref={printContentRef} className="hidden">
             <div className="space-y-6">
@@ -445,17 +603,7 @@ export function ReportingDashboard() {
             </div>
           </div>
 
-          {/* Status tables */}
-          <div className="report-screen-only grid gap-6 lg:grid-cols-2">
-            <GroupTable title="Versandstatus" rows={data.byStatus.map((s) => ({ name: STATUS_LABELS[s.status] ?? s.status, count: s.count }))} />
-            <GroupTable title="Pruefstatus" rows={data.byReviewStatus.map((s) => ({ name: REVIEW_LABELS[s.status] ?? s.status, count: s.count }))} />
-            <CurrencyTable rows={data.byCurrency} />
-            <GroupTable title="Nach Benutzer" rows={data.byUser.map((u) => ({ name: u.userName, count: u.count, sumEur: u.sumEur }))} showSum />
-            <GroupTable title="Nach Zweck" rows={data.byPurpose.map((p) => ({ name: p.name, count: p.count, sumEur: p.sumEur }))} showSum />
-            <GroupTable title="Nach Belegrichtung" rows={(data.byPartyRole ?? []).map((p) => ({ name: p.name, count: p.count, sumEur: p.sumEur }))} showSum />
-            <GroupTable title="Nach Zahlungsweise" rows={data.byPaymentMethod.map((c) => ({ name: c.name, count: c.count, sumEur: c.sumEur }))} showSum />
-            <GroupTable title="Nach Land" rows={data.byCountry.map((c) => ({ name: c.name, count: c.count, sumEur: c.sumEur }))} showSum />
-          </div>
+          {renderGroupWidgets()}
         </>
       ) : (
         <p className="text-sm text-danger">Daten konnten nicht geladen werden.</p>
