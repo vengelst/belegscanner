@@ -133,7 +133,7 @@ export class GoogleProvider implements AiProviderInterface {
           },
         ],
         config: {
-          maxOutputTokens: 10,
+          maxOutputTokens: 32,
         },
       });
 

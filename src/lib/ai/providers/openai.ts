@@ -123,7 +123,7 @@ export class OpenAIProvider implements AiProviderInterface {
             content: "Antworte nur mit dem Wort 'OK'.",
           },
         ],
-        max_output_tokens: 10,
+        max_output_tokens: 32,
       });
 
       const outputText = response.output
