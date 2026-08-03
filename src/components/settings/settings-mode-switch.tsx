@@ -42,11 +42,11 @@ function ShieldIcon() {
 }
 
 const baseLinkClassName =
-  "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition";
+  "bb-chip-button inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium";
 
-const activeClassName = "border-primary/30 bg-primary/10 text-primary";
+const activeClassName = "bb-chip-button-active border-primary/30 bg-primary/10 text-primary";
 const inactiveClassName =
-  "border-border bg-background text-muted-foreground hover:border-primary/25 hover:text-foreground";
+  "text-muted-foreground hover:text-foreground";
 
 export function SettingsModeSwitch({ active, showAdmin }: SettingsModeSwitchProps) {
   const items: Array<{

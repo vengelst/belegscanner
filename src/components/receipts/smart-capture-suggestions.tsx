@@ -162,7 +162,7 @@ function ActionSuggestionCard({ text, buttonLabel, onClick }: { text: string; bu
         <button
           type="button"
           onClick={onClick}
-          className="rounded-2xl border border-border bg-card px-3 py-2 text-xs font-semibold transition hover:border-primary/40 hover:text-primary"
+          className="bb-chip-button rounded-2xl px-3 py-2 text-xs"
         >
           {buttonLabel}
         </button>

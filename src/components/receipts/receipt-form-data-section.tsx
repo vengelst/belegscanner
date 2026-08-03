@@ -224,7 +224,7 @@ export function ReceiptFormDataSection({
             name="reverseCharge"
             checked={reverseCharge}
             onChange={(event: React.ChangeEvent<HTMLInputElement>) => setReverseCharge(event.target.checked)}
-            className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
+            className="bb-checkbox-3d"
           />
           <span>
             <span className="block">Reverse Charge</span>

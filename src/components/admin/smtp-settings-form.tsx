@@ -106,7 +106,7 @@ export function SmtpSettingsForm({ initial }: { initial: SmtpInitial }) {
               type="button"
               onClick={handleTest}
               disabled={isPending}
-              className="rounded-2xl border border-border bg-card px-5 py-3 text-sm font-semibold transition hover:border-primary/40 hover:text-primary disabled:opacity-50"
+              className="bb-chip-button rounded-2xl px-5 py-3 text-sm disabled:opacity-50"
             >
               {isPending ? "Wird getestet..." : "Test-Mail senden"}
             </button>

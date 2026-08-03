@@ -118,6 +118,56 @@ select.input-3d {
   padding-right: 2.25rem;
 }
 
+/* Secondary action chips (links/buttons) — visible in all templates */
+.bb-chip-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: inherit;
+  font-weight: 600;
+  transition: box-shadow 0.2s ease, color 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+  cursor: pointer;
+}
+
+.bb-chip-button:hover {
+  color: var(--primary);
+}
+
+.bb-chip-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.bb-checkbox-3d {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1.15rem;
+  height: 1.15rem;
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  border-radius: 0.35rem;
+  background: var(--input-bg);
+  border: 1px solid transparent;
+  border-top-color: var(--input-border-top);
+  border-left-color: var(--input-border-top);
+  border-bottom-color: var(--input-border-bottom);
+  border-right-color: var(--input-border-bottom);
+  box-shadow: var(--input-shadow-inset);
+  cursor: pointer;
+}
+
+.bb-checkbox-3d:checked {
+  background: var(--primary);
+  border-color: var(--primary);
+  box-shadow: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
 /* ========================================
    Modern Template (Neumorphism/Soft UI)
    ======================================== */
@@ -136,6 +186,7 @@ select.input-3d {
   --accent-foreground: #2D3748;
   --danger: #E53E3E;
   --radius: 1.25rem;
+  --input-surface: #d8dde3;
   
   /* Neumorphism shadows */
   --neu-shadow-raised: 8px 8px 16px #c8ccd0, -8px -8px 16px #ffffff;
@@ -260,6 +311,47 @@ select.input-3d {
   box-shadow: var(--neu-shadow-active);
 }
 
+.template-modern .bb-button-outline,
+.template-modern .bb-button-danger-outline,
+.template-modern .bb-chip-button {
+  border: none !important;
+  background: var(--background);
+  box-shadow: var(--neu-shadow-raised-sm);
+}
+
+.template-modern .bb-button-outline:hover,
+.template-modern .bb-button-danger-outline:hover,
+.template-modern .bb-chip-button:hover {
+  box-shadow: var(--neu-shadow-hover);
+  color: var(--primary);
+}
+
+.template-modern .bb-button-outline:active,
+.template-modern .bb-button-danger-outline:active,
+.template-modern .bb-chip-button:active {
+  box-shadow: var(--neu-shadow-active);
+}
+
+.template-modern .bb-chip-button-active {
+  box-shadow: var(--neu-shadow-active) !important;
+  color: var(--primary);
+  background: color-mix(in oklab, var(--primary) 12%, var(--background));
+}
+
+.template-modern .bb-checkbox-3d {
+  border: none !important;
+  background-color: var(--input-surface);
+  box-shadow: var(--neu-shadow-inset);
+}
+
+.template-modern .bb-checkbox-3d:checked {
+  background-color: var(--primary);
+  box-shadow: var(--neu-shadow-raised-sm);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
 /* ----------------------------------------
    Modern Template - Input Styles
    ---------------------------------------- */
@@ -268,7 +360,7 @@ select.input-3d {
 .template-modern .bb-textarea,
 .template-modern .input-3d {
   border: none !important;
-  background-color: var(--background);
+  background-color: var(--input-surface);
   box-shadow: var(--neu-shadow-inset);
   border-radius: calc(var(--radius) - 0.25rem);
 }
@@ -278,7 +370,7 @@ select.input-3d {
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  background-color: var(--background);
+  background-color: var(--input-surface);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234a5568' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.75rem center;
@@ -428,14 +520,15 @@ select.input-3d {
 }
 
 .template-modern tbody tr {
-  background: var(--background);
-  box-shadow: var(--neu-shadow-raised-sm);
-  border-radius: var(--radius);
-  margin-bottom: 0.5rem;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
+  margin-bottom: 0;
 }
 
 .template-modern tbody tr:hover {
-  box-shadow: var(--neu-shadow-hover);
+  background: color-mix(in oklab, var(--muted) 45%, transparent);
+  box-shadow: none;
 }
 
 /* ----------------------------------------

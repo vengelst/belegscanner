@@ -34,7 +34,7 @@ export default function DashboardError({
           </button>
           <Link
             href="/receipts"
-            className="rounded-2xl border border-border bg-card px-5 py-2.5 text-sm font-semibold transition hover:border-primary/40 hover:text-primary"
+            className="bb-chip-button rounded-2xl px-5 py-2.5 text-sm"
           >
             Zur Startseite
           </Link>

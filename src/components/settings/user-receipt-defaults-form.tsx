@@ -92,7 +92,7 @@ export function UserReceiptDefaultsForm({
               setSuccess(null);
               setError(null);
             }}
-            className="rounded-2xl border border-border bg-card px-6 py-3 text-sm font-semibold transition hover:border-primary/40 hover:text-primary disabled:opacity-70"
+            className="bb-chip-button rounded-2xl px-6 py-3 text-sm disabled:opacity-70"
           >
             Auswahl leeren
           </button>

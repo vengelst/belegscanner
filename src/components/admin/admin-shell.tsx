@@ -58,7 +58,11 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   <Link
                     key={link.href}
                     href={link.href}
-                    className="bb-sidebar-link block rounded-xl px-3 py-2 text-sm font-medium transition duration-200 hover:bg-primary/5 hover:text-primary"
+                    className={`bb-sidebar-link bb-chip-button block w-full justify-start rounded-xl px-3 py-2 text-sm font-medium ${
+                      pathname === link.href || pathname.startsWith(`${link.href}/`)
+                        ? "bb-chip-button-active text-primary"
+                        : ""
+                    }`}
                   >
                     {link.label}
                   </Link>

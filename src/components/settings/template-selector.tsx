@@ -78,12 +78,11 @@ export function TemplateSelector({ currentTemplate }: TemplateSelectorProps) {
               onClick={() => handleSelect(template.id)}
               disabled={isUpdating}
               className={cn(
-                "relative flex flex-col items-start gap-3 rounded-2xl border-2 p-5 text-left transition-all",
-                "hover:border-primary/40 hover:bg-muted/30",
+                "bb-chip-button relative flex flex-col items-start gap-3 rounded-2xl p-5 text-left",
                 "disabled:cursor-not-allowed disabled:opacity-60",
                 isSelected
-                  ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                  : "border-border bg-card"
+                  ? "bb-chip-button-active border-primary bg-primary/5 ring-2 ring-primary/20"
+                  : ""
               )}
             >
               <div

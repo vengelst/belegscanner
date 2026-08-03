@@ -373,45 +373,24 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
         </Card>
       ) : (
         <>
-          {/* Mobile cards */}
-          <div className="space-y-3 lg:hidden">
+          {/* Mobile: eine Zeile pro Beleg */}
+          <div className="space-y-2 lg:hidden">
             {receipts.map((r) => (
-              <Card key={r.id} className="space-y-3 p-4">
-                <div className="space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <Link href={`/receipts/${r.id}`} className="truncate font-medium hover:text-primary hover:underline">
-                        {r.supplier ?? "Beleg"}
-                      </Link>
-                      <p className="text-xs text-muted-foreground">
-                        {fmtDate(r.date)} — {r.userName}
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <p className="font-semibold tabular-nums text-sm">
-                        {fmtAmount(r.amount)} {r.currency}
-                      </p>
-                      <StatusBadge status={r.sendStatus} />
-                      <ReviewBadge status={r.reviewStatus} />
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    <Tag>{r.partyRole === "DEBTOR" ? "Debitor" : "Kreditor"}</Tag>
-                    <Tag>{r.purposeName}</Tag>
-                    <Tag>{r.categoryName}</Tag>
-                    {r.countryName ? <Tag>{r.countryName}</Tag> : null}
-                    {r.vehiclePlate ? <Tag>{r.vehiclePlate}</Tag> : null}
-                    {r.hasHospitality ? <Tag accent>Bewirtung</Tag> : null}
-                    {r.sendStatus === "FAILED" ? <Tag danger>Fehler</Tag> : null}
-                    {!r.hasFile ? <Tag danger>Datei fehlt</Tag> : null}
-                    {r.sendStatus === "OPEN" && (!r.countryName || !r.supplier) ? <Tag accent>pruefen</Tag> : null}
-                    {r.isHospitality && !r.hasHospitality ? <Tag accent>Bewirtung pruefen</Tag> : null}
-                  </div>
+              <Card key={r.id} className="flex items-center gap-2 p-2.5">
+                <div className="min-w-0 flex-1">
+                  <Link href={`/receipts/${r.id}`} className="block truncate text-sm font-medium hover:text-primary hover:underline">
+                    {r.supplier ?? "Beleg"}
+                  </Link>
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    {fmtDate(r.date)} · {fmtAmount(r.amount)} {r.currency}
+                    {!r.hasFile ? " · Datei fehlt" : ""}
+                    {r.sendStatus === "FAILED" ? " · Fehler" : ""}
+                  </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <StatusBadge status={r.sendStatus} />
+                <div className="flex shrink-0 gap-1">
                   <ActionLink href={`/receipts/${r.id}`} title="Oeffnen"><Eye size={14} /></ActionLink>
                   <ActionLink href={`/receipts/${r.id}/edit`} title="Bearbeiten"><Pencil size={14} /></ActionLink>
-                  <ActionLink href={`/receipts/${r.id}/print`} target="_blank" title="Drucken"><Printer size={14} /></ActionLink>
                   <ActionButton
                     danger
                     disabled={deleting && deleteTarget === r.id}
@@ -440,21 +419,21 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                   {isColumnVisible("reviewStatus") ? <SortableHeader label="Pruefung" columnKey="reviewStatus" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
                   {isColumnVisible("sendStatus") ? <SortableHeader label="Versand" columnKey="sendStatus" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
                   {isColumnVisible("sentAt") ? <SortableHeader label="Gesendet" columnKey="sentAt" activeSortBy={filters.sortBy} activeSortDir={filters.sortDir} onClick={handleSortClick} /> : null}
-                  <th className="px-4 py-3 font-medium">Aktionen</th>
+                  <th className="px-4 py-2 font-medium">Aktionen</th>
                 </tr>
               </thead>
               <tbody>
                 {receipts.map((r) => (
                   <tr key={r.id} className="border-b border-border/50 transition hover:bg-muted/30">
                     {isColumnVisible("date") ? (
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="px-4 py-1.5 whitespace-nowrap">
                         <Link href={`/receipts/${r.id}`} className="hover:text-primary hover:underline">
                           {fmtDate(r.date)}
                         </Link>
                       </td>
                     ) : null}
                     {isColumnVisible("supplier") ? (
-                      <td className="max-w-[160px] px-4 py-3 truncate">
+                      <td className="max-w-[160px] px-4 py-1.5 truncate">
                         <span className="mr-1 rounded bg-muted px-1 py-0.5 text-[10px] font-semibold text-muted-foreground">
                           {r.partyRole === "DEBTOR" ? "D" : "K"}
                         </span>
@@ -463,33 +442,33 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                       </td>
                     ) : null}
                     {isColumnVisible("amount") ? (
-                      <td className="px-4 py-3 tabular-nums whitespace-nowrap">
+                      <td className="px-4 py-1.5 tabular-nums whitespace-nowrap">
                         {fmtAmount(r.amount)} {r.currency}
                         {r.currency !== "EUR" ? (
                           <span className="ml-1 text-xs text-muted-foreground">({fmtAmount(r.amountEur)} EUR)</span>
                         ) : null}
                       </td>
                     ) : null}
-                    {isColumnVisible("purpose") ? <td className="px-4 py-3">{r.purposeName}</td> : null}
-                    {isColumnVisible("category") ? <td className="px-4 py-3">{r.categoryName}</td> : null}
-                    {isColumnVisible("country") ? <td className="px-4 py-3 text-muted-foreground">{r.countryName ?? "—"}</td> : null}
-                    {isColumnVisible("user") ? <td className="px-4 py-3 text-muted-foreground">{r.userName}</td> : null}
+                    {isColumnVisible("purpose") ? <td className="px-4 py-1.5">{r.purposeName}</td> : null}
+                    {isColumnVisible("category") ? <td className="px-4 py-1.5">{r.categoryName}</td> : null}
+                    {isColumnVisible("country") ? <td className="px-4 py-1.5 text-muted-foreground">{r.countryName ?? "—"}</td> : null}
+                    {isColumnVisible("user") ? <td className="px-4 py-1.5 text-muted-foreground">{r.userName}</td> : null}
                     {isColumnVisible("reviewStatus") ? (
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-1.5">
                         <ReviewBadge status={r.reviewStatus} />
                       </td>
                     ) : null}
                     {isColumnVisible("sendStatus") ? (
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-1.5">
                         <StatusBadge status={r.sendStatus} />
                       </td>
                     ) : null}
                     {isColumnVisible("sentAt") ? (
-                      <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                      <td className="px-4 py-1.5 text-xs text-muted-foreground whitespace-nowrap">
                         {r.sendStatus === "SENT" && r.sendStatusUpdatedAt ? fmtDateTime(r.sendStatusUpdatedAt) : "—"}
                       </td>
                     ) : null}
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-1.5">
                       <div className="flex flex-wrap gap-2">
                         <ActionLink href={`/receipts/${r.id}`} title="Oeffnen"><Eye size={14} /></ActionLink>
                         <ActionLink href={`/receipts/${r.id}/edit`} title="Bearbeiten"><Pencil size={14} /></ActionLink>
@@ -614,13 +593,6 @@ function ActionButton({
   );
 }
 
-function Tag({ children, accent, danger }: { children: React.ReactNode; accent?: boolean; danger?: boolean }) {
-  let cls = "bb-badge bb-badge-default rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground";
-  if (accent) cls = "bb-badge bb-badge-warning rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-semibold text-accent-foreground";
-  if (danger) cls = "bb-badge bb-badge-danger rounded-full bg-danger/10 px-2 py-0.5 text-[10px] font-semibold text-danger";
-  return <span className={cls}>{children}</span>;
-}
-
 function SortableHeader({
   label,
   columnKey,
@@ -639,11 +611,11 @@ function SortableHeader({
   const directionIcon = active ? (activeSortDir === "asc" ? "▲" : "▼") : "↕";
 
   if (!mappedSortBy) {
-    return <th className="px-4 py-3 font-medium">{label}</th>;
+    return <th className="px-4 py-1.5 font-medium">{label}</th>;
   }
 
   return (
-    <th className="px-4 py-3 font-medium">
+    <th className="px-4 py-1.5 font-medium">
       <button
         type="button"
         onClick={() => onClick(mappedSortBy)}

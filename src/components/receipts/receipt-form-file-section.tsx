@@ -81,7 +81,7 @@ export function ReceiptFormFileSection({
               In-App-Kamera braucht HTTPS oder localhost. Der normale Upload funktioniert weiterhin.
             </p>
           )}
-          <label className="inline-flex cursor-pointer items-center rounded-2xl border border-border bg-card px-5 py-3 text-sm font-semibold transition hover:border-primary/40 hover:text-primary">
+          <label className="bb-chip-button inline-flex cursor-pointer items-center rounded-2xl px-5 py-3 text-sm">
             Datei auswaehlen
             <input
               type="file"

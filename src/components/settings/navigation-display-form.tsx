@@ -61,10 +61,10 @@ export function NavigationDisplayForm() {
               type="button"
               onClick={() => handleChange(option.value)}
               className={cn(
-                "rounded-2xl border px-4 py-4 text-left transition",
+                "bb-chip-button rounded-2xl px-4 py-4 text-left",
                 active
-                  ? "border-primary/40 bg-primary/5 shadow-soft"
-                  : "border-border bg-background hover:border-primary/25",
+                  ? "bb-chip-button-active border-primary/40 bg-primary/5"
+                  : "text-muted-foreground",
               )}
             >
               <span className="block text-sm font-semibold">{option.title}</span>

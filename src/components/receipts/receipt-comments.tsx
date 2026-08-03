@@ -59,12 +59,12 @@ export function ReceiptComments({ receiptId }: { receiptId: string }) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Interner Kommentar oder Pruefnotiz..."
-          className="h-10 flex-1 rounded-2xl border border-border bg-background px-4 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+          className="bb-input input-3d h-10 flex-1 rounded-xl px-4 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20"
         />
         <button
           type="submit"
           disabled={isPending || !text.trim()}
-          className="h-10 rounded-2xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+          className="bb-button bb-button-primary h-10 rounded-2xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
         >
           {isPending ? "..." : "Senden"}
         </button>

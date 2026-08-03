@@ -207,7 +207,7 @@ function UserRow({ user }: { user: UserRow }) {
                 placeholder="4-stellige PIN"
                 value={pinInput}
                 onChange={(e) => setPinInput(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                className="h-10 w-32 rounded-2xl border border-border bg-background px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/10"
+                className="bb-input input-3d h-10 w-32 rounded-xl px-3 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20"
               />
               <button
                 type="button"

@@ -100,11 +100,11 @@ export function ReceiptFilterBar({
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
             placeholder="Suche (Lieferant, Bemerkung, KI-Text)..."
-            className="h-10 flex-1 rounded-2xl border border-border bg-background px-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
+            className="bb-input input-3d h-10 flex-1 rounded-xl px-4 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20"
           />
           <button
             type="submit"
-            className="h-10 rounded-2xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+            className="bb-button bb-button-primary h-10 rounded-2xl bg-primary px-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
           >
             Suchen
           </button>
@@ -112,10 +112,10 @@ export function ReceiptFilterBar({
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
-          className={`h-10 rounded-2xl border px-4 text-sm font-medium transition ${
+          className={`bb-chip-button h-10 rounded-2xl px-4 text-sm font-medium ${
             hasFilters
-              ? "border-primary/40 bg-primary/5 text-primary"
-              : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-primary"
+              ? "bb-chip-button-active border-primary/40 bg-primary/5 text-primary"
+              : "text-muted-foreground"
           }`}
         >
           Filter{hasFilters ? " aktiv" : ""}
@@ -127,7 +127,7 @@ export function ReceiptFilterBar({
           {isAdmin && exportHref ? (
             <a
               href={exportHref}
-              className="rounded-2xl border border-border bg-card px-4 py-2 text-sm font-semibold transition hover:border-primary/40 hover:text-primary"
+              className="bb-chip-button rounded-2xl px-4 py-2 text-sm"
             >
               Export
             </a>
@@ -226,7 +226,7 @@ export function ReceiptFilterBar({
             <button
               type="button"
               onClick={handleReset}
-              className="h-9 rounded-xl border border-border bg-card px-4 text-sm font-medium text-muted-foreground transition hover:border-danger/40 hover:text-danger"
+              className="bb-chip-button h-9 rounded-xl px-4 text-sm font-medium text-muted-foreground hover:text-danger"
             >
               Alle zuruecksetzen
             </button>

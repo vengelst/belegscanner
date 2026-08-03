@@ -325,7 +325,7 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
                 setTaxManuallyOverridden(false);
                 setReverseCharge(event.target.checked);
               }}
-              className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
+              className="bb-checkbox-3d"
             />
             <span>
               <span className="block">Reverse Charge</span>
@@ -354,8 +354,8 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
             : "Diesem Beleg fehlt noch die Originaldatei. Sie kann hier nachgereicht werden."}
         </p>
         <div className="mt-4">
-          <label className={`flex cursor-pointer flex-col items-center gap-3 rounded-2xl border-2 border-dashed p-6 transition hover:border-primary/40 hover:bg-primary/5 ${file || hasOriginalFile ? "border-border" : "border-accent/40"}`}>
-            <span className="text-sm font-medium text-muted-foreground">
+          <label className={`flex cursor-pointer items-center justify-between gap-3 rounded-2xl border-2 border-dashed px-4 py-2.5 transition hover:border-primary/40 hover:bg-primary/5 ${file || hasOriginalFile ? "border-border" : "border-accent/40"}`}>
+            <span className="min-w-0 truncate text-sm font-medium text-muted-foreground">
               {file ? file.name : hasOriginalFile ? "Datei fuer Ersatz auswaehlen" : "Originaldatei nachreichen"}
             </span>
             <input
@@ -364,7 +364,7 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               className="sr-only"
             />
-            <span className="rounded-2xl border border-border bg-card px-4 py-2 text-sm font-semibold transition hover:border-primary/40 hover:text-primary">
+            <span className="bb-chip-button shrink-0 rounded-2xl px-4 py-2 text-sm">
               Datei auswaehlen
             </span>
           </label>
@@ -427,7 +427,7 @@ function SelectField({ label, name, required, value, onChange, defaultValue, chi
   return (
     <label className="grid gap-1 text-sm font-medium">
       <span className="text-xs text-muted-foreground">{label}</span>
-      <select name={name} required={required} value={value} defaultValue={!value ? defaultValue : undefined} onChange={onChange ? (e) => onChange(e.target.value) : undefined} className="h-12 rounded-2xl border border-border bg-background px-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10">
+      <select name={name} required={required} value={value} defaultValue={!value ? defaultValue : undefined} onChange={onChange ? (e) => onChange(e.target.value) : undefined} className="bb-select input-3d h-10 rounded-xl px-3 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20">
         {children}
       </select>
     </label>
