@@ -1,6 +1,6 @@
 import type { OcrConfidenceLevel, OcrDocumentType } from "@/lib/ocr-suggestions";
 import type { OcrInvoiceLineItem, OcrResult } from "@/lib/document-analysis";
-import { getAiProvider, AiProviderError } from "@/lib/ai";
+import { getAiProvider, AiProviderError, normalizePartyRole } from "@/lib/ai";
 import type { ExtractionResult } from "@/lib/ai/types";
 
 function mapPaymentMethod(raw: string | null): "cash" | "visa" | "mastercard" | "credit_card" | "debit_card" | "paypal" | "sepa" | "bank_transfer" | "unknown" | null {
@@ -34,6 +34,13 @@ function confidence(value: unknown): OcrConfidenceLevel {
   return "high";
 }
 
+function partyRoleConfidence(data: ExtractionResult): OcrConfidenceLevel {
+  const role = normalizePartyRole(data.partyRole);
+  if (!role) return "none";
+  const uncertain = data.warnings.some((warning) => /unsicher|uncertain|unklar/i.test(warning));
+  return uncertain ? "medium" : "high";
+}
+
 function mapLineItems(items: ExtractionResult["lineItems"]): OcrInvoiceLineItem[] {
   return items.map((item, index) => ({
     lineNumber: index + 1,
@@ -49,8 +56,18 @@ function mapLineItems(items: ExtractionResult["lineItems"]): OcrInvoiceLineItem[
 }
 
 function buildRawText(data: ExtractionResult): string {
+  const partyLabel = data.partyRole === "DEBTOR"
+    ? "Debitor (Ausgangsbeleg)"
+    : data.partyRole === "CREDITOR"
+      ? "Kreditor (Eingangsbeleg)"
+      : null;
+  const counterpartyLabel = data.partyRole === "DEBTOR" ? "Kunde" : "Lieferant";
+
   const lines = [
-    data.supplier ? `Lieferant: ${data.supplier}` : null,
+    partyLabel ? `Belegrichtung: ${partyLabel}` : null,
+    data.supplier ? `${counterpartyLabel}: ${data.supplier}` : null,
+    data.issuerName ? `Aussteller: ${data.issuerName}` : null,
+    data.recipientName ? `Empfaenger: ${data.recipientName}` : null,
     data.invoiceNumber ? `Rechnungsnummer: ${data.invoiceNumber}` : null,
     data.invoiceDate ? `Rechnungsdatum: ${data.invoiceDate}` : null,
     data.dueDate ? `Faelligkeit: ${data.dueDate}` : null,
@@ -75,6 +92,88 @@ function buildRawText(data: ExtractionResult): string {
   return lines.filter(Boolean).join("\n");
 }
 
+function mapExtractionToOcrResult(
+  data: ExtractionResult,
+  mimeType: string,
+): OcrResult {
+  const lineItems = mapLineItems(data.lineItems);
+  const rawText = buildRawText(data);
+  const sourceType = mimeType === "application/pdf" ? "pdf" : "image";
+  const message = data.warnings.length > 0 ? data.warnings.join("; ") : null;
+  const partyRole = normalizePartyRole(data.partyRole);
+
+  return {
+    sourceType,
+    rawText,
+    extracted: {
+      date: data.invoiceDate ?? data.serviceDate ?? null,
+      invoiceDate: data.invoiceDate,
+      dueDate: data.dueDate,
+      serviceDate: data.serviceDate,
+      time: data.time,
+      amount: data.grossAmount,
+      grossAmount: data.grossAmount,
+      netAmount: data.netAmount,
+      taxAmount: data.taxAmount,
+      currency: data.currency,
+      supplier: data.supplier,
+      partyRole,
+      issuerName: data.issuerName,
+      recipientName: data.recipientName,
+      invoiceNumber: data.invoiceNumber,
+      location: data.location,
+      paymentMethod: mapPaymentMethod(data.paymentMethod),
+      cardLastDigits: data.cardLastDigits,
+      countryCode: data.countryCode,
+      countryName: data.countryName,
+      documentType: data.documentType as OcrDocumentType | null,
+    },
+    special: {
+      fuel: null,
+      hospitality: null,
+      lodging: null,
+      parking: null,
+      toll: null,
+      invoice: lineItems.length > 0 ? { lineItems } : null,
+    },
+    confidence: 0.9,
+    fieldConfidence: {
+      date: confidence(data.invoiceDate ?? data.serviceDate),
+      invoiceDate: confidence(data.invoiceDate),
+      dueDate: confidence(data.dueDate),
+      serviceDate: confidence(data.serviceDate),
+      time: confidence(data.time),
+      amount: confidence(data.grossAmount),
+      grossAmount: confidence(data.grossAmount),
+      netAmount: confidence(data.netAmount),
+      taxAmount: confidence(data.taxAmount),
+      currency: confidence(data.currency),
+      supplier: confidence(data.supplier),
+      partyRole: partyRoleConfidence(data),
+      invoiceNumber: confidence(data.invoiceNumber),
+      location: confidence(data.location),
+      paymentMethod: confidence(data.paymentMethod),
+      cardLastDigits: confidence(data.cardLastDigits),
+      country: confidence(data.countryCode ?? data.countryName),
+      documentType: confidence(data.documentType),
+    },
+    specialConfidence: {
+      fuel: null,
+      hospitality: null,
+      lodging: null,
+      parking: null,
+      toll: null,
+      invoice: lineItems.length > 0 ? { lineItems: "high" } : null,
+    },
+    message,
+    warnings: data.warnings.map((warning) => ({
+      field: /richtung|party|debitor|kreditor/i.test(warning) ? "partyRole" : "general",
+      type: "info",
+      message: warning,
+    })),
+  };
+}
+
 export async function analyzeWithOpenAITextMode(
   rawText: string,
   mimeType: string,
@@ -86,77 +185,7 @@ export async function analyzeWithOpenAITextMode(
 
   try {
     const data = await provider.analyzeText(rawText);
-    const lineItems = mapLineItems(data.lineItems);
-    const builtRawText = buildRawText(data);
-    const sourceType = mimeType === "application/pdf" ? "pdf" : "image";
-    const message = data.warnings.length > 0 ? data.warnings.join("; ") : null;
-
-    return {
-      sourceType,
-      rawText: builtRawText,
-      extracted: {
-        date: data.invoiceDate ?? data.serviceDate ?? null,
-        invoiceDate: data.invoiceDate,
-        dueDate: data.dueDate,
-        serviceDate: data.serviceDate,
-        time: data.time,
-        amount: data.grossAmount,
-        grossAmount: data.grossAmount,
-        netAmount: data.netAmount,
-        taxAmount: data.taxAmount,
-        currency: data.currency,
-        supplier: data.supplier,
-        invoiceNumber: data.invoiceNumber,
-        location: data.location,
-        paymentMethod: mapPaymentMethod(data.paymentMethod),
-        cardLastDigits: data.cardLastDigits,
-        countryCode: data.countryCode,
-        countryName: data.countryName,
-        documentType: data.documentType as OcrDocumentType | null,
-      },
-      special: {
-        fuel: null,
-        hospitality: null,
-        lodging: null,
-        parking: null,
-        toll: null,
-        invoice: lineItems.length > 0 ? { lineItems } : null,
-      },
-      confidence: 0.9,
-      fieldConfidence: {
-        date: confidence(data.invoiceDate ?? data.serviceDate),
-        invoiceDate: confidence(data.invoiceDate),
-        dueDate: confidence(data.dueDate),
-        serviceDate: confidence(data.serviceDate),
-        time: confidence(data.time),
-        amount: confidence(data.grossAmount),
-        grossAmount: confidence(data.grossAmount),
-        netAmount: confidence(data.netAmount),
-        taxAmount: confidence(data.taxAmount),
-        currency: confidence(data.currency),
-        supplier: confidence(data.supplier),
-        invoiceNumber: confidence(data.invoiceNumber),
-        location: confidence(data.location),
-        paymentMethod: confidence(data.paymentMethod),
-        cardLastDigits: confidence(data.cardLastDigits),
-        country: confidence(data.countryCode ?? data.countryName),
-        documentType: confidence(data.documentType),
-      },
-      specialConfidence: {
-        fuel: null,
-        hospitality: null,
-        lodging: null,
-        parking: null,
-        toll: null,
-        invoice: lineItems.length > 0 ? { lineItems: "high" } : null,
-      },
-      message,
-      warnings: data.warnings.map((warning) => ({
-        field: "general",
-        type: "info",
-        message: warning,
-      })),
-    };
+    return mapExtractionToOcrResult(data, mimeType);
   } catch (error) {
     if (error instanceof AiProviderError) {
       throw new Error(error.userMessage);
@@ -176,77 +205,7 @@ export async function analyzeWithOpenAI(
 
   try {
     const data = await provider.analyzeDocument(buffer, mimeType);
-    const lineItems = mapLineItems(data.lineItems);
-    const rawText = buildRawText(data);
-    const sourceType = mimeType === "application/pdf" ? "pdf" : "image";
-    const message = data.warnings.length > 0 ? data.warnings.join("; ") : null;
-
-    return {
-      sourceType,
-      rawText,
-      extracted: {
-        date: data.invoiceDate ?? data.serviceDate ?? null,
-        invoiceDate: data.invoiceDate,
-        dueDate: data.dueDate,
-        serviceDate: data.serviceDate,
-        time: data.time,
-        amount: data.grossAmount,
-        grossAmount: data.grossAmount,
-        netAmount: data.netAmount,
-        taxAmount: data.taxAmount,
-        currency: data.currency,
-        supplier: data.supplier,
-        invoiceNumber: data.invoiceNumber,
-        location: data.location,
-        paymentMethod: mapPaymentMethod(data.paymentMethod),
-        cardLastDigits: data.cardLastDigits,
-        countryCode: data.countryCode,
-        countryName: data.countryName,
-        documentType: data.documentType as OcrDocumentType | null,
-      },
-      special: {
-        fuel: null,
-        hospitality: null,
-        lodging: null,
-        parking: null,
-        toll: null,
-        invoice: lineItems.length > 0 ? { lineItems } : null,
-      },
-      confidence: 0.9,
-      fieldConfidence: {
-        date: confidence(data.invoiceDate ?? data.serviceDate),
-        invoiceDate: confidence(data.invoiceDate),
-        dueDate: confidence(data.dueDate),
-        serviceDate: confidence(data.serviceDate),
-        time: confidence(data.time),
-        amount: confidence(data.grossAmount),
-        grossAmount: confidence(data.grossAmount),
-        netAmount: confidence(data.netAmount),
-        taxAmount: confidence(data.taxAmount),
-        currency: confidence(data.currency),
-        supplier: confidence(data.supplier),
-        invoiceNumber: confidence(data.invoiceNumber),
-        location: confidence(data.location),
-        paymentMethod: confidence(data.paymentMethod),
-        cardLastDigits: confidence(data.cardLastDigits),
-        country: confidence(data.countryCode ?? data.countryName),
-        documentType: confidence(data.documentType),
-      },
-      specialConfidence: {
-        fuel: null,
-        hospitality: null,
-        lodging: null,
-        parking: null,
-        toll: null,
-        invoice: lineItems.length > 0 ? { lineItems: "high" } : null,
-      },
-      message,
-      warnings: data.warnings.map((warning) => ({
-        field: "general",
-        type: "info",
-        message: warning,
-      })),
-    };
+    return mapExtractionToOcrResult(data, mimeType);
   } catch (error) {
     if (error instanceof AiProviderError) {
       throw new Error(error.userMessage);

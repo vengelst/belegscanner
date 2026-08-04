@@ -356,6 +356,20 @@ model AuditLog {
 // Backup-System
 // ============================================================
 
+// Eigene Firma / Organisation (Singleton-Zeile fuer KI Debitoren-Erkennung)
+model OrganizationProfile {
+  id          String   @id @default("default")
+  legalName   String   @default("")
+  tradeName   String?
+  vatId       String?
+  street      String?
+  zip         String?
+  city        String?
+  countryCode String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 // Dashboard-Layout (Singleton-Zeile, shared fuer alle User)
 model DashboardConfig {
   id        String   @id @default("default")

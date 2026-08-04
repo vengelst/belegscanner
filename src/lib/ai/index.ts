@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/encryption";
+import type { OrganizationIdentity } from "@/lib/organization";
+import { getOrganizationProfile } from "@/lib/organization";
 import type { AiConfig, AiProvider, AiProviderInterface } from "./types";
 import { OpenAIProvider } from "./providers/openai";
 import { AnthropicProvider } from "./providers/anthropic";
@@ -9,6 +11,11 @@ export * from "./types";
 export { OpenAIProvider } from "./providers/openai";
 export { AnthropicProvider } from "./providers/anthropic";
 export { GoogleProvider } from "./providers/google";
+export {
+  buildSystemPrompt,
+  normalizeExtractionResult,
+  normalizePartyRole,
+} from "./organization-prompt";
 
 export async function getAiConfig(): Promise<AiConfig | null> {
   const dbConfig = await prisma.aiConfig.findUnique({
@@ -43,14 +50,17 @@ export async function getAiConfig(): Promise<AiConfig | null> {
   return null;
 }
 
-export function createAiProvider(config: AiConfig): AiProviderInterface {
+export function createAiProvider(
+  config: AiConfig,
+  organization: OrganizationIdentity | null = null,
+): AiProviderInterface {
   switch (config.provider) {
     case "openai":
-      return new OpenAIProvider(config);
+      return new OpenAIProvider(config, organization);
     case "anthropic":
-      return new AnthropicProvider(config);
+      return new AnthropicProvider(config, organization);
     case "google":
-      return new GoogleProvider(config);
+      return new GoogleProvider(config, organization);
     default:
       throw new Error(`Unbekannter AI-Provider: ${config.provider}`);
   }
@@ -61,7 +71,8 @@ export async function getAiProvider(): Promise<AiProviderInterface | null> {
   if (!config) {
     return null;
   }
-  return createAiProvider(config);
+  const organization = await getOrganizationProfile();
+  return createAiProvider(config, organization);
 }
 
 export async function getOcrServiceUrl(): Promise<string | null> {

@@ -29,6 +29,7 @@ const navGroups: NavGroup[] = [
   {
     title: "System",
     links: [
+      { href: "/admin/organization" as Route, label: "Eigene Firma" },
       { href: "/admin/smtp", label: "SMTP" },
       { href: "/admin/datev", label: "DATEV-Profile" },
       { href: "/admin/ai" as Route, label: "KI-Einstellungen" },

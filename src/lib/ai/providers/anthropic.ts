@@ -1,7 +1,13 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { ContentBlock, TextBlock } from "@anthropic-ai/sdk/resources/messages";
+import type { OrganizationIdentity } from "@/lib/organization";
 import type { AiProviderInterface, ExtractionResult, AiConfig } from "../types";
-import { SYSTEM_PROMPT, parseProviderError } from "../types";
+import { parseProviderError } from "../types";
+import {
+  buildExtractionUserPrompt,
+  buildSystemPrompt,
+  normalizeExtractionResult,
+} from "../organization-prompt";
 
 function isTextBlock(block: ContentBlock): block is TextBlock {
   return block.type === "text";
@@ -19,49 +25,33 @@ function getMimeType(mimeType: string): "image/jpeg" | "image/png" | "image/gif"
   return "image/jpeg";
 }
 
-const EXTRACTION_PROMPT = `Extrahiere die Daten aus dem Beleg und gib sie als JSON zurueck. Das JSON muss exakt diesem Schema entsprechen:
-{
-  "supplier": string | null,
-  "invoiceNumber": string | null,
-  "invoiceDate": string | null (YYYY-MM-DD),
-  "dueDate": string | null (YYYY-MM-DD),
-  "serviceDate": string | null (YYYY-MM-DD),
-  "time": string | null,
-  "currency": string | null (ISO 4217),
-  "grossAmount": number | null,
-  "netAmount": number | null,
-  "taxAmount": number | null,
-  "paymentMethod": "cash" | "visa" | "mastercard" | "credit_card" | "debit_card" | "paypal" | "sepa" | "bank_transfer" | "unknown" | null,
-  "cardLastDigits": string | null,
-  "location": string | null,
-  "countryCode": string | null,
-  "countryName": string | null,
-  "documentType": "general" | "fuel" | "hospitality" | "lodging" | "parking" | "toll" | null,
-  "lineItems": [{ "description": string, "quantity": number | null, "unit": string | null, "unitPrice": number | null, "totalPrice": number | null, "taxHint": string | null }],
-  "warnings": string[]
-}
-
-Gib NUR das JSON zurueck, ohne Markdown-Formatierung oder zusaetzlichen Text.`;
-
 export class AnthropicProvider implements AiProviderInterface {
   private client: Anthropic;
   private model: string;
+  private organization: OrganizationIdentity | null;
 
-  constructor(config: AiConfig) {
+  constructor(config: AiConfig, organization: OrganizationIdentity | null = null) {
     this.client = new Anthropic({
       apiKey: config.apiKey,
       baseURL: config.baseUrl || undefined,
     });
     this.model = config.model;
+    this.organization = organization;
+  }
+
+  private finalize(raw: ExtractionResult): ExtractionResult {
+    return normalizeExtractionResult(raw, this.organization);
   }
 
   async analyzeDocument(buffer: Buffer, mimeType: string): Promise<ExtractionResult> {
     try {
+      const extractionPrompt = buildExtractionUserPrompt(this.organization);
+
       if (mimeType === "application/pdf") {
         const response = await this.client.messages.create({
           model: this.model,
           max_tokens: 4096,
-          system: SYSTEM_PROMPT,
+          system: buildSystemPrompt(this.organization),
           messages: [
             {
               role: "user",
@@ -76,7 +66,7 @@ export class AnthropicProvider implements AiProviderInterface {
                 },
                 {
                   type: "text",
-                  text: EXTRACTION_PROMPT,
+                  text: extractionPrompt,
                 },
               ],
             },
@@ -88,13 +78,13 @@ export class AnthropicProvider implements AiProviderInterface {
           throw new Error("Anthropic hat keine Textantwort geliefert.");
         }
 
-        return this.parseResponse(textContent.text);
+        return this.finalize(this.parseResponse(textContent.text));
       }
 
       const response = await this.client.messages.create({
         model: this.model,
         max_tokens: 4096,
-        system: SYSTEM_PROMPT,
+        system: buildSystemPrompt(this.organization),
         messages: [
           {
             role: "user",
@@ -109,7 +99,7 @@ export class AnthropicProvider implements AiProviderInterface {
               },
               {
                 type: "text",
-                text: EXTRACTION_PROMPT,
+                text: extractionPrompt,
               },
             ],
           },
@@ -121,7 +111,7 @@ export class AnthropicProvider implements AiProviderInterface {
         throw new Error("Anthropic hat keine Textantwort geliefert.");
       }
 
-      return this.parseResponse(textContent.text);
+      return this.finalize(this.parseResponse(textContent.text));
     } catch (error) {
       throw parseProviderError(error, "anthropic");
     }
@@ -132,11 +122,11 @@ export class AnthropicProvider implements AiProviderInterface {
       const response = await this.client.messages.create({
         model: this.model,
         max_tokens: 4096,
-        system: SYSTEM_PROMPT,
+        system: buildSystemPrompt(this.organization),
         messages: [
           {
             role: "user",
-            content: `Der folgende Text wurde per OCR aus einem Beleg extrahiert.\n\n--- OCR-TEXT ---\n${rawText}\n--- ENDE ---\n\n${EXTRACTION_PROMPT}`,
+            content: `Der folgende Text wurde per OCR aus einem Beleg extrahiert.\n\n--- OCR-TEXT ---\n${rawText}\n--- ENDE ---\n\n${buildExtractionUserPrompt(this.organization)}`,
           },
         ],
       });
@@ -146,7 +136,7 @@ export class AnthropicProvider implements AiProviderInterface {
         throw new Error("Anthropic hat keine Textantwort geliefert.");
       }
 
-      return this.parseResponse(textContent.text);
+      return this.finalize(this.parseResponse(textContent.text));
     } catch (error) {
       throw parseProviderError(error, "anthropic");
     }

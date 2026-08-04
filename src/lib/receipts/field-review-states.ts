@@ -9,7 +9,7 @@ export type OcrFieldKey = keyof Pick<
 export type FieldReviewStateMap = Partial<Record<
   | "date" | "invoiceDate" | "dueDate" | "serviceDate"
   | "amount" | "grossAmount" | "netAmount" | "taxAmount"
-  | "currency" | "supplier" | "invoiceNumber"
+  | "currency" | "supplier" | "partyRole" | "invoiceNumber"
   | "country" | "documentType" | "paymentMethod" | "cardLastDigits"
   | "invoiceLineItems"
   | "fuelLiters" | "fuelPricePerLiter" | "fuelType"
@@ -39,6 +39,7 @@ export function hasDetectedOcrValues(result: OcrResult) {
       || result.extracted.taxAmount !== null
       || result.extracted.currency
       || result.extracted.supplier
+      || result.extracted.partyRole
       || result.extracted.invoiceNumber
       || result.extracted.location
       || result.extracted.countryCode
@@ -100,6 +101,7 @@ export function buildFieldReviewStates({
     taxAmount: submitted && result.extracted.taxAmount !== null ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.taxAmount),
     currency: manualOverrides.currency ? "user_overridden" : submitted && result.extracted.currency ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.currency),
     supplier: manualOverrides.supplier ? "user_overridden" : submitted && result.extracted.supplier ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.supplier),
+    partyRole: submitted && result.extracted.partyRole ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.partyRole),
     invoiceNumber: submitted && result.extracted.invoiceNumber ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.invoiceNumber),
     documentType: submitted && result.extracted.documentType ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.documentType),
     paymentMethod: submitted && result.extracted.paymentMethod ? "user_confirmed" : confidenceToReviewStatus(result.fieldConfidence.paymentMethod),

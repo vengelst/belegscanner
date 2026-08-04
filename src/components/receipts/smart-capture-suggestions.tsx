@@ -49,10 +49,25 @@ export function SmartCaptureSuggestions({
 
   const generalItems = [
     { key: "documentType", label: "Belegtyp", value: ocrResult.extracted.documentType ? documentTypeLabels[ocrResult.extracted.documentType] : null, confidence: ocrResult.fieldConfidence.documentType },
+    {
+      key: "partyRole",
+      label: "Belegrichtung",
+      value: ocrResult.extracted.partyRole === "DEBTOR"
+        ? "Debitor (Ausgangsbeleg)"
+        : ocrResult.extracted.partyRole === "CREDITOR"
+          ? "Kreditor (Eingangsbeleg)"
+          : null,
+      confidence: ocrResult.fieldConfidence.partyRole,
+    },
     { key: "date", label: "Datum", value: ocrResult.extracted.date, confidence: ocrResult.fieldConfidence.date },
     { key: "invoiceDate", label: "Rechnungsdatum", value: ocrResult.extracted.invoiceDate, confidence: ocrResult.fieldConfidence.invoiceDate },
     { key: "time", label: "Uhrzeit", value: ocrResult.extracted.time, confidence: ocrResult.fieldConfidence.time },
-    { key: "supplier", label: "Lieferant", value: ocrResult.extracted.supplier, confidence: ocrResult.fieldConfidence.supplier },
+    {
+      key: "supplier",
+      label: ocrResult.extracted.partyRole === "DEBTOR" ? "Kunde" : "Lieferant",
+      value: ocrResult.extracted.supplier,
+      confidence: ocrResult.fieldConfidence.supplier,
+    },
     { key: "invoiceNumber", label: "Rechnungsnummer", value: ocrResult.extracted.invoiceNumber, confidence: ocrResult.fieldConfidence.invoiceNumber },
     { key: "location", label: "Ort", value: ocrResult.extracted.location, confidence: ocrResult.fieldConfidence.location },
     { key: "country", label: "Land", value: ocrResult.extracted.countryName, confidence: ocrResult.fieldConfidence.country },
