@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { validateForSend, sendReceipt } from "@/lib/mail";
+import { canUserSendReceipt } from "@/lib/receipts/send-permission";
 
 export async function POST(
   request: NextRequest,
@@ -29,8 +30,23 @@ export async function POST(
     );
   }
 
-  // Review status check: must be APPROVED (or Admin can override from DRAFT/IN_REVIEW)
-  if (receipt.reviewStatus !== "APPROVED" && session.role !== "ADMIN") {
+  // Server-seitig Flag aus DB laden (nicht nur Session/JWT vertrauen)
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { canSendWithoutApproval: true, role: true },
+  });
+  if (!dbUser) {
+    return NextResponse.json({ error: "Benutzer nicht gefunden." }, { status: 404 });
+  }
+
+  const role = dbUser.role === "ADMIN" ? "ADMIN" : "USER";
+  if (
+    !canUserSendReceipt({
+      role,
+      canSendWithoutApproval: dbUser.canSendWithoutApproval,
+      reviewStatus: receipt.reviewStatus,
+    })
+  ) {
     return NextResponse.json(
       { error: "Beleg muss freigegeben sein (Status: APPROVED), bevor er gesendet werden kann." },
       { status: 400 },

@@ -23,6 +23,7 @@ export const createUserSchema = z.object({
   name: z.string().min(1, "Name ist erforderlich.").max(200),
   password: z.string().min(8, "Das Passwort muss mindestens 8 Zeichen haben."),
   role: z.enum(["ADMIN", "USER"]).default("USER"),
+  canSendWithoutApproval: z.boolean().optional().default(false),
 });
 
 export const updateUserSchema = z.object({
@@ -30,6 +31,7 @@ export const updateUserSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   role: z.enum(["ADMIN", "USER"]).optional(),
   active: z.boolean().optional(),
+  canSendWithoutApproval: z.boolean().optional(),
 });
 
 export const changePasswordSchema = z.object({

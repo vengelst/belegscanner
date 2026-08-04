@@ -122,9 +122,10 @@ model User {
   name              String
   passwordHash      String
   pinHash           String?
-  role              Role       @default(USER)
-  active            Boolean    @default(true)
-  failedPinAttempts Int        @default(0)
+  role                     Role       @default(USER)
+  active                   Boolean    @default(true)
+  canSendWithoutApproval   Boolean    @default(false)
+  failedPinAttempts        Int        @default(0)
   pinLockedUntil    DateTime?
   lastLoginAt       DateTime?
   defaultCountryId  String?

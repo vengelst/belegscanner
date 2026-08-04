@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 export function CreateUserForm() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [role, setRole] = useState<"USER" | "ADMIN">("USER");
+  const [canSendWithoutApproval, setCanSendWithoutApproval] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -16,6 +18,7 @@ export function CreateUserForm() {
     setSuccess(null);
 
     startTransition(async () => {
+      const selectedRole = (formData.get("role") as string) === "ADMIN" ? "ADMIN" : "USER";
       const response = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -23,7 +26,8 @@ export function CreateUserForm() {
           email: formData.get("email"),
           name: formData.get("name"),
           password: formData.get("password"),
-          role: formData.get("role") ?? "USER",
+          role: selectedRole,
+          canSendWithoutApproval: selectedRole === "USER" ? canSendWithoutApproval : false,
         }),
       });
 
@@ -34,6 +38,8 @@ export function CreateUserForm() {
       }
 
       setSuccess("Benutzer wurde angelegt.");
+      setCanSendWithoutApproval(false);
+      setRole("USER");
       router.refresh();
     });
   }
@@ -57,12 +63,38 @@ export function CreateUserForm() {
           <select
             id="role"
             name="role"
+            value={role}
+            onChange={(e) => {
+              const next = e.target.value === "ADMIN" ? "ADMIN" : "USER";
+              setRole(next);
+              if (next === "ADMIN") setCanSendWithoutApproval(false);
+            }}
             className="bb-select input-3d h-10 rounded-xl px-3 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20"
           >
             <option value="USER">User</option>
             <option value="ADMIN">Admin</option>
           </select>
         </label>
+        {role === "USER" ? (
+          <label className="flex items-start gap-3 sm:col-span-2 lg:col-span-4">
+            <input
+              type="checkbox"
+              checked={canSendWithoutApproval}
+              onChange={(e) => setCanSendWithoutApproval(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-border"
+            />
+            <span className="text-sm">
+              <span className="font-medium">Versand ohne Beleg-Freigabe</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                User darf Belege an DATEV senden, ohne dass der Pruefstatus Freigegeben sein muss. Das Vier-Augen-Prinzip entfaellt fuer diesen User.
+              </span>
+            </span>
+          </label>
+        ) : (
+          <p className="text-xs text-muted-foreground sm:col-span-2 lg:col-span-4">
+            Admins duerfen Belege ohnehin ohne Freigabe senden. Das Recht „Versand ohne Beleg-Freigabe“ ist nur fuer User relevant.
+          </p>
+        )}
         <div className="sm:col-span-2 lg:col-span-4">
           <button
             type="submit"

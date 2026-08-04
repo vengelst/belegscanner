@@ -43,7 +43,13 @@ describe("requireAuth", () => {
 
   it("gibt AuthSession zurück bei gültiger Session", async () => {
     mockedAuth.mockResolvedValue({
-      user: { id: "user-1", email: "admin@example.com", name: "Admin", role: "ADMIN" },
+      user: {
+        id: "user-1",
+        email: "admin@example.com",
+        name: "Admin",
+        role: "ADMIN",
+        canSendWithoutApproval: false,
+      },
     } as never);
 
     const result = await requireAuth();
@@ -54,18 +60,20 @@ describe("requireAuth", () => {
       email: "admin@example.com",
       name: "Admin",
       role: "ADMIN",
+      canSendWithoutApproval: false,
     });
   });
 
   it("setzt leere Strings für fehlende email/name", async () => {
     mockedAuth.mockResolvedValue({
-      user: { id: "user-2", email: null, name: null, role: "USER" },
+      user: { id: "user-2", email: null, name: null, role: "USER", canSendWithoutApproval: true },
     } as never);
 
     const result = await requireAuth();
     expect(result.session).toBeDefined();
     expect(result.session!.email).toBe("");
     expect(result.session!.name).toBe("");
+    expect(result.session!.canSendWithoutApproval).toBe(true);
   });
 
   it('normalisiert unbekannte Rolle zu "USER"', async () => {
@@ -76,6 +84,7 @@ describe("requireAuth", () => {
     const result = await requireAuth();
     expect(result.session).toBeDefined();
     expect(result.session!.role).toBe("USER");
+    expect(result.session!.canSendWithoutApproval).toBe(false);
   });
 });
 

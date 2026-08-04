@@ -12,6 +12,7 @@ export default async function UsersAdminPage() {
       name: true,
       role: true,
       active: true,
+      canSendWithoutApproval: true,
       pinHash: true,
       lastLoginAt: true,
       createdAt: true,
@@ -25,6 +26,7 @@ export default async function UsersAdminPage() {
     name: u.name,
     role: u.role,
     active: u.active,
+    canSendWithoutApproval: u.canSendWithoutApproval,
     hasPin: !!u.pinHash,
     lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
     createdAt: u.createdAt.toISOString(),
@@ -35,7 +37,7 @@ export default async function UsersAdminPage() {
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Benutzerverwaltung</h1>
         <p className="text-sm text-muted-foreground">
-          Benutzer anlegen, Rollen zuweisen, PINs verwalten.
+          Benutzer anlegen, Rollen und Versandrechte zuweisen, PINs verwalten.
         </p>
       </div>
       <CreateUserForm />

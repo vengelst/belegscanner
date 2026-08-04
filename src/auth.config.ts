@@ -9,6 +9,7 @@ const authConfig = {
     async jwt({ token, user }) {
       if (user) {
         token.role = user.role;
+        token.canSendWithoutApproval = Boolean(user.canSendWithoutApproval);
       }
 
       return token;
@@ -17,6 +18,7 @@ const authConfig = {
       if (session.user) {
         session.user.id = token.sub ?? "";
         session.user.role = token.role === "ADMIN" ? "ADMIN" : "USER";
+        session.user.canSendWithoutApproval = Boolean(token.canSendWithoutApproval);
       }
 
       return session;

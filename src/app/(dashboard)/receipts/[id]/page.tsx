@@ -58,6 +58,11 @@ export default async function ReceiptDetailPage({ params }: Props) {
     notFound();
   }
 
+  const currentUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { canSendWithoutApproval: true },
+  });
+
   const datevProfiles = await prisma.datevProfile.findMany({
     where: { active: true },
     select: { id: true, name: true, isDefault: true },
@@ -211,6 +216,7 @@ export default async function ReceiptDetailPage({ params }: Props) {
             sendStatus={receipt.sendStatus}
             reviewStatus={receipt.reviewStatus}
             isAdmin={session.user.role === "ADMIN"}
+            canSendWithoutApproval={Boolean(currentUser?.canSendWithoutApproval)}
             datevProfiles={datevProfiles}
             receiptDatevProfileId={receipt.datevProfileId}
             readiness={readiness}

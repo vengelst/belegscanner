@@ -1,7 +1,7 @@
 # BelegBox - DATEV- und Buchhaltungs-Workflow
 
-Stand: 2026-04-02
-Version: 1.2.0
+Stand: 2026-08-04
+Version: 1.3.0
 
 ---
 
@@ -46,11 +46,30 @@ Alternativ:
     erneut ein                   → reviewStatus: IN_REVIEW
 ```
 
+Optional (Admin-gesteuert, pro User):
+```
+User mit Recht "Versand ohne Beleg-Freigabe"
+  → darf aus DRAFT/IN_REVIEW senden (Vier-Augen entfaellt fuer diesen User)
+  → Pruef-/Freigabe-Workflow bleibt sichtbar und nutzbar, ist aber keine Versand-Voraussetzung
+```
+
 ## Versandberechtigung
 
-- **USER** kann nur senden, wenn `reviewStatus === APPROVED`
-- **ADMIN** kann jederzeit senden (Override)
+Versand an DATEV ist erlaubt, wenn **eine** der folgenden Bedingungen gilt:
+
+1. Rolle **ADMIN**, oder
+2. `reviewStatus === APPROVED`, oder
+3. User hat `canSendWithoutApproval === true` (Recht „Versand ohne Beleg-Freigabe“)
+
+Details:
+
+- **USER ohne Recht**: braucht `reviewStatus === APPROVED` (Vier-Augen-Prinzip)
+- **USER mit Recht**: darf wie Admin bzgl. Review-Status senden (kein APPROVED noetig); Ownership bleibt (nur eigene Belege)
+- **ADMIN**: jederzeit senden (Override); das User-Recht ist fuer Admins irrelevant
+- Das Recht setzt nur der Admin (Benutzerverwaltung); Default ist aus
+- Der Pruef-/Freigabe-Workflow bleibt bestehen und sichtbar
 - Versand-Validierung prueft zusaetzlich: Datei, SMTP, DATEV-Profil, Pflichtfelder
+- Server-Gate in `POST /api/receipts/[id]/send` ist massgeblich (Flag wird aus der DB gelesen)
 
 ## DATEV-Profil-Zuordnung
 
@@ -88,15 +107,16 @@ Fehlende Werte werden durch Fallbacks ersetzt (z.B. "Unbekannt", "—").
 
 ## Rollenmatrix
 
-| Aktion | USER | ADMIN |
-|---|---|---|
-| Beleg erfassen | Ja | Ja |
-| Zur Pruefung einreichen (DRAFT → IN_REVIEW) | Ja (eigene) | Ja |
-| Freigeben (IN_REVIEW/DRAFT → APPROVED) | Nein | Ja |
-| Zurueckstellen (IN_REVIEW → DEFERRED) | Nein | Ja |
-| Abschliessen (APPROVED → COMPLETED) | Nein | Ja |
-| Wieder oeffnen (DEFERRED/COMPLETED → DRAFT) | Ja (eigene) | Ja |
-| Senden (APPROVED) | Ja (eigene) | Ja (alle) |
-| Senden (nicht APPROVED) | Nein | Ja (Override) |
-| Kommentare schreiben | Ja (eigene Belege) | Ja (alle) |
-| DATEV-Profile verwalten | Nein | Ja |
+| Aktion | USER | USER (Versand o. Freigabe) | ADMIN |
+|---|---|---|---|
+| Beleg erfassen | Ja | Ja | Ja |
+| Zur Pruefung einreichen (DRAFT → IN_REVIEW) | Ja (eigene) | Ja (eigene) | Ja |
+| Freigeben (IN_REVIEW/DRAFT → APPROVED) | Nein | Nein | Ja |
+| Zurueckstellen (IN_REVIEW → DEFERRED) | Nein | Nein | Ja |
+| Abschliessen (APPROVED → COMPLETED) | Nein | Nein | Ja |
+| Wieder oeffnen (DEFERRED/COMPLETED → DRAFT) | Ja (eigene) | Ja (eigene) | Ja |
+| Senden (APPROVED) | Ja (eigene) | Ja (eigene) | Ja (alle) |
+| Senden (nicht APPROVED) | Nein | Ja (eigene) | Ja (Override) |
+| Kommentare schreiben | Ja (eigene Belege) | Ja (eigene Belege) | Ja (alle) |
+| DATEV-Profile verwalten | Nein | Nein | Ja |
+| Recht „Versand ohne Beleg-Freigabe“ setzen | Nein | Nein | Ja |
