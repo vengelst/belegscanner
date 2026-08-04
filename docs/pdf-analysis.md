@@ -177,3 +177,24 @@ Manuell pruefen:
 - Detailansicht mit OCR-Rohtext und Smart-Capture-Vorschlaegen
 
 Siehe auch `docs/testing-checklist.md`.
+
+## Eigene Firma und Debitoren-Erkennung
+
+Stand: 2026-08-04
+
+Die KI-Analyse kann Debitoren- (Ausgangs-) und Kreditoren- (Eingangs-) Rechnungen unterscheiden, sobald unter **Admin → Eigene Firma** ein Firmenname (`legalName`) gepflegt ist.
+
+Datenmodell: Singleton `OrganizationProfile` (`id = "default"`), optional mit Handelsname, USt-Id und Adresse.
+
+Verhalten:
+
+- **Mit Firmenstammdaten:** Prompt enthaelt die eigene Identitaet. Ist der Aussteller die eigene Firma, setzt die Analyse `partyRole=DEBTOR` und `supplier` auf den Empfaenger/Kunden. Sonst `partyRole=CREDITOR` und `supplier` = Aussteller/Lieferant.
+- **Ohne Firmenstammdaten:** bisheriges Verhalten (supplier = Aussteller, kein partyRole). Kein Crash.
+- Prefill im Belegformular setzt `partyRole` und `supplier`, sofern der Nutzer die Belegrichtung nicht manuell geaendert hat.
+- Nachverarbeitung (`normalizeExtractionResult`) korrigiert Fehlzuweisungen, wenn die eigene Firma faelschlich in `supplier` landet.
+
+Relevante Dateien:
+
+- `src/lib/organization.ts`
+- `src/lib/ai/organization-prompt.ts`
+- Admin: `/admin/organization`, API `GET/PUT /api/admin/organization`

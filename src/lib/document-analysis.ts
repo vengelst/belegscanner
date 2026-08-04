@@ -43,6 +43,9 @@ export type DocumentAnalysisResult = {
     taxAmount: number | null;
     currency: string | null;
     supplier: string | null;
+    partyRole: "CREDITOR" | "DEBTOR" | null;
+    issuerName: string | null;
+    recipientName: string | null;
     invoiceNumber: string | null;
     location: string | null;
     paymentMethod: OcrPaymentMethod | null;
@@ -99,6 +102,7 @@ export type DocumentAnalysisResult = {
     taxAmount: OcrConfidenceLevel;
     currency: OcrConfidenceLevel;
     supplier: OcrConfidenceLevel;
+    partyRole: OcrConfidenceLevel;
     invoiceNumber: OcrConfidenceLevel;
     location: OcrConfidenceLevel;
     paymentMethod: OcrConfidenceLevel;

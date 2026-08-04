@@ -1,42 +1,30 @@
 import { GoogleGenAI } from "@google/genai";
+import type { OrganizationIdentity } from "@/lib/organization";
 import type { AiProviderInterface, ExtractionResult, AiConfig } from "../types";
-import { SYSTEM_PROMPT, parseProviderError } from "../types";
+import { parseProviderError } from "../types";
+import {
+  buildExtractionUserPrompt,
+  buildSystemPrompt,
+  normalizeExtractionResult,
+} from "../organization-prompt";
 
 function toBase64(buffer: Buffer): string {
   return buffer.toString("base64");
 }
 
-const EXTRACTION_PROMPT = `Extrahiere die Daten aus dem Beleg und gib sie als JSON zurueck. Das JSON muss exakt diesem Schema entsprechen:
-{
-  "supplier": string | null,
-  "invoiceNumber": string | null,
-  "invoiceDate": string | null (YYYY-MM-DD),
-  "dueDate": string | null (YYYY-MM-DD),
-  "serviceDate": string | null (YYYY-MM-DD),
-  "time": string | null,
-  "currency": string | null (ISO 4217),
-  "grossAmount": number | null,
-  "netAmount": number | null,
-  "taxAmount": number | null,
-  "paymentMethod": "cash" | "visa" | "mastercard" | "credit_card" | "debit_card" | "paypal" | "sepa" | "bank_transfer" | "unknown" | null,
-  "cardLastDigits": string | null,
-  "location": string | null,
-  "countryCode": string | null,
-  "countryName": string | null,
-  "documentType": "general" | "fuel" | "hospitality" | "lodging" | "parking" | "toll" | null,
-  "lineItems": [{ "description": string, "quantity": number | null, "unit": string | null, "unitPrice": number | null, "totalPrice": number | null, "taxHint": string | null }],
-  "warnings": string[]
-}
-
-Gib NUR das JSON zurueck, ohne Markdown-Formatierung oder zusaetzlichen Text.`;
-
 export class GoogleProvider implements AiProviderInterface {
   private client: GoogleGenAI;
   private model: string;
+  private organization: OrganizationIdentity | null;
 
-  constructor(config: AiConfig) {
+  constructor(config: AiConfig, organization: OrganizationIdentity | null = null) {
     this.client = new GoogleGenAI({ apiKey: config.apiKey });
     this.model = config.model;
+    this.organization = organization;
+  }
+
+  private finalize(raw: ExtractionResult): ExtractionResult {
+    return normalizeExtractionResult(raw, this.organization);
   }
 
   async analyzeDocument(buffer: Buffer, mimeType: string): Promise<ExtractionResult> {
@@ -54,7 +42,7 @@ export class GoogleProvider implements AiProviderInterface {
                 },
               },
               {
-                text: `${SYSTEM_PROMPT}\n\n${EXTRACTION_PROMPT}`,
+                text: `${buildSystemPrompt(this.organization)}\n\n${buildExtractionUserPrompt(this.organization)}`,
               },
             ],
           },
@@ -70,7 +58,7 @@ export class GoogleProvider implements AiProviderInterface {
         throw new Error("Google hat keine Textantwort geliefert.");
       }
 
-      return this.parseResponse(text);
+      return this.finalize(this.parseResponse(text));
     } catch (error) {
       throw parseProviderError(error, "google");
     }
@@ -85,7 +73,7 @@ export class GoogleProvider implements AiProviderInterface {
             role: "user",
             parts: [
               {
-                text: `${SYSTEM_PROMPT}\n\nDer folgende Text wurde per OCR aus einem Beleg extrahiert.\n\n--- OCR-TEXT ---\n${rawText}\n--- ENDE ---\n\n${EXTRACTION_PROMPT}`,
+                text: `${buildSystemPrompt(this.organization)}\n\nDer folgende Text wurde per OCR aus einem Beleg extrahiert.\n\n--- OCR-TEXT ---\n${rawText}\n--- ENDE ---\n\n${buildExtractionUserPrompt(this.organization)}`,
               },
             ],
           },
@@ -101,7 +89,7 @@ export class GoogleProvider implements AiProviderInterface {
         throw new Error("Google hat keine Textantwort geliefert.");
       }
 
-      return this.parseResponse(text);
+      return this.finalize(this.parseResponse(text));
     } catch (error) {
       throw parseProviderError(error, "google");
     }

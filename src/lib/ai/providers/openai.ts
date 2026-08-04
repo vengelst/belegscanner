@@ -1,6 +1,8 @@
 import OpenAI from "openai";
+import type { OrganizationIdentity } from "@/lib/organization";
 import type { AiProviderInterface, ExtractionResult, AiConfig } from "../types";
-import { SYSTEM_PROMPT, EXTRACTION_JSON_SCHEMA, parseProviderError } from "../types";
+import { EXTRACTION_JSON_SCHEMA, parseProviderError } from "../types";
+import { buildSystemPrompt, normalizeExtractionResult } from "../organization-prompt";
 
 function toDataUrl(buffer: Buffer, mimeType: string): string {
   return `data:${mimeType};base64,${buffer.toString("base64")}`;
@@ -9,13 +11,19 @@ function toDataUrl(buffer: Buffer, mimeType: string): string {
 export class OpenAIProvider implements AiProviderInterface {
   private client: OpenAI;
   private model: string;
+  private organization: OrganizationIdentity | null;
 
-  constructor(config: AiConfig) {
+  constructor(config: AiConfig, organization: OrganizationIdentity | null = null) {
     this.client = new OpenAI({
       apiKey: config.apiKey,
       baseURL: config.baseUrl || undefined,
     });
     this.model = config.model;
+    this.organization = organization;
+  }
+
+  private finalize(raw: ExtractionResult): ExtractionResult {
+    return normalizeExtractionResult(raw, this.organization);
   }
 
   async analyzeDocument(buffer: Buffer, mimeType: string): Promise<ExtractionResult> {
@@ -35,7 +43,7 @@ export class OpenAIProvider implements AiProviderInterface {
       const response = await this.client.responses.create({
         model: this.model,
         input: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: buildSystemPrompt(this.organization) },
           {
             role: "user",
             content: [
@@ -66,7 +74,7 @@ export class OpenAIProvider implements AiProviderInterface {
         throw new Error("OpenAI hat keine strukturierte Antwort geliefert.");
       }
 
-      return JSON.parse(outputText) as ExtractionResult;
+      return this.finalize(JSON.parse(outputText) as ExtractionResult);
     } catch (error) {
       throw parseProviderError(error, "openai");
     }
@@ -77,7 +85,7 @@ export class OpenAIProvider implements AiProviderInterface {
       const response = await this.client.responses.create({
         model: this.model,
         input: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: buildSystemPrompt(this.organization) },
           {
             role: "user",
             content: [
@@ -107,7 +115,7 @@ export class OpenAIProvider implements AiProviderInterface {
         throw new Error("OpenAI hat keine strukturierte Antwort geliefert.");
       }
 
-      return JSON.parse(outputText) as ExtractionResult;
+      return this.finalize(JSON.parse(outputText) as ExtractionResult);
     } catch (error) {
       throw parseProviderError(error, "openai");
     }

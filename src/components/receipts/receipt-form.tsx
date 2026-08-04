@@ -64,6 +64,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
   const today = new Date().toISOString().split("T")[0];
   const [date, setDate] = useState(today);
   const [partyRole, setPartyRole] = useState<"CREDITOR" | "DEBTOR">("CREDITOR");
+  const [partyRoleManuallyChanged, setPartyRoleManuallyChanged] = useState(false);
   const [dueDate, setDueDate] = useState("");
   const [serviceDate, setServiceDate] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
@@ -202,6 +203,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
   useOcrPrefill({
     ocrResult,
     manualOverrides,
+    partyRoleManuallyChanged,
     suggestedCountry,
     countryManuallyChanged,
     countryId,
@@ -212,7 +214,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     setters: {
       setDate, setDueDate, setServiceDate, setInvoiceNumber,
       setAmount, setNetAmount, setTaxAmount, setCurrency,
-      setSupplier, setCountryId, setHospitalityLocation,
+      setSupplier, setPartyRole, setCountryId, setHospitalityLocation,
     },
   });
 
@@ -269,6 +271,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     setCaptureSource(source);
     setCaptureTrigger(trigger);
     setOcrResult(null);
+    setPartyRoleManuallyChanged(false);
     setWorkingImageInfo(null);
 
     if (previewUrl) {
@@ -516,7 +519,10 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
           currencyOptions={currencyOptions}
           markManualOverride={markManualOverride}
           setDate={setDate}
-          setPartyRole={setPartyRole}
+          setPartyRole={(value) => {
+            setPartyRoleManuallyChanged(true);
+            setPartyRole(value);
+          }}
           setAmount={setAmount}
           setInvoiceNumber={setInvoiceNumber}
           setNetAmount={setNetAmount}

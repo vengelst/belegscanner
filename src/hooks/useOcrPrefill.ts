@@ -20,6 +20,7 @@ type OcrPrefillSetters = {
   setTaxAmount: (v: string) => void;
   setCurrency: (v: string) => void;
   setSupplier: (v: string) => void;
+  setPartyRole: (v: "CREDITOR" | "DEBTOR") => void;
   setCountryId: (v: string) => void;
   setHospitalityLocation: (v: string) => void;
 };
@@ -27,6 +28,7 @@ type OcrPrefillSetters = {
 export function useOcrPrefill({
   ocrResult,
   manualOverrides,
+  partyRoleManuallyChanged,
   suggestedCountry,
   countryManuallyChanged,
   countryId,
@@ -38,6 +40,7 @@ export function useOcrPrefill({
 }: {
   ocrResult: OcrResult | null;
   manualOverrides: Record<OcrFieldKey, boolean>;
+  partyRoleManuallyChanged: boolean;
   suggestedCountry: SuggestedCountry;
   countryManuallyChanged: boolean;
   countryId: string;
@@ -60,8 +63,14 @@ export function useOcrPrefill({
     if (extracted.taxAmount !== null && !manualOverrides.taxAmount) setters.setTaxAmount(String(extracted.taxAmount).replace(".", ","));
     if (extracted.currency && !manualOverrides.currency) setters.setCurrency(extracted.currency);
     if (extracted.supplier && !manualOverrides.supplier) setters.setSupplier(extracted.supplier);
+    if (
+      !partyRoleManuallyChanged
+      && (extracted.partyRole === "CREDITOR" || extracted.partyRole === "DEBTOR")
+    ) {
+      setters.setPartyRole(extracted.partyRole);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [manualOverrides, ocrResult]);
+  }, [manualOverrides, ocrResult, partyRoleManuallyChanged]);
 
   useEffect(() => {
     if (!suggestedCountry || countryManuallyChanged || countryId) return;

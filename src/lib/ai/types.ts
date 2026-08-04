@@ -41,8 +41,13 @@ export type AiConfig = {
   ocrServiceUrl?: string;
 };
 
+export type ExtractionPartyRole = "CREDITOR" | "DEBTOR" | null;
+
 export type ExtractionResult = {
   supplier: string | null;
+  partyRole: ExtractionPartyRole;
+  issuerName: string | null;
+  recipientName: string | null;
   invoiceNumber: string | null;
   invoiceDate: string | null;
   dueDate: string | null;
@@ -75,10 +80,10 @@ export interface AiProviderInterface {
   testConnection(): Promise<{ success: boolean; message: string }>;
 }
 
+/** Legacy default prompt without company identity (incoming-invoice behaviour). */
 export const SYSTEM_PROMPT = `You extract structured data from business receipts and invoices for accounting.
 
 Rules:
-- Extract the issuer/vendor as supplier, never the bill-to recipient
 - grossAmount is the final payable amount
 - netAmount is the amount before tax
 - taxAmount is the total tax amount
@@ -87,12 +92,21 @@ Rules:
 - Currency must be ISO 4217 like EUR or USD
 - documentType must be one of: general, fuel, hospitality, lodging, parking, toll
 - Return null when a field cannot be read confidently
-- Add warnings when values are ambiguous or likely incomplete`;
+- Add warnings when values are ambiguous or likely incomplete
+- Always extract issuerName (document issuer/vendor) and recipientName (bill-to party) when visible
+- Extract the issuer/vendor as supplier, never the bill-to recipient
+- partyRole must be null when our company identity is not configured`;
 
 export const EXTRACTION_JSON_SCHEMA = {
   type: "object" as const,
   properties: {
     supplier: { type: ["string", "null"] as const },
+    partyRole: {
+      type: ["string", "null"] as const,
+      enum: ["CREDITOR", "DEBTOR", null],
+    },
+    issuerName: { type: ["string", "null"] as const },
+    recipientName: { type: ["string", "null"] as const },
     invoiceNumber: { type: ["string", "null"] as const },
     invoiceDate: { type: ["string", "null"] as const },
     dueDate: { type: ["string", "null"] as const },
@@ -137,6 +151,9 @@ export const EXTRACTION_JSON_SCHEMA = {
   },
   required: [
     "supplier",
+    "partyRole",
+    "issuerName",
+    "recipientName",
     "invoiceNumber",
     "invoiceDate",
     "dueDate",
