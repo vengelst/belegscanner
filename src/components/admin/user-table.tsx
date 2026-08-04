@@ -48,8 +48,81 @@ function UserRow({ user }: { user: UserRow }) {
   const [isPending, startTransition] = useTransition();
   const [pinInput, setPinInput] = useState("");
   const [showPinForm, setShowPinForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editName, setEditName] = useState(user.name);
+  const [editEmail, setEditEmail] = useState(user.email);
+  const [editPassword, setEditPassword] = useState("");
+  const [editRole, setEditRole] = useState<"ADMIN" | "USER">(user.role === "ADMIN" ? "ADMIN" : "USER");
+  const [editCanSendWithoutApproval, setEditCanSendWithoutApproval] = useState(user.canSendWithoutApproval);
   const [message, setMessage] = useState<string | null>(null);
   const router = useRouter();
+
+  function openEditForm() {
+    setEditName(user.name);
+    setEditEmail(user.email);
+    setEditPassword("");
+    setEditRole(user.role === "ADMIN" ? "ADMIN" : "USER");
+    setEditCanSendWithoutApproval(user.canSendWithoutApproval);
+    setShowPinForm(false);
+    setShowEditForm(true);
+    setMessage(null);
+  }
+
+  function handleSaveEdit() {
+    const name = editName.trim();
+    const email = editEmail.trim();
+    if (!name) {
+      setMessage("Name ist erforderlich.");
+      return;
+    }
+    if (!email) {
+      setMessage("E-Mail ist erforderlich.");
+      return;
+    }
+    if (editPassword && editPassword.length < 8) {
+      setMessage("Das Passwort muss mindestens 8 Zeichen haben.");
+      return;
+    }
+
+    startTransition(async () => {
+      setMessage(null);
+
+      const profileRes = await fetch(`/api/users/${user.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          email,
+          role: editRole,
+          canSendWithoutApproval: editRole === "USER" ? editCanSendWithoutApproval : false,
+        }),
+      });
+      const profileData = await profileRes.json();
+      if (!profileRes.ok) {
+        setMessage(profileData.error ?? "Speichern fehlgeschlagen.");
+        return;
+      }
+
+      if (editPassword) {
+        const passwordRes = await fetch(`/api/users/${user.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: editPassword }),
+        });
+        const passwordData = await passwordRes.json();
+        if (!passwordRes.ok) {
+          setMessage(passwordData.error ?? "Profil gespeichert, Passwort-Reset fehlgeschlagen.");
+          router.refresh();
+          return;
+        }
+      }
+
+      setMessage(editPassword ? "Benutzer und Passwort gespeichert." : "Benutzer gespeichert.");
+      setShowEditForm(false);
+      setEditPassword("");
+      router.refresh();
+    });
+  }
 
   function handleToggleActive() {
     startTransition(async () => {
@@ -202,7 +275,10 @@ function UserRow({ user }: { user: UserRow }) {
           ) : (
             <button
               type="button"
-              onClick={() => setShowPinForm(!showPinForm)}
+              onClick={() => {
+                setShowEditForm(false);
+                setShowPinForm(!showPinForm);
+              }}
               disabled={isPending}
               className="rounded-lg border border-border/60 px-2 py-0.5 text-xs text-muted-foreground transition hover:border-primary/40 hover:text-primary disabled:opacity-50"
             >
@@ -225,20 +301,118 @@ function UserRow({ user }: { user: UserRow }) {
           {formatDate(user.lastLoginAt)}
         </td>
         <td className="px-4 py-3">
-          <button
-            type="button"
-            onClick={handleToggleActive}
-            disabled={isPending}
-            className={`rounded-lg border px-2 py-0.5 text-xs font-medium transition disabled:opacity-50 ${
-              user.active 
-                ? "border-danger/30 text-danger hover:bg-danger/10" 
-                : "border-primary/30 text-primary hover:bg-primary/10"
-            }`}
-          >
-            {user.active ? "Deaktivieren" : "Aktivieren"}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={openEditForm}
+              disabled={isPending}
+              className="rounded-lg border border-border/60 px-2 py-0.5 text-xs font-medium text-muted-foreground transition hover:border-primary/40 hover:text-primary disabled:opacity-50"
+            >
+              Bearbeiten
+            </button>
+            <button
+              type="button"
+              onClick={handleToggleActive}
+              disabled={isPending}
+              className={`rounded-lg border px-2 py-0.5 text-xs font-medium transition disabled:opacity-50 ${
+                user.active
+                  ? "border-danger/30 text-danger hover:bg-danger/10"
+                  : "border-primary/30 text-primary hover:bg-primary/10"
+              }`}
+            >
+              {user.active ? "Deaktivieren" : "Aktivieren"}
+            </button>
+          </div>
         </td>
       </tr>
+      {showEditForm ? (
+        <tr className="border-b border-border/50">
+          <td colSpan={8} className="px-4 py-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="grid gap-1 text-sm font-medium">
+                <span className="text-xs text-muted-foreground">Name</span>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="bb-input input-3d h-10 rounded-xl px-3 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+                />
+              </label>
+              <label className="grid gap-1 text-sm font-medium">
+                <span className="text-xs text-muted-foreground">E-Mail</span>
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  className="bb-input input-3d h-10 rounded-xl px-3 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+                />
+              </label>
+              <label className="grid gap-1 text-sm font-medium">
+                <span className="text-xs text-muted-foreground">Neues Passwort (optional)</span>
+                <input
+                  type="password"
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  placeholder="Mind. 8 Zeichen"
+                  minLength={8}
+                  className="bb-input input-3d h-10 rounded-xl px-3 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+                />
+              </label>
+              <label className="grid gap-1 text-sm font-medium">
+                <span className="text-xs text-muted-foreground">Rolle</span>
+                <select
+                  value={editRole}
+                  onChange={(e) => {
+                    const next = e.target.value === "ADMIN" ? "ADMIN" : "USER";
+                    setEditRole(next);
+                    if (next === "ADMIN") setEditCanSendWithoutApproval(false);
+                  }}
+                  className="bb-select input-3d h-10 rounded-xl px-3 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="USER">User</option>
+                  <option value="ADMIN">Admin</option>
+                </select>
+              </label>
+              {editRole === "USER" ? (
+                <label className="flex items-start gap-3 sm:col-span-2 lg:col-span-4">
+                  <input
+                    type="checkbox"
+                    checked={editCanSendWithoutApproval}
+                    onChange={(e) => setEditCanSendWithoutApproval(e.target.checked)}
+                    className="mt-1 h-4 w-4 rounded border-border"
+                  />
+                  <span className="text-sm">
+                    <span className="font-medium">Versand ohne Beleg-Freigabe</span>
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
+                      User darf Belege an DATEV senden, ohne dass der Pruefstatus Freigegeben sein muss.
+                    </span>
+                  </span>
+                </label>
+              ) : null}
+              <div className="flex flex-wrap items-center gap-3 sm:col-span-2 lg:col-span-4">
+                <button
+                  type="button"
+                  onClick={handleSaveEdit}
+                  disabled={isPending}
+                  className="rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+                >
+                  {isPending ? "Speichert..." : "Speichern"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditForm(false);
+                    setEditPassword("");
+                  }}
+                  className="text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Abbrechen
+                </button>
+              </div>
+            </div>
+          </td>
+        </tr>
+      ) : null}
       {showPinForm ? (
         <tr className="border-b border-border/50">
           <td colSpan={8} className="px-4 py-3">
