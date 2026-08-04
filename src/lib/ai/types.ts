@@ -48,6 +48,8 @@ export type ExtractionResult = {
   partyRole: ExtractionPartyRole;
   issuerName: string | null;
   recipientName: string | null;
+  issuerVatId: string | null;
+  recipientVatId: string | null;
   invoiceNumber: string | null;
   invoiceDate: string | null;
   dueDate: string | null;
@@ -107,6 +109,8 @@ export const EXTRACTION_JSON_SCHEMA = {
     },
     issuerName: { type: ["string", "null"] as const },
     recipientName: { type: ["string", "null"] as const },
+    issuerVatId: { type: ["string", "null"] as const },
+    recipientVatId: { type: ["string", "null"] as const },
     invoiceNumber: { type: ["string", "null"] as const },
     invoiceDate: { type: ["string", "null"] as const },
     dueDate: { type: ["string", "null"] as const },
@@ -154,6 +158,8 @@ export const EXTRACTION_JSON_SCHEMA = {
     "partyRole",
     "issuerName",
     "recipientName",
+    "issuerVatId",
+    "recipientVatId",
     "invoiceNumber",
     "invoiceDate",
     "dueDate",

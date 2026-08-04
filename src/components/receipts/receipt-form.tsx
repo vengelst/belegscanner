@@ -339,6 +339,11 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
       }
 
       setOcrResult(data as OcrResult);
+      const extractedPartyRole = (data as OcrResult).extracted?.partyRole;
+      if (extractedPartyRole === "CREDITOR" || extractedPartyRole === "DEBTOR") {
+        setPartyRoleManuallyChanged(false);
+        setPartyRole(extractedPartyRole);
+      }
     } catch (requestError: unknown) {
       const message = requestError instanceof Error
         ? requestError.message

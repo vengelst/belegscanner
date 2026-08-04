@@ -126,6 +126,12 @@ export function matchesOrganization(
 
   if (vatIdsLikelyMatch(org.vatId, candidateVatId)) return true;
 
+  if (org.vatId?.trim() && candidateName?.trim()) {
+    const orgVat = normalizeVatId(org.vatId);
+    const haystack = normalizeVatId(candidateName);
+    if (orgVat.length >= 8 && haystack.includes(orgVat)) return true;
+  }
+
   const orgNames = [org.legalName, org.tradeName].filter(Boolean) as string[];
   return orgNames.some((name) => namesLikelyMatch(name, candidateName));
 }

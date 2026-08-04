@@ -54,13 +54,14 @@ Our company identity (used to distinguish incoming vs outgoing invoices):
 ${buildOrganizationContext(org)}
 
 ${BASE_RULES}
-- Compare issuerName against our company identity (fuzzy match on legal/trade name and VAT ID)
+- Compare issuerName / issuerVatId against our company identity (fuzzy match on legal/trade name and VAT ID)
 - If the issuer is our company: this is an OUTGOING invoice (Debitorenrechnung)
   - partyRole = "DEBTOR"
   - supplier = the customer / bill-to recipient (recipientName), NEVER our company name
 - Otherwise: this is an INCOMING invoice (Kreditorenrechnung)
   - partyRole = "CREDITOR"
   - supplier = the issuer / vendor (issuerName)
+- issuerVatId is the seller/issuer VAT; recipientVatId is the bill-to VAT
 - If the direction is uncertain, choose the best match, set partyRole accordingly, and add a warning`;
 }
 
@@ -72,6 +73,8 @@ export function buildExtractionPromptFields(organization?: OrganizationIdentity 
   "partyRole": ${orgEnabled ? '"CREDITOR" | "DEBTOR" | null' : "null"},
   "issuerName": string | null,
   "recipientName": string | null,
+  "issuerVatId": string | null,
+  "recipientVatId": string | null,
   "invoiceNumber": string | null,
   "invoiceDate": string | null (YYYY-MM-DD),
   "dueDate": string | null (YYYY-MM-DD),
@@ -101,11 +104,32 @@ Gib NUR das JSON zurueck, ohne Markdown-Formatierung oder zusaetzlichen Text.`;
 
 export function normalizePartyRole(value: unknown): ExtractedPartyRole {
   if (value === "CREDITOR" || value === "DEBTOR") return value;
-  if (typeof value === "string") {
-    const normalized = value.trim().toUpperCase();
-    if (normalized === "CREDITOR" || normalized === "DEBTOR") {
-      return normalized;
-    }
+  if (typeof value !== "string") return null;
+
+  const normalized = value.trim().toUpperCase().replace(/\s+/g, "_");
+  if (normalized === "CREDITOR" || normalized === "DEBTOR") return normalized;
+  // Common model/typo/German variants
+  if (
+    normalized === "DEBITOR"
+    || normalized === "DEBITOR_OUTGOING"
+    || normalized === "OUTGOING"
+    || normalized === "AUSGANG"
+    || normalized === "AUSGANGSBELEG"
+    || normalized === "AUSGANGSRECHNUNG"
+    || normalized === "SALES_INVOICE"
+  ) {
+    return "DEBTOR";
+  }
+  if (
+    normalized === "KREDITOR"
+    || normalized === "CREDITOR_INCOMING"
+    || normalized === "INCOMING"
+    || normalized === "EINGANG"
+    || normalized === "EINGANGSBELEG"
+    || normalized === "EINGANGSRECHNUNG"
+    || normalized === "PURCHASE_INVOICE"
+  ) {
+    return "CREDITOR";
   }
   return null;
 }
@@ -133,14 +157,18 @@ export function normalizeExtractionResult(
       partyRole: null,
       issuerName,
       recipientName,
+      issuerVatId: raw.issuerVatId?.trim() || null,
+      recipientVatId: raw.recipientVatId?.trim() || null,
       warnings,
     };
   }
 
   const org = organization as OrganizationIdentity;
-  const issuerIsOwn = matchesOrganization(org, issuerName);
-  const recipientIsOwn = matchesOrganization(org, recipientName);
-  const supplierIsOwn = matchesOrganization(org, supplier);
+  const issuerVatId = raw.issuerVatId?.trim() || null;
+  const recipientVatId = raw.recipientVatId?.trim() || null;
+  const issuerIsOwn = matchesOrganization(org, issuerName, issuerVatId);
+  const recipientIsOwn = matchesOrganization(org, recipientName, recipientVatId);
+  const supplierIsOwn = matchesOrganization(org, supplier, issuerVatId);
 
   if (issuerIsOwn && !recipientIsOwn) {
     partyRole = "DEBTOR";
@@ -149,8 +177,30 @@ export function normalizeExtractionResult(
       warnings.push("Debitorenrechnung erkannt, aber Kundenname (Empfaenger) unsicher.");
     }
   } else if (recipientIsOwn && !issuerIsOwn) {
-    partyRole = "CREDITOR";
-    supplier = issuerName ?? (supplierIsOwn ? null : supplier);
+    // Incoming is the default reading, but models sometimes swap issuer/recipient on outgoing invoices.
+    if (
+      partyRole === "DEBTOR"
+      && supplier
+      && !supplierIsOwn
+      && (!issuerName || !matchesOrganization(org, issuerName, issuerVatId))
+    ) {
+      warnings.push("Empfaenger wirkt wie die eigene Firma, AI meldet Debitor — Namen ggf. vertauscht.");
+      // keep DEBTOR; supplier already holds the customer
+    } else {
+      partyRole = "CREDITOR";
+      supplier = issuerName ?? (supplierIsOwn ? null : supplier);
+    }
+  } else if (issuerIsOwn && recipientIsOwn) {
+    // Both sides look like us: keep AI direction when present, else prefer Debitor if supplier is foreign.
+    if (partyRole !== "CREDITOR" && partyRole !== "DEBTOR") {
+      partyRole = supplier && !supplierIsOwn ? "DEBTOR" : "CREDITOR";
+      warnings.push("Aussteller und Empfaenger wirken wie die eigene Firma; Richtung unklar.");
+    }
+    if (partyRole === "DEBTOR") {
+      supplier = supplierIsOwn ? recipientName : (supplier ?? recipientName);
+    } else {
+      supplier = supplierIsOwn ? issuerName : (supplier ?? issuerName);
+    }
   } else if (partyRole === "DEBTOR") {
     if (supplierIsOwn && recipientName) {
       supplier = recipientName;
@@ -159,11 +209,20 @@ export function normalizeExtractionResult(
       supplier = recipientName;
     }
   } else if (partyRole === "CREDITOR") {
-    if (supplierIsOwn && issuerName && !matchesOrganization(org, issuerName)) {
+    if (supplierIsOwn && issuerName && !matchesOrganization(org, issuerName, issuerVatId)) {
       supplier = issuerName;
       warnings.push("supplier zeigte auf die eigene Firma und wurde auf den Aussteller korrigiert.");
     } else if (!supplier && issuerName) {
       supplier = issuerName;
+    }
+  } else if (supplier && !supplierIsOwn && !issuerName && !recipientName) {
+    // AI often returns only the counterparty as supplier; without issuer/recipient keep AI partyRole if any,
+    // otherwise we cannot decide and must not silently force CREDITOR when VAT says we issued.
+    if (matchesOrganization(org, null, issuerVatId)) {
+      partyRole = "DEBTOR";
+    } else {
+      partyRole = "CREDITOR";
+      warnings.push("Belegrichtung unsicher; Fallback auf Kreditor (Eingangsbeleg).");
     }
   } else {
     // No clear AI direction: fall back to issuer-as-supplier (incoming).
@@ -192,6 +251,8 @@ export function normalizeExtractionResult(
     partyRole,
     issuerName,
     recipientName,
+    issuerVatId,
+    recipientVatId,
     warnings,
   };
 }

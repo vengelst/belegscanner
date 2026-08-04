@@ -130,6 +130,10 @@ export async function POST(request: NextRequest) {
       ocrSource,
       sourceType: result.sourceType,
       hasRawText: Boolean(result.rawText.trim()),
+      partyRole: result.extracted.partyRole,
+      supplier: result.extracted.supplier,
+      issuerName: result.extracted.issuerName,
+      recipientName: result.extracted.recipientName,
       openaiDurationMs,
       totalDurationMs: Date.now() - startedAt,
     });

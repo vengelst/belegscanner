@@ -24,6 +24,8 @@ function baseExtraction(overrides: Partial<ExtractionResult> = {}): ExtractionRe
     partyRole: null,
     issuerName: null,
     recipientName: null,
+    issuerVatId: null,
+    recipientVatId: null,
     invoiceNumber: "RE-40000059",
     invoiceDate: "2026-07-01",
     dueDate: null,
@@ -58,6 +60,9 @@ describe("normalizePartyRole", () => {
   it("normalisiert gueltige Werte", () => {
     expect(normalizePartyRole("DEBTOR")).toBe("DEBTOR");
     expect(normalizePartyRole("creditor")).toBe("CREDITOR");
+    expect(normalizePartyRole("Debitor")).toBe("DEBTOR");
+    expect(normalizePartyRole("DEBITOR")).toBe("DEBTOR");
+    expect(normalizePartyRole("Ausgangsrechnung")).toBe("DEBTOR");
     expect(normalizePartyRole("unknown")).toBeNull();
     expect(normalizePartyRole(null)).toBeNull();
   });
@@ -154,5 +159,36 @@ describe("normalizeExtractionResult", () => {
     expect(result.partyRole).toBe("DEBTOR");
     expect(result.supplier).toBeNull();
     expect(result.warnings.some((w) => /Kundenname/i.test(w))).toBe(true);
+  });
+
+  it("erkennt eigene Firma ueber USt-Id am Aussteller", () => {
+    const result = normalizeExtractionResult(
+      baseExtraction({
+        supplier: "Securiton GmbH",
+        issuerName: "Absender unbekannt",
+        recipientName: "Securiton GmbH",
+        issuerVatId: "DE123456789",
+        partyRole: "CREDITOR",
+      }),
+      VIVAHOME,
+    );
+
+    expect(result.partyRole).toBe("DEBTOR");
+    expect(result.supplier).toBe("Securiton GmbH");
+  });
+
+  it("behaelt Debitor wenn AI Debitor meldet aber Empfaenger/Aussteller vertauscht wirken", () => {
+    const result = normalizeExtractionResult(
+      baseExtraction({
+        supplier: "Securiton GmbH",
+        issuerName: "Securiton GmbH",
+        recipientName: "Viva Home",
+        partyRole: "DEBTOR",
+      }),
+      VIVAHOME,
+    );
+
+    expect(result.partyRole).toBe("DEBTOR");
+    expect(result.supplier).toBe("Securiton GmbH");
   });
 });
