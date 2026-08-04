@@ -15,6 +15,7 @@ export async function GET() {
       name: true,
       role: true,
       active: true,
+      canSendWithoutApproval: true,
       pinHash: true,
       lastLoginAt: true,
       createdAt: true,
@@ -64,13 +65,18 @@ export async function POST(request: NextRequest) {
   }
 
   const passwordHash = await hashSecret(parsed.data.password);
+  const role = parsed.data.role;
+  // Recht nur fuer USER relevant; bei ADMIN wirkungslos und daher aus
+  const canSendWithoutApproval =
+    role === "USER" ? Boolean(parsed.data.canSendWithoutApproval) : false;
 
   const user = await prisma.user.create({
     data: {
       email: parsed.data.email,
       name: parsed.data.name,
       passwordHash,
-      role: parsed.data.role,
+      role,
+      canSendWithoutApproval,
     },
     select: {
       id: true,
@@ -78,6 +84,7 @@ export async function POST(request: NextRequest) {
       name: true,
       role: true,
       active: true,
+      canSendWithoutApproval: true,
       createdAt: true,
     },
   });

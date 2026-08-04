@@ -10,6 +10,7 @@ type UserRow = {
   name: string;
   role: string;
   active: boolean;
+  canSendWithoutApproval: boolean;
   hasPin: boolean;
   lastLoginAt: string | null;
   createdAt: string;
@@ -18,13 +19,14 @@ type UserRow = {
 export function UserTable({ users }: { users: UserRow[] }) {
   return (
     <Card className="overflow-x-auto p-0">
-      <div className="min-w-[640px]">
+      <div className="min-w-[720px]">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-muted-foreground">
               <th className="px-4 py-3 font-medium">Name</th>
               <th className="px-4 py-3 font-medium">E-Mail</th>
               <th className="px-4 py-3 font-medium">Rolle</th>
+              <th className="px-4 py-3 font-medium">Versand o. Freigabe</th>
               <th className="px-4 py-3 font-medium">PIN</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 font-medium">Letzter Login</th>
@@ -116,6 +118,28 @@ function UserRow({ user }: { user: UserRow }) {
     });
   }
 
+  function handleToggleSendWithoutApproval() {
+    if (user.role !== "USER") return;
+    startTransition(async () => {
+      setMessage(null);
+      const next = !user.canSendWithoutApproval;
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ canSendWithoutApproval: next }),
+      });
+      const data = await res.json();
+      setMessage(
+        res.ok
+          ? next
+            ? "Versand ohne Beleg-Freigabe aktiviert."
+            : "Versand ohne Beleg-Freigabe deaktiviert."
+          : data.error,
+      );
+      router.refresh();
+    });
+  }
+
   const formatDate = (iso: string | null) => {
     if (!iso) return "—";
     return new Date(iso).toLocaleDateString("de-DE", {
@@ -141,6 +165,26 @@ function UserRow({ user }: { user: UserRow }) {
           >
             {user.role}
           </button>
+        </td>
+        <td className="px-4 py-3">
+          {user.role === "USER" ? (
+            <label className="inline-flex items-center gap-2 text-xs" title="User darf Belege an DATEV senden, ohne dass der Pruefstatus Freigegeben sein muss.">
+              <input
+                type="checkbox"
+                checked={user.canSendWithoutApproval}
+                onChange={handleToggleSendWithoutApproval}
+                disabled={isPending}
+                className="h-4 w-4 rounded border-border"
+              />
+              <span className={user.canSendWithoutApproval ? "font-medium text-primary" : "text-muted-foreground"}>
+                {user.canSendWithoutApproval ? "ja" : "nein"}
+              </span>
+            </label>
+          ) : (
+            <span className="text-xs text-muted-foreground" title="Admins duerfen ohnehin ohne Freigabe senden.">
+              n/a
+            </span>
+          )}
         </td>
         <td className="px-4 py-3">
           {user.hasPin ? (
@@ -197,7 +241,7 @@ function UserRow({ user }: { user: UserRow }) {
       </tr>
       {showPinForm ? (
         <tr className="border-b border-border/50">
-          <td colSpan={7} className="px-4 py-3">
+          <td colSpan={8} className="px-4 py-3">
             <div className="flex items-center gap-3">
               <input
                 type="text"
@@ -233,7 +277,7 @@ function UserRow({ user }: { user: UserRow }) {
       ) : null}
       {message ? (
         <tr className="border-b border-border/50">
-          <td colSpan={7} className="px-4 py-2">
+          <td colSpan={8} className="px-4 py-2">
             <p className="text-xs font-medium text-primary">{message}</p>
           </td>
         </tr>

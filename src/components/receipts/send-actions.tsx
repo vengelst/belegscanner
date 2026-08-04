@@ -9,6 +9,7 @@ type Props = {
   sendStatus: string;
   reviewStatus: string;
   isAdmin: boolean;
+  canSendWithoutApproval?: boolean;
   datevProfiles: { id: string; name: string; isDefault: boolean }[];
   receiptDatevProfileId?: string | null;
   readiness?: SendReadiness;
@@ -26,7 +27,7 @@ const statusColors: Record<SendReadiness["status"], string> = {
   nicht_sendbar: "border-danger/30 bg-danger/5 text-danger",
 };
 
-export function SendActions({ receiptId, sendStatus, reviewStatus, isAdmin, datevProfiles, receiptDatevProfileId, readiness }: Props) {
+export function SendActions({ receiptId, sendStatus, reviewStatus, isAdmin, canSendWithoutApproval = false, datevProfiles, receiptDatevProfileId, readiness }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
@@ -42,7 +43,7 @@ export function SendActions({ receiptId, sendStatus, reviewStatus, isAdmin, date
   const canSend = sendStatus === "OPEN" || sendStatus === "READY";
   const canRetry = sendStatus === "FAILED" || sendStatus === "SENT";
   const isBlocked = readiness?.status === "nicht_sendbar";
-  const needsApproval = !isAdmin && reviewStatus !== "APPROVED";
+  const needsApproval = !isAdmin && !canSendWithoutApproval && reviewStatus !== "APPROVED";
 
   function handleSend() {
     setMessage(null);

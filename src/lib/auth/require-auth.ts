@@ -6,6 +6,7 @@ export type AuthSession = {
   email: string;
   name: string;
   role: "ADMIN" | "USER";
+  canSendWithoutApproval: boolean;
 };
 
 export async function requireAuth(): Promise<
@@ -28,6 +29,7 @@ export async function requireAuth(): Promise<
       email: authSession.user.email ?? "",
       name: authSession.user.name ?? "",
       role: authSession.user.role === "ADMIN" ? "ADMIN" : "USER",
+      canSendWithoutApproval: Boolean(authSession.user.canSendWithoutApproval),
     },
   };
 }

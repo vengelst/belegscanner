@@ -20,6 +20,7 @@ export async function GET(
       name: true,
       role: true,
       active: true,
+      canSendWithoutApproval: true,
       pinHash: true,
       lastLoginAt: true,
       createdAt: true,
@@ -112,15 +113,32 @@ export async function PUT(
     }
   }
 
+  const nextRole = parsed.data.role ?? existing.role;
+  const updateData: {
+    email?: string;
+    name?: string;
+    role?: "ADMIN" | "USER";
+    active?: boolean;
+    canSendWithoutApproval?: boolean;
+  } = { ...parsed.data };
+
+  // Recht nur fuer USER; bei ADMIN immer false
+  if (nextRole === "ADMIN") {
+    updateData.canSendWithoutApproval = false;
+  } else if (parsed.data.canSendWithoutApproval !== undefined) {
+    updateData.canSendWithoutApproval = parsed.data.canSendWithoutApproval;
+  }
+
   const user = await prisma.user.update({
     where: { id },
-    data: parsed.data,
+    data: updateData,
     select: {
       id: true,
       email: true,
       name: true,
       role: true,
       active: true,
+      canSendWithoutApproval: true,
       createdAt: true,
       updatedAt: true,
     },
