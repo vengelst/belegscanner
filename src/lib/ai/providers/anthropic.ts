@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { ContentBlock, TextBlock } from "@anthropic-ai/sdk/resources/messages";
 import type { OrganizationIdentity } from "@/lib/organization";
 import type { AiProviderInterface, ExtractionResult, AiConfig } from "../types";
-import { parseProviderError } from "../types";
+import { buildOcrContextBlock, parseProviderError } from "../types";
 import {
   buildExtractionUserPrompt,
   buildSystemPrompt,
@@ -43,9 +43,12 @@ export class AnthropicProvider implements AiProviderInterface {
     return normalizeExtractionResult(raw, this.organization);
   }
 
-  async analyzeDocument(buffer: Buffer, mimeType: string): Promise<ExtractionResult> {
+  async analyzeDocument(buffer: Buffer, mimeType: string, ocrText?: string | null): Promise<ExtractionResult> {
     try {
-      const extractionPrompt = buildExtractionUserPrompt(this.organization);
+      const ocrContext = buildOcrContextBlock(ocrText);
+      const extractionPrompt = ocrContext
+        ? `${ocrContext}\n\n${buildExtractionUserPrompt(this.organization)}`
+        : buildExtractionUserPrompt(this.organization);
 
       if (mimeType === "application/pdf") {
         const response = await this.client.messages.create({

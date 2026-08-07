@@ -77,9 +77,20 @@ export type ExtractionResult = {
 };
 
 export interface AiProviderInterface {
-  analyzeDocument(buffer: Buffer, mimeType: string): Promise<ExtractionResult>;
+  /**
+   * @param ocrText Optionaler OCR-Rohtext als Zusatzkontext. Das Bild bleibt die
+   * fuehrende Quelle; der Text hilft dem Modell nur bei kleiner Schrift.
+   */
+  analyzeDocument(buffer: Buffer, mimeType: string, ocrText?: string | null): Promise<ExtractionResult>;
   analyzeText(rawText: string): Promise<ExtractionResult>;
   testConnection(): Promise<{ success: boolean; message: string }>;
+}
+
+/** Zusatzblock fuer den Vision-Pfad, wenn zusaetzlich OCR-Text vorliegt. */
+export function buildOcrContextBlock(ocrText: string | null | undefined): string | null {
+  const trimmed = ocrText?.trim();
+  if (!trimmed) return null;
+  return `Zusaetzlicher OCR-Rohtext desselben Belegs (nur als Lesehilfe, das Bild ist massgeblich - uebernimm keine offensichtlichen OCR-Fehler):\n--- OCR-TEXT ---\n${trimmed}\n--- ENDE ---`;
 }
 
 /** Legacy default prompt without company identity (incoming-invoice behaviour). */
@@ -97,7 +108,11 @@ Rules:
 - Add warnings when values are ambiguous or likely incomplete
 - Always extract issuerName (document issuer/vendor) and recipientName (bill-to party) when visible
 - Extract the issuer/vendor as supplier, never the bill-to recipient
-- partyRole must be null when our company identity is not configured`;
+- partyRole must be null when our company identity is not configured
+
+Line items (lineItems):
+- Extract EVERY visible item/position row, in printed order, as completely as possible - including small print and tightly spaced table rows
+- Do NOT create line items for summary rows: subtotal, total, net/gross sums, VAT/tax rows, tip, rounding, invoice-level discounts, payment/change rows`;
 
 export const EXTRACTION_JSON_SCHEMA = {
   type: "object" as const,

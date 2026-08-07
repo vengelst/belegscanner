@@ -241,7 +241,7 @@ const aiLodgingSchema = z.object({
   subtotal: z.number().nullable(),
   tax: z.number().nullable(),
   fees: z.number().nullable(),
-  lineItems: z.array(aiLineItemSchema).max(10),
+  lineItems: z.array(aiLineItemSchema).max(20),
 });
 
 const aiParkingSchema = z.object({
@@ -325,13 +325,14 @@ export const aiStructuredDataSchema = z.object({
       location: z.string().max(255).nullable(),
       subtotal: z.number().nullable(),
       tip: z.number().nullable(),
-      lineItems: z.array(aiLineItemSchema).max(10),
+      lineItems: z.array(aiLineItemSchema).max(20),
     }).nullable(),
     lodging: aiLodgingSchema.nullable(),
     parking: aiParkingSchema.nullable(),
     toll: aiTollSchema.nullable(),
     invoice: z.object({
-      lineItems: z.array(aiInvoiceLineItemSchema).max(20),
+      // 20 war fuer laengere Rechnungen zu knapp und hat die Auslese komplett verworfen.
+      lineItems: z.array(aiInvoiceLineItemSchema).max(40),
     }).nullable(),
   }),
   fieldReviewStates: z.record(fieldReviewStatusSchema).optional(),

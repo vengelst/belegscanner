@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { analyzeWithOpenAI, analyzeWithOpenAITextMode } from "@/lib/openai-document-ai";
 import { extractTextWithOcrService } from "@/lib/ocr-service";
+import { decideTextMode } from "@/lib/ocr-text-mode";
 import { validateFile } from "@/lib/storage";
 import { checkRateLimit, cleanupExpiredEntries } from "@/lib/rate-limit";
 import type { DocumentAnalysisOcrSource } from "@/lib/document-analysis";
@@ -10,7 +11,6 @@ const RATE_LIMIT_MAX = 30;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
 const IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png"]);
-const PADDLEOCR_CONFIDENCE_THRESHOLD = 0.5;
 
 export async function POST(request: NextRequest) {
   let fileMeta: { mimeType: string; sizeBytes: number; fileName: string } | null = null;
@@ -70,21 +70,28 @@ export async function POST(request: NextRequest) {
     const isPdf = file.type === "application/pdf";
 
     let ocrSource: DocumentAnalysisOcrSource;
+    let ocrText: string | null = null;
 
     if (isImage) {
       const ocrStartedAt = Date.now();
       const ocrResult = await extractTextWithOcrService(buffer, file.type);
       const ocrDurationMs = Date.now() - ocrStartedAt;
+      const decision = decideTextMode(ocrResult);
+      ocrText = ocrResult?.text.trim() || null;
 
-      if (ocrResult && ocrResult.text.trim().length > 0 && ocrResult.confidence > PADDLEOCR_CONFIDENCE_THRESHOLD) {
-        console.info("[Analyze] PaddleOCR erfolgreich:", {
-          textLength: ocrResult.text.length,
-          confidence: ocrResult.confidence.toFixed(2),
-          ocrDurationMs,
-        });
+      console.info("[Analyze] Hybrid-Gate:", {
+        modus: decision.useTextMode ? "text" : "vision",
+        grund: decision.reason,
+        confidence: decision.confidence.toFixed(2),
+        textLength: decision.textLength,
+        lineCount: decision.lineCount,
+        hasAmountPattern: decision.hasAmountPattern,
+        ocrDurationMs,
+      });
 
+      if (decision.useTextMode && ocrText) {
         const openaiStartedAt = Date.now();
-        const result = await analyzeWithOpenAITextMode(ocrResult.text, file.type);
+        const result = await analyzeWithOpenAITextMode(ocrText, file.type);
         const openaiDurationMs = Date.now() - openaiStartedAt;
 
         ocrSource = "paddleocr+openai";
@@ -93,7 +100,7 @@ export async function POST(request: NextRequest) {
         console.info("[Analyze] Hybrid-Pipeline abgeschlossen:", {
           ...fileMeta,
           ocrSource,
-          paddleOcrConfidence: ocrResult.confidence.toFixed(2),
+          paddleOcrConfidence: decision.confidence.toFixed(2),
           ocrDurationMs,
           openaiDurationMs,
           totalDurationMs: Date.now() - startedAt,
@@ -106,20 +113,12 @@ export async function POST(request: NextRequest) {
           },
         });
       }
-
-      if (ocrResult) {
-        console.info("[Analyze] PaddleOCR-Confidence zu niedrig:", {
-          confidence: ocrResult.confidence.toFixed(2),
-          threshold: PADDLEOCR_CONFIDENCE_THRESHOLD,
-          ocrDurationMs,
-        });
-      } else {
-        console.info("[Analyze] PaddleOCR nicht verfuegbar, ocrDurationMs:", ocrDurationMs);
-      }
     }
 
+    // Vision-Pfad: Das Modell sieht das Bild selbst. Vorhandener OCR-Text geht
+    // als Zusatzkontext mit, damit kleine Positionszeilen doppelt abgesichert sind.
     const openaiStartedAt = Date.now();
-    const result = await analyzeWithOpenAI(buffer, file.type);
+    const result = await analyzeWithOpenAI(buffer, file.type, ocrText);
     const openaiDurationMs = Date.now() - openaiStartedAt;
 
     ocrSource = isPdf ? "openai-pdf" : "openai-vision";
@@ -129,6 +128,7 @@ export async function POST(request: NextRequest) {
       ...fileMeta,
       ocrSource,
       sourceType: result.sourceType,
+      hasOcrContext: Boolean(ocrText),
       hasRawText: Boolean(result.rawText.trim()),
       partyRole: result.extracted.partyRole,
       supplier: result.extracted.supplier,

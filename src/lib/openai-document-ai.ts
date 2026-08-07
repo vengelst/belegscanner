@@ -44,7 +44,9 @@ function partyRoleConfidence(data: ExtractionResult): OcrConfidenceLevel {
 function mapLineItems(items: ExtractionResult["lineItems"]): OcrInvoiceLineItem[] {
   return items.map((item, index) => ({
     lineNumber: index + 1,
-    description: item.description.slice(0, 255),
+    // 180 = Grenze in aiInvoiceLineItemSchema; laengere Werte liessen die
+    // gesamte Struktur an der Validierung scheitern.
+    description: item.description.slice(0, 180),
     quantity: item.quantity,
     unit: item.unit,
     unitPrice: item.unitPrice,
@@ -197,6 +199,7 @@ export async function analyzeWithOpenAITextMode(
 export async function analyzeWithOpenAI(
   buffer: Buffer,
   mimeType: string,
+  ocrText?: string | null,
 ): Promise<OcrResult> {
   const provider = await getAiProvider();
   if (!provider) {
@@ -204,7 +207,7 @@ export async function analyzeWithOpenAI(
   }
 
   try {
-    const data = await provider.analyzeDocument(buffer, mimeType);
+    const data = await provider.analyzeDocument(buffer, mimeType, ocrText);
     return mapExtractionToOcrResult(data, mimeType);
   } catch (error) {
     if (error instanceof AiProviderError) {

@@ -16,25 +16,52 @@ export type DocumentDetectionResult = {
   metrics: {
     brightness: number;
     contrast: number;
-    blur: number;
+    /** Laplacian-Varianz im Dokumentbereich. Hoeher = schaerfer. */
+    sharpness: number;
     motion: number;
     coverage: number;
     rectangularity: number;
   };
   hint: string;
   autoCaptureEligible: boolean;
+  /**
+   * Nur eine Metrik liegt knapp neben ihrem Schwellwert. Der Aufrufer nutzt das
+   * fuer eine Grace-Phase, damit ein einzelner Wackel-Frame den Auto-Capture
+   * nicht komplett zuruecksetzt.
+   */
+  nearReady: boolean;
 };
 
-const MIN_EDGE_PIXELS = 180;
-const EDGE_THRESHOLD_MULTIPLIER = 1.85;
-const MIN_COVERAGE = 0.15;
-const MAX_COVERAGE = 0.92;
-const MIN_RECTANGULARITY = 0.22;
-const MIN_CONTRAST = 18;
-const MIN_BRIGHTNESS = 45;
-const MAX_BRIGHTNESS = 235;
-const MIN_BLUR = 12;
-const MAX_MOTION = 0.12;
+/** Anteil der Pixel, die als starke Kante erkannt sein muessen (aufloesungsunabhaengig). */
+const MIN_EDGE_PIXEL_RATIO = 0.0015;
+const MIN_EDGE_PIXELS_FLOOR = 120;
+const EDGE_THRESHOLD_MULTIPLIER = 1.6;
+const MIN_EDGE_THRESHOLD = 18;
+const MIN_COVERAGE = 0.12;
+const MAX_COVERAGE = 0.97;
+const MIN_RECTANGULARITY = 0.16;
+const MIN_CONTRAST = 14;
+const MIN_BRIGHTNESS = 38;
+const MAX_BRIGHTNESS = 242;
+const MIN_SHARPNESS = 18;
+const MAX_MOTION = 0.16;
+
+/** Toleranzbaender fuer "knapp daneben" (siehe nearReady). */
+const SLACK_COVERAGE = 0.03;
+const SLACK_RECTANGULARITY = 0.04;
+const SLACK_CONTRAST = 3;
+const SLACK_BRIGHTNESS = 8;
+const SLACK_SHARPNESS = 6;
+const SLACK_MOTION = 0.06;
+
+type MetricCheck = { ok: boolean; near: boolean };
+
+function checkRange(value: number, min: number, max: number, slack: number): MetricCheck {
+  return {
+    ok: value >= min && value <= max,
+    near: value >= min - slack && value <= max + slack,
+  };
+}
 
 export function analyzeDocumentFrame(
   imageData: ImageData,
@@ -83,13 +110,12 @@ export function analyzeDocumentFrame(
   }
 
   const meanEdge = edgeCount > 0 ? edgeSum / edgeCount : 0;
-  const edgeThreshold = Math.max(24, meanEdge * EDGE_THRESHOLD_MULTIPLIER);
+  const edgeThreshold = Math.max(MIN_EDGE_THRESHOLD, meanEdge * EDGE_THRESHOLD_MULTIPLIER);
 
   let minX = width;
   let minY = height;
   let maxX = 0;
   let maxY = 0;
-  let strongEdgeSum = 0;
 
   for (let y = 1; y < height - 1; y += 1) {
     for (let x = 1; x < width - 1; x += 1) {
@@ -97,7 +123,6 @@ export function analyzeDocumentFrame(
       const magnitude = edgeValues[index];
       if (magnitude < edgeThreshold) continue;
       edgePoints.push({ x, y, magnitude });
-      strongEdgeSum += magnitude;
       if (x < minX) minX = x;
       if (x > maxX) maxX = x;
       if (y < minY) minY = y;
@@ -105,7 +130,8 @@ export function analyzeDocumentFrame(
     }
   }
 
-  if (edgePoints.length < MIN_EDGE_PIXELS) {
+  const minEdgePixels = Math.max(MIN_EDGE_PIXELS_FLOOR, Math.round(pixelCount * MIN_EDGE_PIXEL_RATIO));
+  if (edgePoints.length < minEdgePixels) {
     return emptyDetection(meanBrightness, contrast, previousBounds, "Beleg ins Sichtfeld bringen");
   }
 
@@ -127,7 +153,7 @@ export function analyzeDocumentFrame(
   }
 
   const rectangularity = borderEdges / Math.max(1, borderEdges + insideEdges);
-  const blur = strongEdgeSum / edgePoints.length;
+  const sharpness = computeLaplacianVariance(grayscale, width, height, minX, minY, maxX, maxY);
 
   const normalizedBounds: NormalizedDocumentBounds = {
     x: minX / width,
@@ -139,29 +165,33 @@ export function analyzeDocumentFrame(
   const angleDeg = computePrimaryAngle(edgePoints);
 
   const checks = [
-    coverage >= MIN_COVERAGE && coverage <= MAX_COVERAGE,
-    rectangularity >= MIN_RECTANGULARITY,
-    contrast >= MIN_CONTRAST,
-    meanBrightness >= MIN_BRIGHTNESS && meanBrightness <= MAX_BRIGHTNESS,
-    blur >= MIN_BLUR,
-    motion <= MAX_MOTION,
+    checkRange(coverage, MIN_COVERAGE, MAX_COVERAGE, SLACK_COVERAGE),
+    checkRange(rectangularity, MIN_RECTANGULARITY, Number.POSITIVE_INFINITY, SLACK_RECTANGULARITY),
+    checkRange(contrast, MIN_CONTRAST, Number.POSITIVE_INFINITY, SLACK_CONTRAST),
+    checkRange(meanBrightness, MIN_BRIGHTNESS, MAX_BRIGHTNESS, SLACK_BRIGHTNESS),
+    checkRange(sharpness, MIN_SHARPNESS, Number.POSITIVE_INFINITY, SLACK_SHARPNESS),
+    checkRange(motion, 0, MAX_MOTION, SLACK_MOTION),
   ];
 
-  if (checks.every(Boolean)) {
+  const failedChecks = checks.filter((check) => !check.ok);
+  const metrics = {
+    brightness: meanBrightness,
+    contrast,
+    sharpness,
+    motion,
+    coverage,
+    rectangularity,
+  };
+
+  if (failedChecks.length === 0) {
     return {
       status: "ready",
       bounds: normalizedBounds,
       angleDeg,
-      metrics: {
-        brightness: meanBrightness,
-        contrast,
-        blur,
-        motion,
-        coverage,
-        rectangularity,
-      },
+      metrics,
       hint: "Beleg erkannt - stillhalten fuer Auto-Capture",
       autoCaptureEligible: true,
+      nearReady: true,
     };
   }
 
@@ -169,16 +199,10 @@ export function analyzeDocumentFrame(
     status: "uncertain",
     bounds: normalizedBounds,
     angleDeg,
-    metrics: {
-      brightness: meanBrightness,
-      contrast,
-      blur,
-      motion,
-      coverage,
-      rectangularity,
-    },
-    hint: buildHint({ coverage, rectangularity, meanBrightness, contrast, blur, motion }),
+    metrics,
+    hint: buildHint({ coverage, rectangularity, meanBrightness, contrast, sharpness, motion }),
     autoCaptureEligible: false,
+    nearReady: failedChecks.length === 1 && failedChecks[0].near,
   };
 }
 
@@ -187,21 +211,21 @@ function buildHint({
   rectangularity,
   meanBrightness,
   contrast,
-  blur,
+  sharpness,
   motion,
 }: {
   coverage: number;
   rectangularity: number;
   meanBrightness: number;
   contrast: number;
-  blur: number;
+  sharpness: number;
   motion: number;
 }) {
   if (coverage < MIN_COVERAGE) return "Naeher an den Beleg herangehen";
   if (coverage > MAX_COVERAGE) return "Etwas weiter weg gehen";
   if (rectangularity < MIN_RECTANGULARITY) return "Beleg vollstaendig im Rahmen platzieren";
   if (motion > MAX_MOTION) return "Kamera ruhiger halten";
-  if (blur < MIN_BLUR) return "Bild ist zu unscharf";
+  if (sharpness < MIN_SHARPNESS) return "Bild ist zu unscharf";
   if (meanBrightness < MIN_BRIGHTNESS) return "Mehr Licht oder helleren Hintergrund nutzen";
   if (meanBrightness > MAX_BRIGHTNESS) return "Blendung reduzieren";
   if (contrast < MIN_CONTRAST) return "Kontrast ist noch zu schwach";
@@ -216,14 +240,58 @@ function emptyDetection(brightness: number, contrast: number, previousBounds: No
     metrics: {
       brightness,
       contrast,
-      blur: 0,
+      sharpness: 0,
       motion: previousBounds ? 1 : 0,
       coverage: 0,
       rectangularity: 0,
     },
     hint,
     autoCaptureEligible: false,
+    nearReady: false,
   };
+}
+
+/**
+ * Laplacian-Varianz als Schaerfemass, begrenzt auf den Dokumentbereich.
+ * Der reine Sobel-Mittelwert reagiert zu stark auf Kontrast statt auf Schaerfe
+ * und liess dadurch auch verwackelte Frames als "scharf" durchgehen.
+ */
+function computeLaplacianVariance(
+  grayscale: Float32Array,
+  width: number,
+  height: number,
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number,
+) {
+  const startX = Math.max(1, minX);
+  const endX = Math.min(width - 2, maxX);
+  const startY = Math.max(1, minY);
+  const endY = Math.min(height - 2, maxY);
+
+  let sum = 0;
+  let sumOfSquares = 0;
+  let count = 0;
+
+  for (let y = startY; y <= endY; y += 1) {
+    for (let x = startX; x <= endX; x += 1) {
+      const index = y * width + x;
+      const laplacian =
+        4 * grayscale[index]
+        - grayscale[index - 1]
+        - grayscale[index + 1]
+        - grayscale[index - width]
+        - grayscale[index + width];
+      sum += laplacian;
+      sumOfSquares += laplacian * laplacian;
+      count += 1;
+    }
+  }
+
+  if (count === 0) return 0;
+  const mean = sum / count;
+  return Math.max(0, sumOfSquares / count - mean * mean);
 }
 
 function computeMotion(previousBounds: NormalizedDocumentBounds | null, currentBounds: NormalizedDocumentBounds) {

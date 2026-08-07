@@ -19,7 +19,16 @@ const BASE_RULES = `Rules:
 - documentType must be one of: general, fuel, hospitality, lodging, parking, toll
 - Return null when a field cannot be read confidently
 - Add warnings when values are ambiguous or likely incomplete
-- Always extract issuerName (document issuer/vendor) and recipientName (bill-to party) when visible`;
+- Always extract issuerName (document issuer/vendor) and recipientName (bill-to party) when visible
+
+Line items (lineItems):
+- Extract EVERY visible item/position row of the document, in the order they appear, as completely as possible
+- Small print, tightly spaced table rows and continuation pages still count - zoom in mentally and read them, do not skip a row because it is hard to read
+- One row per position; do not merge several rows into one entry
+- Do NOT create line items for summary rows: subtotal, total, net/gross sums, VAT/tax rows, tip, rounding, discounts on the whole invoice, payment/change rows, loyalty points
+- Keep the description as printed (may be shortened, but never invent text); quantity, unit, unitPrice and totalPrice stay null when they are not printed
+- If a row is only partially readable, still return it with the readable parts and add a warning
+- Return an empty lineItems array when the document genuinely has no itemised positions`;
 
 const LEGACY_SUPPLIER_RULE = `- Extract the issuer/vendor as supplier, never the bill-to recipient
 - partyRole must be null when our company identity is not configured`;

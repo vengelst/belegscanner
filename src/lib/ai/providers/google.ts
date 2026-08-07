@@ -1,7 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import type { OrganizationIdentity } from "@/lib/organization";
 import type { AiProviderInterface, ExtractionResult, AiConfig } from "../types";
-import { parseProviderError } from "../types";
+import { buildOcrContextBlock, parseProviderError } from "../types";
 import {
   buildExtractionUserPrompt,
   buildSystemPrompt,
@@ -27,8 +27,9 @@ export class GoogleProvider implements AiProviderInterface {
     return normalizeExtractionResult(raw, this.organization);
   }
 
-  async analyzeDocument(buffer: Buffer, mimeType: string): Promise<ExtractionResult> {
+  async analyzeDocument(buffer: Buffer, mimeType: string, ocrText?: string | null): Promise<ExtractionResult> {
     try {
+      const ocrContext = buildOcrContextBlock(ocrText);
       const response = await this.client.models.generateContent({
         model: this.model,
         contents: [
@@ -41,6 +42,7 @@ export class GoogleProvider implements AiProviderInterface {
                   data: toBase64(buffer),
                 },
               },
+              ...(ocrContext ? [{ text: ocrContext }] : []),
               {
                 text: `${buildSystemPrompt(this.organization)}\n\n${buildExtractionUserPrompt(this.organization)}`,
               },

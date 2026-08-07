@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import type { OrganizationIdentity } from "@/lib/organization";
 import type { AiProviderInterface, ExtractionResult, AiConfig } from "../types";
-import { EXTRACTION_JSON_SCHEMA, parseProviderError } from "../types";
+import { EXTRACTION_JSON_SCHEMA, buildOcrContextBlock, parseProviderError } from "../types";
 import { buildSystemPrompt, normalizeExtractionResult } from "../organization-prompt";
 
 function toDataUrl(buffer: Buffer, mimeType: string): string {
@@ -26,8 +26,9 @@ export class OpenAIProvider implements AiProviderInterface {
     return normalizeExtractionResult(raw, this.organization);
   }
 
-  async analyzeDocument(buffer: Buffer, mimeType: string): Promise<ExtractionResult> {
+  async analyzeDocument(buffer: Buffer, mimeType: string, ocrText?: string | null): Promise<ExtractionResult> {
     try {
+      const ocrContext = buildOcrContextBlock(ocrText);
       const documentInput: OpenAI.Responses.ResponseInputContent = mimeType === "application/pdf"
         ? {
             type: "input_file",
@@ -52,6 +53,7 @@ export class OpenAIProvider implements AiProviderInterface {
                 type: "input_text",
                 text: "Lies den Beleg aus und gib nur die strukturierten Daten gemaess Schema zurueck.",
               },
+              ...(ocrContext ? [{ type: "input_text" as const, text: ocrContext }] : []),
             ],
           },
         ],

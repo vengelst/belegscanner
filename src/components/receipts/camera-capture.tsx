@@ -23,17 +23,23 @@ type Props = {
 type CameraState = "camera" | "crop" | "review";
 
 const ANALYZE_INTERVAL_MS = 280;
-const AUTO_CAPTURE_HOLD_MS = 800;
+const AUTO_CAPTURE_HOLD_MS = 550;
 const AUTO_CAPTURE_COOLDOWN_MS = 2500;
-const ANALYSIS_WIDTH = 240;
+/**
+ * Solange ein Frame nur knapp an den Schwellwerten scheitert, laeuft der
+ * Auto-Capture-Timer weiter. Ohne diese Toleranz hat ein einzelner Wackler den
+ * Countdown staendig zurueckgesetzt und der Auto-Scan loeste praktisch nie aus.
+ */
+const AUTO_CAPTURE_GRACE_MS = 400;
+const ANALYSIS_WIDTH = 400;
 
 export function CameraCapture({ open, onClose, onCapture }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const analysisCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const fallbackInputRef = useRef<HTMLInputElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const readySinceRef = useRef<number | null>(null);
+  const lastEligibleAtRef = useRef<number>(0);
   const cooldownUntilRef = useRef<number>(0);
   const latestDetectionRef = useRef<DocumentDetectionResult | null>(null);
 
@@ -44,21 +50,21 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
   const [capturedPreviewUrl, setCapturedPreviewUrl] = useState<string | null>(null);
   const [captureTrigger, setCaptureTrigger] = useState<"manual" | "auto">("manual");
   const [detection, setDetection] = useState<DocumentDetectionResult | null>(null);
+  /** Restzeit bis zum automatischen Ausloesen in ms, null wenn kein Countdown laeuft. */
+  const [autoCaptureCountdownMs, setAutoCaptureCountdownMs] = useState<number | null>(null);
 
   useEffect(() => {
     if (!open) {
       stopCamera();
       resetCapture();
-      readySinceRef.current = null;
-      latestDetectionRef.current = null;
+      resetAutoCaptureState();
       return;
     }
 
     setState("camera");
     setError(null);
     setDetection(null);
-    readySinceRef.current = null;
-    latestDetectionRef.current = null;
+    resetAutoCaptureState();
     void startCamera();
 
     return () => {
@@ -86,15 +92,18 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
   }, []);
 
   const overlayStyle = useMemo(() => {
-    if (!detection?.bounds || !containerRef.current || !videoRef.current || videoRef.current.videoWidth === 0) {
+    const video = videoRef.current;
+    if (!detection?.bounds || !video || video.videoWidth === 0 || video.clientWidth === 0) {
       return null;
     }
-    return mapBoundsToContainer(
+    // Der Rahmen liegt absolut ueber dem Video-Element, also wird auch gegen
+    // dessen Box gerechnet - nicht gegen den aeusseren Container.
+    return mapBoundsToVideoBox(
       detection.bounds,
-      videoRef.current.videoWidth,
-      videoRef.current.videoHeight,
-      containerRef.current.clientWidth,
-      containerRef.current.clientHeight,
+      video.videoWidth,
+      video.videoHeight,
+      video.clientWidth,
+      video.clientHeight,
     );
   }, [detection]);
 
@@ -142,6 +151,13 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
     }
   }
 
+  function resetAutoCaptureState() {
+    readySinceRef.current = null;
+    lastEligibleAtRef.current = 0;
+    latestDetectionRef.current = null;
+    setAutoCaptureCountdownMs(null);
+  }
+
   function resetCapture() {
     setCapturedFile(null);
     if (capturedPreviewUrl) {
@@ -171,16 +187,37 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
     setDetection(result);
 
     const now = Date.now();
-    if (result.autoCaptureEligible && !error) {
+    const eligible = result.autoCaptureEligible && !error;
+    // Hysterese: ein knapp verfehlter Frame haelt den Countdown, solange die
+    // Grace-Zeit seit dem letzten wirklich guten Frame nicht abgelaufen ist.
+    const withinGrace =
+      !eligible
+      && result.nearReady
+      && readySinceRef.current !== null
+      && now - lastEligibleAtRef.current <= AUTO_CAPTURE_GRACE_MS;
+
+    if (eligible) {
+      lastEligibleAtRef.current = now;
       if (!readySinceRef.current) readySinceRef.current = now;
-      if (now >= cooldownUntilRef.current && now - readySinceRef.current >= AUTO_CAPTURE_HOLD_MS) {
-        cooldownUntilRef.current = now + AUTO_CAPTURE_COOLDOWN_MS;
-        readySinceRef.current = null;
-        void handleCapture("auto", result);
-      }
-    } else {
+    } else if (!withinGrace) {
       readySinceRef.current = null;
     }
+
+    if (readySinceRef.current === null) {
+      setAutoCaptureCountdownMs(null);
+      return;
+    }
+
+    const heldMs = now - readySinceRef.current;
+    if (now >= cooldownUntilRef.current && heldMs >= AUTO_CAPTURE_HOLD_MS) {
+      cooldownUntilRef.current = now + AUTO_CAPTURE_COOLDOWN_MS;
+      readySinceRef.current = null;
+      setAutoCaptureCountdownMs(null);
+      void handleCapture("auto", result);
+      return;
+    }
+
+    setAutoCaptureCountdownMs(Math.max(0, AUTO_CAPTURE_HOLD_MS - heldMs));
   }
 
   async function handleCapture(trigger: "manual" | "auto", detectionSnapshot?: DocumentDetectionResult | null) {
@@ -219,8 +256,7 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
     resetCapture();
     setDetection(null);
     setState("camera");
-    readySinceRef.current = null;
-    latestDetectionRef.current = null;
+    resetAutoCaptureState();
     void startCamera();
   }
 
@@ -238,7 +274,7 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
     if (!capturedFile) return;
     const adjustedDetection: DocumentDetectionResult | null = detection
       ? { ...detection, bounds: cropBounds }
-      : { status: "ready", bounds: cropBounds, angleDeg: 0, metrics: { brightness: 0, contrast: 0, blur: 0, motion: 0, coverage: 0, rectangularity: 0 }, hint: "", autoCaptureEligible: false };
+      : { status: "ready", bounds: cropBounds, angleDeg: 0, metrics: { brightness: 0, contrast: 0, sharpness: 0, motion: 0, coverage: 0, rectangularity: 0 }, hint: "", autoCaptureEligible: false, nearReady: false };
     onCapture({
       file: capturedFile,
       detection: adjustedDetection,
@@ -266,8 +302,7 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
     setState("camera");
     setError(null);
     setDetection(null);
-    readySinceRef.current = null;
-    latestDetectionRef.current = null;
+    resetAutoCaptureState();
     onClose();
   }
 
@@ -321,7 +356,7 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
 
         <div className="flex flex-1 flex-col justify-between gap-4 p-4">
           {state === "camera" ? (
-            <div ref={containerRef} className="flex-1 overflow-hidden rounded-[2rem] border border-border bg-black/90">
+            <div className="flex-1 overflow-hidden rounded-[2rem] border border-border bg-black/90">
               <div className="relative h-full min-h-[18rem]">
                 <video
                   ref={videoRef}
@@ -342,6 +377,11 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
                 ) : (
                   <div className="pointer-events-none absolute inset-x-6 top-6 bottom-24 rounded-[1.75rem] border-2 border-white/60 shadow-[0_0_0_9999px_rgba(0,0,0,0.24)]" />
                 )}
+                {autoCaptureCountdownMs !== null ? (
+                  <div className="pointer-events-none absolute inset-x-4 top-4 rounded-full bg-primary/90 px-4 py-2 text-center text-sm font-semibold text-primary-foreground">
+                    Aufnahme in {(autoCaptureCountdownMs / 1000).toFixed(1)}s - bitte stillhalten
+                  </div>
+                ) : null}
                 <div className="absolute inset-x-4 bottom-4 space-y-2">
                   <StatusBadge detection={detection} />
                   <p className="rounded-full bg-black/60 px-4 py-2 text-center text-xs font-medium text-white">
@@ -456,30 +496,23 @@ function getOverlayClass(status: DocumentDetectionResult["status"]) {
   return "border-white/60 shadow-[0_0_0_9999px_rgba(0,0,0,0.24)]";
 }
 
-function mapBoundsToContainer(
+/**
+ * Bildet normalisierte Detection-Bounds auf die Video-Box ab. Das Video wird mit
+ * `object-cover` gerendert, der sichtbare Ausschnitt ist also beschnitten - daher
+ * wird mit dem groesseren Skalierungsfaktor und negativen Offsets gerechnet.
+ */
+function mapBoundsToVideoBox(
   bounds: NormalizedDocumentBounds,
   videoWidth: number,
   videoHeight: number,
-  containerWidth: number,
-  containerHeight: number,
+  boxWidth: number,
+  boxHeight: number,
 ) {
-  const videoAspect = videoWidth / videoHeight;
-  const containerAspect = containerWidth / containerHeight;
-
-  let renderedWidth = containerWidth;
-  let renderedHeight = containerHeight;
-  let offsetX = 0;
-  let offsetY = 0;
-
-  if (containerAspect > videoAspect) {
-    renderedWidth = containerWidth;
-    renderedHeight = containerWidth / videoAspect;
-    offsetY = (containerHeight - renderedHeight) / 2;
-  } else {
-    renderedHeight = containerHeight;
-    renderedWidth = containerHeight * videoAspect;
-    offsetX = (containerWidth - renderedWidth) / 2;
-  }
+  const scale = Math.max(boxWidth / videoWidth, boxHeight / videoHeight);
+  const renderedWidth = videoWidth * scale;
+  const renderedHeight = videoHeight * scale;
+  const offsetX = (boxWidth - renderedWidth) / 2;
+  const offsetY = (boxHeight - renderedHeight) / 2;
 
   return {
     left: `${offsetX + bounds.x * renderedWidth}px`,

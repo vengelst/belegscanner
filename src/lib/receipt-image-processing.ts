@@ -1,8 +1,12 @@
 "use client";
 
-const MAX_WORKING_DIMENSION = 1800;
-const WORKING_IMAGE_QUALITY = 0.88;
+// Kleine Tabellenschrift ueberlebt 1800px oft nicht. 2400px kostet etwas
+// Upload, erhaelt aber die Positionszeilen lesbar.
+const MAX_WORKING_DIMENSION = 2400;
+const WORKING_IMAGE_QUALITY = 0.91;
 const IMAGE_FILTER = "contrast(1.12) brightness(1.03) saturate(1.04)";
+/** Staerke der Unsharp-Mask. Bewusst dezent, damit JPEG-Rauschen nicht hochgezogen wird. */
+const SHARPEN_AMOUNT = 0.35;
 
 export type NormalizedCropBounds = {
   x: number;
@@ -68,6 +72,9 @@ export async function createReceiptWorkingImage(
   finalContext.drawImage(workingCanvas, 0, 0, width, height);
   finalContext.filter = "none";
 
+  const sharpened = applyUnsharpMask(finalContext, width, height);
+  if (sharpened) appliedSteps.push("Schrift nachgeschaerft");
+
   const blob = await canvasToBlob(finalCanvas, "image/jpeg", WORKING_IMAGE_QUALITY);
   const workingFile = new File([blob], buildWorkingFilename(originalFile.name), {
     type: "image/jpeg",
@@ -122,6 +129,45 @@ function rotateCanvas(canvas: HTMLCanvasElement, rotationDeg: number) {
   context.rotate(radians);
   context.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
   return rotatedCanvas;
+}
+
+/**
+ * Dezente Unsharp-Mask ueber einen 5-Punkt-Laplacian. Canvas kennt keinen
+ * Sharpen-Filter, und der reine Kontrast-Filter hebt kleine Schrift nicht genug
+ * von der Belegflaeche ab. Randpixel bleiben unveraendert.
+ */
+function applyUnsharpMask(context: CanvasRenderingContext2D, width: number, height: number) {
+  if (width < 3 || height < 3) return false;
+
+  let imageData: ImageData;
+  try {
+    imageData = context.getImageData(0, 0, width, height);
+  } catch {
+    return false;
+  }
+
+  const target = imageData.data;
+  const source = new Uint8ClampedArray(target);
+  const rowStride = width * 4;
+
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const offset = y * rowStride + x * 4;
+      for (let channel = 0; channel < 3; channel += 1) {
+        const index = offset + channel;
+        const laplacian =
+          4 * source[index]
+          - source[index - 4]
+          - source[index + 4]
+          - source[index - rowStride]
+          - source[index + rowStride];
+        target[index] = source[index] + SHARPEN_AMOUNT * laplacian;
+      }
+    }
+  }
+
+  context.putImageData(imageData, 0, 0);
+  return true;
 }
 
 function getTargetDimensions(width: number, height: number) {
