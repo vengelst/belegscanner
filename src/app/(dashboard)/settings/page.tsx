@@ -10,6 +10,7 @@ import { TemplateSelector } from "@/components/settings/template-selector";
 import { AutoCaptureSensitivityForm } from "@/components/settings/auto-capture-sensitivity-form";
 import { connection } from "next/server";
 import type { UiTemplate } from "@/lib/validation";
+import packageJson from "../../../../package.json";
 
 export default async function UserSettingsPage() {
   await connection();
@@ -47,6 +48,7 @@ export default async function UserSettingsPage() {
           <p className="text-sm text-muted-foreground">
             Persoenliche Voreinstellungen, Passwort und PIN fuer deinen Arbeitsbereich.
           </p>
+          <p className="text-xs text-muted-foreground">BelegBox Version {packageJson.version}</p>
         </div>
       </div>
       <div className="space-y-2">
