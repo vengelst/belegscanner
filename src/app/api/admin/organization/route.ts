@@ -3,11 +3,17 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth/require-auth";
 import { getOrganizationProfileDto } from "@/lib/organization";
-import { DEFAULT_COMPANY_CARD_LAST_DIGITS } from "@/lib/datev/belegtyp";
+import {
+  DATEV_BELEGTYP_VALUES,
+  DEFAULT_COMPANY_CARD_LAST_DIGITS,
+  DEFAULT_DATEV_BELEGTYP,
+  normalizeDatevBelegtypLabelOverrides,
+} from "@/lib/datev/belegtyp";
 
 /**
- * Alle Felder sind optional: Firmenidentitaet und Firmenkarten werden in zwei
- * getrennten Formularen gepflegt und duerfen sich gegenseitig nicht ueberschreiben.
+ * Alle Felder sind optional: Firmenidentitaet, Firmenkarten und Belegtyp-
+ * Einstellungen werden in getrennten Formularen gepflegt und duerfen sich
+ * gegenseitig nicht ueberschreiben.
  */
 const organizationSchema = z.object({
   legalName: z.string().max(255, "Firmenname zu lang.").optional(),
@@ -21,6 +27,11 @@ const organizationSchema = z.object({
   companyCardLastDigits: z
     .array(z.string().regex(/^\d{2,4}$/, "Endziffern muessen aus 2 bis 4 Ziffern bestehen."))
     .max(20, "Maximal 20 Firmenkarten.")
+    .optional(),
+  defaultDatevBelegtyp: z.enum(DATEV_BELEGTYP_VALUES).optional(),
+  // Leere Werte bedeuten "DATEV-Standardname" und werden nicht gespeichert.
+  datevBelegtypLabelOverrides: z
+    .record(z.string(), z.string().max(120, "Bezeichnung zu lang (max. 120 Zeichen)."))
     .optional(),
 });
 
@@ -76,11 +87,18 @@ export async function PUT(request: NextRequest) {
     ? Array.from(new Set(parsed.data.companyCardLastDigits))
     : undefined;
 
+  // Unbekannte Belegtypen und leere Bezeichnungen fallen hier heraus.
+  const labelOverrides = parsed.data.datevBelegtypLabelOverrides
+    ? normalizeDatevBelegtypLabelOverrides(parsed.data.datevBelegtypLabelOverrides)
+    : undefined;
+
   const profile = await prisma.organizationProfile.upsert({
     where: { id: "default" },
     update: {
       ...(identity ?? {}),
       ...(companyCardLastDigits ? { companyCardLastDigits } : {}),
+      ...(parsed.data.defaultDatevBelegtyp ? { defaultDatevBelegtyp: parsed.data.defaultDatevBelegtyp } : {}),
+      ...(labelOverrides ? { datevBelegtypLabelOverrides: labelOverrides } : {}),
     },
     create: {
       id: "default",
@@ -92,6 +110,8 @@ export async function PUT(request: NextRequest) {
       city: identity?.city ?? null,
       countryCode: identity?.countryCode ?? null,
       companyCardLastDigits: companyCardLastDigits ?? DEFAULT_COMPANY_CARD_LAST_DIGITS,
+      defaultDatevBelegtyp: parsed.data.defaultDatevBelegtyp ?? DEFAULT_DATEV_BELEGTYP,
+      datevBelegtypLabelOverrides: labelOverrides ?? {},
     },
   });
 
@@ -105,6 +125,8 @@ export async function PUT(request: NextRequest) {
     city: profile.city,
     countryCode: profile.countryCode,
     companyCardLastDigits: profile.companyCardLastDigits,
+    defaultDatevBelegtyp: profile.defaultDatevBelegtyp,
+    datevBelegtypLabelOverrides: normalizeDatevBelegtypLabelOverrides(profile.datevBelegtypLabelOverrides),
     updatedAt: profile.updatedAt.toISOString(),
   });
 }

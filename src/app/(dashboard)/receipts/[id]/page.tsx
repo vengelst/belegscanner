@@ -14,6 +14,7 @@ import { connection } from "next/server";
 import { fromReceiptDocumentType, paymentMethodLabels } from "@/lib/ocr-suggestions";
 import { checkSendReadiness } from "@/lib/validation";
 import { datevBelegtypLabel, resolveDatevAddress } from "@/lib/datev/belegtyp";
+import { getOrganizationDatevSettings } from "@/lib/organization";
 import {
   StatusBadge,
   ReceiptCoreData,
@@ -62,6 +63,8 @@ export default async function ReceiptDetailPage({ params }: Props) {
     where: { id: session.user.id },
     select: { canSendWithoutApproval: true },
   });
+
+  const datevSettings = await getOrganizationDatevSettings();
 
   const datevProfilesRaw = await prisma.datevProfile.findMany({
     where: { active: true },
@@ -268,6 +271,7 @@ export default async function ReceiptDetailPage({ params }: Props) {
             datevProfiles={datevProfiles}
             receiptDatevProfileId={receipt.datevProfileId}
             datevBelegtyp={receipt.datevBelegtyp}
+            datevBelegtypLabelOverrides={datevSettings.labelOverrides}
             readiness={readiness}
           />
         </div>
@@ -316,7 +320,7 @@ export default async function ReceiptDetailPage({ params }: Props) {
         purposeName={receipt.purpose.name}
         countryDisplay={receipt.country ? `${receipt.country.name}${receipt.country.code ? ` (${receipt.country.code})` : ""}` : "—"}
         vehiclePlate={receipt.vehicle ? receipt.vehicle.plate : null}
-        datevBelegtypLabel={datevBelegtypLabel(receipt.datevBelegtyp)}
+        datevBelegtypLabel={datevBelegtypLabel(receipt.datevBelegtyp, datevSettings.labelOverrides)}
         detectedPaymentMethod={detectedPaymentMethod}
         detectedCardLastDigits={detectedCardLastDigits}
         remark={receipt.remark}

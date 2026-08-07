@@ -5,6 +5,7 @@ import { ReceiptListPage } from "@/components/receipts/receipt-list-page";
 import { Prisma } from "@prisma/client";
 import { connection } from "next/server";
 import { isDatevBelegtyp } from "@/lib/datev/belegtyp";
+import { getOrganizationDatevSettings } from "@/lib/organization";
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -94,7 +95,7 @@ export default async function ReceiptsPage({ searchParams }: Props) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(page, totalPages);
 
-  const [receipts, purposes, countries, vehicles, users] = await Promise.all([
+  const [receipts, purposes, countries, vehicles, users, datevSettings] = await Promise.all([
     prisma.receipt.findMany({
       where,
       include: {
@@ -114,6 +115,7 @@ export default async function ReceiptsPage({ searchParams }: Props) {
     prisma.country.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" }, select: { id: true, name: true, code: true } }),
     prisma.vehicle.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" }, select: { id: true, plate: true } }),
     isAdmin ? prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }) : [],
+    getOrganizationDatevSettings(),
   ]);
 
   const mapped = receipts.map((r) => ({
@@ -158,6 +160,7 @@ export default async function ReceiptsPage({ searchParams }: Props) {
         users: users.map((u) => ({ id: u.id, label: u.name })),
       }}
       isAdmin={isAdmin}
+      datevBelegtypLabels={datevSettings.labels}
     />
   );
 }

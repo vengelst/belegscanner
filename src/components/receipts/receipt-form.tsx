@@ -63,9 +63,21 @@ type Props = {
   userDefaults: UserDefaults;
   /** Endziffern der Firmenkarten aus den Organisationseinstellungen. */
   companyCardLastDigits: string[];
+  /** Startwert des Belegtyps aus den Organisationseinstellungen. */
+  defaultDatevBelegtyp: DatevBelegtyp;
+  /** Anzeigenamen der Belegtypen inkl. eigener Bezeichnungen. */
+  datevBelegtypLabels: Record<DatevBelegtyp, string>;
 };
 
-export function ReceiptForm({ purposes, countries, vehicles, userDefaults, companyCardLastDigits }: Props) {
+export function ReceiptForm({
+  purposes,
+  countries,
+  vehicles,
+  userDefaults,
+  companyCardLastDigits,
+  defaultDatevBelegtyp,
+  datevBelegtypLabels,
+}: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -98,7 +110,7 @@ export function ReceiptForm({ purposes, countries, vehicles, userDefaults, compa
   const [occasion, setOccasion] = useState("");
   const [guests, setGuests] = useState("");
   const [hospitalityLocation, setHospitalityLocation] = useState("");
-  const [datevBelegtyp, setDatevBelegtyp] = useState<DatevBelegtyp>("RECHNUNGSEINGANG");
+  const [datevBelegtyp, setDatevBelegtyp] = useState<DatevBelegtyp>(defaultDatevBelegtyp);
   const [datevBelegtypManuallyChanged, setDatevBelegtypManuallyChanged] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lineItemNotice, setLineItemNotice] = useState<string | null>(null);
@@ -221,13 +233,14 @@ export function ReceiptForm({ purposes, countries, vehicles, userDefaults, compa
       cardLastDigits: ocrResult?.extracted.cardLastDigits ?? null,
       documentType: ocrResult?.extracted.documentType ?? null,
       companyCardLastDigits,
-    }));
+    }, { defaultBelegtyp: defaultDatevBelegtyp }));
   }, [
     partyRole,
     partyRoleManuallyChanged,
     ocrResult?.extracted.partyRole,
     datevBelegtypManuallyChanged,
     companyCardLastDigits,
+    defaultDatevBelegtyp,
     ocrResult?.extracted.paymentMethod,
     ocrResult?.extracted.cardLastDigits,
     ocrResult?.extracted.documentType,
@@ -275,7 +288,7 @@ export function ReceiptForm({ purposes, countries, vehicles, userDefaults, compa
     setGuests("");
     setHospitalityLocation("");
     setHospitalityLocationManual(false);
-    setDatevBelegtyp("RECHNUNGSEINGANG");
+    setDatevBelegtyp(defaultDatevBelegtyp);
     setDatevBelegtypManuallyChanged(false);
     setManualOverrides(EMPTY_MANUAL_OVERRIDES);
     setError(null);
@@ -744,6 +757,7 @@ export function ReceiptForm({ purposes, countries, vehicles, userDefaults, compa
           countryId={countryId}
           vehicleId={vehicleId}
           datevBelegtyp={datevBelegtyp}
+          datevBelegtypLabels={datevBelegtypLabels}
           prefillSource={prefillSource}
           setPurposeId={setPurposeId}
           setCountryId={changeCountry}

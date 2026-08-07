@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { ReceiptForm } from "@/components/receipts/receipt-form";
 import { connection } from "next/server";
-import { getCompanyCardLastDigits } from "@/lib/organization";
+import { getOrganizationDatevSettings } from "@/lib/organization";
 
 type Props = {
   searchParams: Promise<{ continued?: string; t?: string }>;
@@ -17,7 +17,7 @@ export default async function NewReceiptPage({ searchParams }: Props) {
   const params = await searchParams;
   const isContinued = params.continued === "1";
 
-  const [user, purposes, countries, vehicles, companyCardLastDigits] = await Promise.all([
+  const [user, purposes, countries, vehicles, datevSettings] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },
       select: {
@@ -29,7 +29,7 @@ export default async function NewReceiptPage({ searchParams }: Props) {
     prisma.purpose.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     prisma.country.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     prisma.vehicle.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
-    getCompanyCardLastDigits(),
+    getOrganizationDatevSettings(),
   ]);
 
   return (
@@ -68,7 +68,9 @@ export default async function NewReceiptPage({ searchParams }: Props) {
           defaultVehicleId: user?.defaultVehicleId ?? null,
           defaultPurposeId: user?.defaultPurposeId ?? null,
         }}
-        companyCardLastDigits={companyCardLastDigits}
+        companyCardLastDigits={datevSettings.companyCardLastDigits}
+        defaultDatevBelegtyp={datevSettings.defaultBelegtyp}
+        datevBelegtypLabels={datevSettings.labels}
       />
     </div>
   );

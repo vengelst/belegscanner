@@ -4,10 +4,11 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { SendReadiness } from "@/lib/validation";
 import {
-  datevBelegtypLabels,
+  resolveDatevBelegtypLabel,
   resolveDatevAddress,
   type DatevBelegtyp,
   type DatevBelegtypAddressEntry,
+  type DatevBelegtypLabelOverrides,
 } from "@/lib/datev/belegtyp";
 
 export type SendActionsDatevProfile = {
@@ -27,6 +28,8 @@ type Props = {
   datevProfiles: SendActionsDatevProfile[];
   receiptDatevProfileId?: string | null;
   datevBelegtyp?: DatevBelegtyp | null;
+  /** Eigene Bezeichnungen je Belegtyp aus den Organisationseinstellungen. */
+  datevBelegtypLabelOverrides?: DatevBelegtypLabelOverrides;
   readiness?: SendReadiness;
 };
 
@@ -42,7 +45,7 @@ const statusColors: Record<SendReadiness["status"], string> = {
   nicht_sendbar: "border-danger/30 bg-danger/5 text-danger",
 };
 
-export function SendActions({ receiptId, sendStatus, reviewStatus, isAdmin, canSendWithoutApproval = false, datevProfiles, receiptDatevProfileId, datevBelegtyp, readiness }: Props) {
+export function SendActions({ receiptId, sendStatus, reviewStatus, isAdmin, canSendWithoutApproval = false, datevProfiles, receiptDatevProfileId, datevBelegtyp, datevBelegtypLabelOverrides, readiness }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
@@ -155,7 +158,7 @@ export function SendActions({ receiptId, sendStatus, reviewStatus, isAdmin, canS
         <p>
           <span className="text-muted-foreground">DATEV-Belegtyp: </span>
           <span className="font-medium">
-            {datevBelegtyp ? datevBelegtypLabels[datevBelegtyp] : "nicht gesetzt"}
+            {datevBelegtyp ? resolveDatevBelegtypLabel(datevBelegtyp, datevBelegtypLabelOverrides) : "nicht gesetzt"}
           </span>
         </p>
         <p className="mt-1">

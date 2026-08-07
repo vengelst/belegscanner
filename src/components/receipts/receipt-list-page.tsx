@@ -8,7 +8,12 @@ import { Button } from "@/components/ui/button";
 import { ReceiptFilterBar } from "@/components/receipts/receipt-filter-bar";
 import { NewReceiptLink } from "@/components/receipts/new-receipt-link";
 import { getReviewStatusBadgeClass, getReviewStatusLabel } from "@/lib/receipts/review-status";
-import { datevBelegtypLabel, type DatevBelegtyp } from "@/lib/datev/belegtyp";
+import {
+  DATEV_BELEGTYP_FIELD_LABEL,
+  datevBelegtypLabel,
+  resolveDatevBelegtypLabels,
+  type DatevBelegtyp,
+} from "@/lib/datev/belegtyp";
 
 // ============================================================
 // Types
@@ -74,6 +79,8 @@ type Props = {
   filters: Filters;
   filterOptions: FilterOptions;
   isAdmin: boolean;
+  /** Anzeigenamen der Belegtypen inkl. eigener Bezeichnungen aus den Einstellungen. */
+  datevBelegtypLabels?: Record<DatevBelegtyp, string>;
 };
 
 // ============================================================
@@ -126,7 +133,7 @@ const COLUMN_OPTIONS: { key: ColumnKey; label: string }[] = [
   { key: "supplier", label: "Lieferant" },
   { key: "amount", label: "Betrag" },
   { key: "purpose", label: "Zweck" },
-  { key: "datevBelegtyp", label: "DATEV-Belegtyp" },
+  { key: "datevBelegtyp", label: DATEV_BELEGTYP_FIELD_LABEL },
   { key: "country", label: "Land" },
   { key: "user", label: "Benutzer" },
   { key: "reviewStatus", label: "Pruefung" },
@@ -140,7 +147,7 @@ const SORT_OPTIONS = [
   { value: "amount", label: "Betrag" },
   { value: "amountEur", label: "Betrag EUR" },
   { value: "purpose", label: "Zweck" },
-  { value: "datevBelegtyp", label: "DATEV-Belegtyp" },
+  { value: "datevBelegtyp", label: DATEV_BELEGTYP_FIELD_LABEL },
   { value: "country", label: "Land" },
   { value: "user", label: "Benutzer" },
   { value: "reviewStatus", label: "Pruefung" },
@@ -185,7 +192,14 @@ function receiptRowToneClass(sendStatus: string) {
 // Main component
 // ============================================================
 
-export function ReceiptListPage({ receipts, pagination, filters, filterOptions, isAdmin }: Props) {
+export function ReceiptListPage({
+  receipts,
+  pagination,
+  filters,
+  filterOptions,
+  isAdmin,
+  datevBelegtypLabels = resolveDatevBelegtypLabels(),
+}: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(DEFAULT_VISIBLE_COLUMNS);
@@ -272,6 +286,7 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
         filters={filters}
         filterOptions={filterOptions}
         isAdmin={isAdmin}
+        datevBelegtypLabels={datevBelegtypLabels}
         onFilterChange={setParams}
         eyebrow="Belegliste"
         title="Belege verwalten"
@@ -439,7 +454,7 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
                   >
                     {visibleColumns.map((columnKey, index) => (
                       <td key={`${r.id}-${columnKey}-${index}`} className="px-4 py-1">
-                        <ColumnCell receipt={r} columnKey={columnKey} />
+                        <ColumnCell receipt={r} columnKey={columnKey} datevBelegtypLabels={datevBelegtypLabels} />
                       </td>
                     ))}
                   </tr>
@@ -600,7 +615,15 @@ function ColumnHeader({
   );
 }
 
-function ColumnCell({ receipt, columnKey }: { receipt: ReceiptRow; columnKey: ColumnKey }) {
+function ColumnCell({
+  receipt,
+  columnKey,
+  datevBelegtypLabels,
+}: {
+  receipt: ReceiptRow;
+  columnKey: ColumnKey;
+  datevBelegtypLabels: Record<DatevBelegtyp, string>;
+}) {
   switch (columnKey) {
     case "date":
       return <span className="whitespace-nowrap">{fmtDate(receipt.date)}</span>;
@@ -628,7 +651,7 @@ function ColumnCell({ receipt, columnKey }: { receipt: ReceiptRow; columnKey: Co
     case "purpose":
       return <>{receipt.purposeName}</>;
     case "datevBelegtyp":
-      return <span className="whitespace-nowrap">{datevBelegtypLabel(receipt.datevBelegtyp) ?? "—"}</span>;
+      return <span className="whitespace-nowrap">{datevBelegtypLabel(receipt.datevBelegtyp, datevBelegtypLabels) ?? "—"}</span>;
     case "country":
       return <span className="text-muted-foreground">{receipt.countryName ?? "—"}</span>;
     case "user":

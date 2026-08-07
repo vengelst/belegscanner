@@ -7,9 +7,9 @@ import { Input } from "@/components/ui/input";
 import { recalculateAmountsFromLineItemSum, splitGrossByVatRate, sumActiveLineItems } from "@/lib/receipts/form-helpers";
 import { DuplicateWarning } from "@/components/receipts/duplicate-warning";
 import {
+  DATEV_BELEGTYP_FIELD_LABEL,
   DATEV_BELEGTYP_VALUES,
   datevBelegtypHints,
-  datevBelegtypLabels,
   suggestDatevBelegtyp,
   type DatevBelegtyp,
 } from "@/lib/datev/belegtyp";
@@ -56,9 +56,23 @@ type Props = {
   vehicles: Vehicle[];
   /** Endziffern der Firmenkarten aus den Organisationseinstellungen. */
   companyCardLastDigits: string[];
+  /** Standard-Belegtyp aus den Organisationseinstellungen. */
+  defaultDatevBelegtyp: DatevBelegtyp;
+  /** Anzeigenamen der Belegtypen inkl. eigener Bezeichnungen. */
+  datevBelegtypLabels: Record<DatevBelegtyp, string>;
 };
 
-export function ReceiptEditForm({ receipt, structuredData, hasOriginalFile, purposes, countries, vehicles, companyCardLastDigits }: Props) {
+export function ReceiptEditForm({
+  receipt,
+  structuredData,
+  hasOriginalFile,
+  purposes,
+  countries,
+  vehicles,
+  companyCardLastDigits,
+  defaultDatevBelegtyp,
+  datevBelegtypLabels,
+}: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [purposeId, setPurposeId] = useState(receipt.purposeId);
@@ -73,7 +87,7 @@ export function ReceiptEditForm({ receipt, structuredData, hasOriginalFile, purp
         cardLastDigits: structuredData?.extracted.cardLastDigits ?? null,
         documentType: receipt.aiDocumentType,
         companyCardLastDigits,
-      }),
+      }, { defaultBelegtyp: defaultDatevBelegtyp }),
   );
   const [datevBelegtypManuallyChanged, setDatevBelegtypManuallyChanged] = useState(
     receipt.datevBelegtyp !== null,
@@ -130,7 +144,7 @@ export function ReceiptEditForm({ receipt, structuredData, hasOriginalFile, purp
       cardLastDigits: structuredData?.extracted.cardLastDigits ?? null,
       documentType: receipt.aiDocumentType,
       companyCardLastDigits,
-    }));
+    }, { defaultBelegtyp: defaultDatevBelegtyp }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partyRole, datevBelegtypManuallyChanged]);
   const requiresExchangeRate = currency.trim().toUpperCase() !== "EUR";
@@ -606,7 +620,7 @@ export function ReceiptEditForm({ receipt, structuredData, hasOriginalFile, purp
           </SelectField>
           <div className="grid gap-1">
             <SelectField
-              label="DATEV-Belegtyp"
+              label={DATEV_BELEGTYP_FIELD_LABEL}
               name="datevBelegtyp"
               required
               value={datevBelegtyp}

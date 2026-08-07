@@ -23,6 +23,20 @@ export const DATEV_BELEGTYP_VALUES = [
 
 export type DatevBelegtyp = (typeof DATEV_BELEGTYP_VALUES)[number];
 
+/**
+ * Belegtyp fuer neue Belege, solange in den Einstellungen nichts anderes
+ * hinterlegt ist. Der Regelfall ist der Eingangsbeleg (Kreditor); alle anderen
+ * Typen waehlt der Nutzer bewusst.
+ */
+export const DEFAULT_DATEV_BELEGTYP: DatevBelegtyp = "RECHNUNGSEINGANG";
+
+/**
+ * Beschriftung des Belegtyp-Feldes in Erfassung, Bearbeitung, Filter und Liste.
+ * "Kategorie" steht nur zur Orientierung in Klammern - fachlich fuehrend ist
+ * der DATEV-Belegtyp.
+ */
+export const DATEV_BELEGTYP_FIELD_LABEL = "DATEV-Belegtyp (Kategorie)";
+
 /** Anzeigenamen exakt wie im DATEV-Dialog "Belegtyp hinzufuegen". */
 export const datevBelegtypLabels: Record<DatevBelegtyp, string> = {
   RECHNUNGSEINGANG: "Rechnungseingang",
@@ -47,8 +61,51 @@ export function isDatevBelegtyp(value: unknown): value is DatevBelegtyp {
   return typeof value === "string" && (DATEV_BELEGTYP_VALUES as readonly string[]).includes(value);
 }
 
-export function datevBelegtypLabel(value: unknown): string | null {
-  return isDatevBelegtyp(value) ? datevBelegtypLabels[value] : null;
+/**
+ * Eigene Bezeichnungen je Belegtyp aus den Organisationseinstellungen.
+ * Nur abweichende Namen werden gespeichert - fehlt ein Eintrag, gilt der
+ * DATEV-Standardname.
+ */
+export type DatevBelegtypLabelOverrides = Partial<Record<DatevBelegtyp, string>>;
+
+/**
+ * Bringt beliebige Eingaben (JSON aus der Datenbank, Request-Body) auf die
+ * gespeicherte Form: nur bekannte Belegtypen, getrimmt, leere Werte verworfen.
+ */
+export function normalizeDatevBelegtypLabelOverrides(value: unknown): DatevBelegtypLabelOverrides {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const overrides: DatevBelegtypLabelOverrides = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (!isDatevBelegtyp(key) || typeof raw !== "string") continue;
+    const label = raw.trim();
+    if (label) overrides[key] = label;
+  }
+  return overrides;
+}
+
+/** Anzeigename eines Belegtyps - eigene Bezeichnung vor DATEV-Standardname. */
+export function resolveDatevBelegtypLabel(
+  belegtyp: DatevBelegtyp,
+  overrides?: DatevBelegtypLabelOverrides | null,
+): string {
+  return overrides?.[belegtyp]?.trim() || datevBelegtypLabels[belegtyp];
+}
+
+/** Alle Anzeigenamen auf einmal, z. B. fuer Auswahlfelder und Listenspalten. */
+export function resolveDatevBelegtypLabels(
+  overrides?: DatevBelegtypLabelOverrides | null,
+): Record<DatevBelegtyp, string> {
+  return Object.fromEntries(
+    DATEV_BELEGTYP_VALUES.map((belegtyp) => [belegtyp, resolveDatevBelegtypLabel(belegtyp, overrides)]),
+  ) as Record<DatevBelegtyp, string>;
+}
+
+export function datevBelegtypLabel(
+  value: unknown,
+  overrides?: DatevBelegtypLabelOverrides | null,
+): string | null {
+  return isDatevBelegtyp(value) ? resolveDatevBelegtypLabel(value, overrides) : null;
 }
 
 // ============================================================
@@ -117,18 +174,24 @@ export type SuggestDatevBelegtypInput = {
  * | Barzahlung                                  | Kasse              |
  * | Bewirtung                                   | Rechnungseingang   |
  * | sonst (Eingangsbeleg)                       | Rechnungseingang   |
- * | keinerlei belastbare Angaben                | Sonstige           |
+ * | keinerlei belastbare Angaben                | Standard-Belegtyp  |
  *
  * Fremde Karten landen bewusst in der Kasse: privat bezahlte Belege werden
  * ueber die Barkasse erstattet.
+ *
+ * Ohne belastbare Erkennung wird nicht geraten, sondern der in den
+ * Einstellungen gepflegte Standard-Belegtyp gesetzt (i. d. R. Rechnungseingang).
  */
-export function suggestDatevBelegtyp({
-  partyRole,
-  paymentMethod,
-  cardLastDigits,
-  documentType,
-  companyCardLastDigits,
-}: SuggestDatevBelegtypInput): DatevBelegtyp {
+export function suggestDatevBelegtyp(
+  {
+    partyRole,
+    paymentMethod,
+    cardLastDigits,
+    documentType,
+    companyCardLastDigits,
+  }: SuggestDatevBelegtypInput,
+  { defaultBelegtyp = DEFAULT_DATEV_BELEGTYP }: { defaultBelegtyp?: DatevBelegtyp } = {},
+): DatevBelegtyp {
   if (partyRole === "DEBTOR") return "RECHNUNGSAUSGANG";
 
   const method = paymentMethod?.trim().toLowerCase() ?? "";
@@ -148,7 +211,7 @@ export function suggestDatevBelegtyp({
     || (method && method !== "unknown")
     || (type && type !== "general"),
   );
-  if (!hasSignal) return "SONSTIGE";
+  if (!hasSignal) return defaultBelegtyp;
 
   return "RECHNUNGSEINGANG";
 }

@@ -402,6 +402,12 @@ model OrganizationProfile {
   // Trifft eine per OCR erkannte Kartenendung zu, wird der Beleg als
   // Kreditkartenbeleg eingestuft, sonst als Kasse (privat verauslagt).
   companyCardLastDigits String[] @default([])
+  // Belegtyp, mit dem jeder neue Beleg startet, solange die Belegerkennung
+  // nichts Belastbares liefert.
+  defaultDatevBelegtyp DatevBelegtyp @default(RECHNUNGSEINGANG)
+  // Eigene Bezeichnungen je Belegtyp: Record<DatevBelegtyp, string>, nur
+  // abweichende Eintraege. Fehlt ein Eintrag, gilt der DATEV-Standardname.
+  datevBelegtypLabelOverrides Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

@@ -4,7 +4,12 @@ import { useState, type ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { REVIEW_STATUS_OPTIONS } from "@/lib/receipts/review-status";
 import { NewReceiptLink } from "@/components/receipts/new-receipt-link";
-import { DATEV_BELEGTYP_VALUES, datevBelegtypLabels } from "@/lib/datev/belegtyp";
+import {
+  DATEV_BELEGTYP_FIELD_LABEL,
+  DATEV_BELEGTYP_VALUES,
+  resolveDatevBelegtypLabels,
+  type DatevBelegtyp,
+} from "@/lib/datev/belegtyp";
 
 type Filters = {
   search: string;
@@ -32,6 +37,8 @@ type Props = {
   filters: Filters;
   filterOptions: FilterOptions;
   isAdmin: boolean;
+  /** Anzeigenamen der Belegtypen inkl. eigener Bezeichnungen aus den Einstellungen. */
+  datevBelegtypLabels?: Record<DatevBelegtyp, string>;
   onFilterChange: (updates: Record<string, string>) => void;
   eyebrow: string;
   title: string;
@@ -52,6 +59,7 @@ export function ReceiptFilterBar({
   filters,
   filterOptions,
   isAdmin,
+  datevBelegtypLabels = resolveDatevBelegtypLabels(),
   onFilterChange,
   eyebrow,
   title,
@@ -179,7 +187,7 @@ export function ReceiptFilterBar({
             options={filterOptions.purposes.map((p) => ({ value: p.id, label: p.name }))}
           />
           <FilterSelect
-            label="DATEV-Belegtyp"
+            label={DATEV_BELEGTYP_FIELD_LABEL}
             value={filters.datevBelegtyp}
             onChange={(v) => onFilterChange({ datevBelegtyp: v })}
             options={DATEV_BELEGTYP_VALUES.map((belegtyp) => ({ value: belegtyp, label: datevBelegtypLabels[belegtyp] }))}

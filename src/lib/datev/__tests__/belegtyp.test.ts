@@ -1,10 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   DATEV_BELEGTYP_VALUES,
+  datevBelegtypLabel,
   datevBelegtypLabels,
   matchesCompanyCard,
   normalizeCardLastDigits,
+  normalizeDatevBelegtypLabelOverrides,
   resolveDatevAddress,
+  resolveDatevBelegtypLabel,
+  resolveDatevBelegtypLabels,
   suggestDatevBelegtyp,
 } from "@/lib/datev/belegtyp";
 
@@ -105,9 +109,20 @@ describe("suggestDatevBelegtyp", () => {
     expect(suggestDatevBelegtyp({ documentType: "fuel" })).toBe("RECHNUNGSEINGANG");
   });
 
-  it("schlaegt Sonstige vor, wenn nichts erkannt wurde", () => {
-    expect(suggestDatevBelegtyp({})).toBe("SONSTIGE");
-    expect(suggestDatevBelegtyp({ paymentMethod: "unknown", documentType: "general" })).toBe("SONSTIGE");
+  it("faellt ohne belastbare Erkennung auf den Standard-Belegtyp zurueck", () => {
+    expect(suggestDatevBelegtyp({})).toBe("RECHNUNGSEINGANG");
+    expect(suggestDatevBelegtyp({ paymentMethod: "unknown", documentType: "general" })).toBe("RECHNUNGSEINGANG");
+  });
+
+  it("nutzt den konfigurierten Standard-Belegtyp statt Rechnungseingang", () => {
+    expect(suggestDatevBelegtyp({}, { defaultBelegtyp: "KASSE" })).toBe("KASSE");
+    expect(suggestDatevBelegtyp({ paymentMethod: "unknown" }, { defaultBelegtyp: "SONSTIGE" })).toBe("SONSTIGE");
+  });
+
+  it("laesst den Standard-Belegtyp die Erkennung nicht ueberstimmen", () => {
+    expect(suggestDatevBelegtyp({ partyRole: "DEBTOR" }, { defaultBelegtyp: "KASSE" })).toBe("RECHNUNGSAUSGANG");
+    expect(suggestDatevBelegtyp({ paymentMethod: "cash" }, { defaultBelegtyp: "SONSTIGE" })).toBe("KASSE");
+    expect(suggestDatevBelegtyp({ partyRole: "CREDITOR" }, { defaultBelegtyp: "KASSE" })).toBe("RECHNUNGSEINGANG");
   });
 });
 
@@ -192,5 +207,55 @@ describe("resolveDatevAddress", () => {
     if (!result.ok) {
       expect(result.error).toBe("Kein DATEV-Belegtyp am Beleg gesetzt.");
     }
+  });
+});
+
+describe("resolveDatevBelegtypLabel", () => {
+  it("nutzt den DATEV-Standardnamen ohne eigene Bezeichnung", () => {
+    expect(resolveDatevBelegtypLabel("RECHNUNGSEINGANG")).toBe("Rechnungseingang");
+    expect(resolveDatevBelegtypLabel("KASSE", {})).toBe("Kasse");
+    expect(resolveDatevBelegtypLabel("KASSE", null)).toBe("Kasse");
+  });
+
+  it("bevorzugt die eigene Bezeichnung", () => {
+    expect(resolveDatevBelegtypLabel("RECHNUNGSEINGANG", { RECHNUNGSEINGANG: "Eingangsrechnungen" }))
+      .toBe("Eingangsrechnungen");
+  });
+
+  it("faellt bei leerer Bezeichnung auf den Standardnamen zurueck", () => {
+    expect(resolveDatevBelegtypLabel("KASSE", { KASSE: "   " })).toBe("Kasse");
+  });
+
+  it("loest alle Belegtypen auf und laesst nicht ueberschriebene unveraendert", () => {
+    const labels = resolveDatevBelegtypLabels({ KASSE: "Barkasse" });
+    expect(labels.KASSE).toBe("Barkasse");
+    expect(labels.RECHNUNGSEINGANG).toBe("Rechnungseingang");
+    for (const belegtyp of DATEV_BELEGTYP_VALUES) {
+      expect(labels[belegtyp]).toBeTruthy();
+    }
+  });
+
+  it("greift auch in datevBelegtypLabel", () => {
+    expect(datevBelegtypLabel("KASSE", { KASSE: "Barkasse" })).toBe("Barkasse");
+    expect(datevBelegtypLabel("KASSE")).toBe("Kasse");
+    expect(datevBelegtypLabel("UNBEKANNT", { KASSE: "Barkasse" })).toBeNull();
+  });
+});
+
+describe("normalizeDatevBelegtypLabelOverrides", () => {
+  it("behaelt nur bekannte Belegtypen mit nicht-leerem Namen", () => {
+    expect(normalizeDatevBelegtypLabelOverrides({
+      KASSE: "  Barkasse  ",
+      RECHNUNGSEINGANG: "   ",
+      UNBEKANNT: "Irgendwas",
+      SONSTIGE: 42,
+    })).toEqual({ KASSE: "Barkasse" });
+  });
+
+  it("verkraftet fehlende und unpassende Werte", () => {
+    expect(normalizeDatevBelegtypLabelOverrides(null)).toEqual({});
+    expect(normalizeDatevBelegtypLabelOverrides(undefined)).toEqual({});
+    expect(normalizeDatevBelegtypLabelOverrides("KASSE")).toEqual({});
+    expect(normalizeDatevBelegtypLabelOverrides(["KASSE"])).toEqual({});
   });
 });

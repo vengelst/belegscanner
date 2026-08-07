@@ -99,6 +99,21 @@ Deshalb gilt in BelegBox:
 | `SONSTIGE` | Sonstige |
 | `REISEKOSTEN` | DATEV Reisekosten-Belege |
 
+### Beschriftung und Einstellungen
+
+Das Feld heisst in Erfassung, Bearbeitung, Filter und Liste
+**„DATEV-Belegtyp (Kategorie)“** - fachlich fuehrend ist der DATEV-Belegtyp,
+„Kategorie“ steht nur zur Orientierung in Klammern.
+
+Unter **Admin → Eigene Firma → DATEV-Belegtyp (Kategorie)** werden gepflegt:
+
+- **Standard-Belegtyp** (`OrganizationProfile.defaultDatevBelegtyp`, Default
+  `RECHNUNGSEINGANG`): Startwert jedes neuen Belegs und Rueckfallwert der Vorbelegung.
+- **Eigene Bezeichnungen** je Belegtyp (`OrganizationProfile.datevBelegtypLabelOverrides`):
+  reine Anzeigenamen im Belegscanner. Leer = DATEV-Standardname. Der an DATEV
+  uebergebene Belegtyp und die DATEV-Dokumente (PDF, Mail, Export) bleiben
+  unveraendert bei den DATEV-Namen.
+
 ### Vorbelegung bei Erfassung und Bearbeitung
 
 Der Belegtyp wird im Formular („Zuordnung“) vorgeschlagen und ist jederzeit
@@ -106,11 +121,16 @@ ueberschreibbar. Sobald der Nutzer den Typ selbst gewaehlt hat, bleibt seine Wah
 
 | Bedingung | Vorschlag |
 |---|---|
-| `partyRole = DEBTOR` | Rechnungsausgang |
-| Kategorie enthaelt „Kasse“ | Kasse |
-| Kategorie enthaelt „Kreditkarte“ | Kreditkartenbelege |
-| Kategorie enthaelt „Reise“ | DATEV Reisekosten-Belege |
-| sonst | Rechnungseingang |
+| `partyRole = DEBTOR` (Ausgangsrechnung) | Rechnungsausgang |
+| Kartenzahlung mit hinterlegter Firmenkarten-Endziffer | Kreditkartenbelege |
+| Kartenzahlung mit fremder/unbekannter Karte | Kasse |
+| Barzahlung | Kasse |
+| Bewirtung | Rechnungseingang |
+| sonstiger Eingangsbeleg | Rechnungseingang |
+| keinerlei belastbare Angaben | **Standard-Belegtyp aus den Einstellungen** |
+
+Ohne belastbare Erkennung wird nicht auf „Sonstige“ geraten, sondern der
+konfigurierte Standard-Belegtyp gesetzt (i. d. R. Rechnungseingang).
 
 ### Adressauflösung beim Versand
 

@@ -1,5 +1,12 @@
 import { prisma } from "@/lib/prisma";
-import { DEFAULT_COMPANY_CARD_LAST_DIGITS } from "@/lib/datev/belegtyp";
+import {
+  DEFAULT_COMPANY_CARD_LAST_DIGITS,
+  DEFAULT_DATEV_BELEGTYP,
+  normalizeDatevBelegtypLabelOverrides,
+  resolveDatevBelegtypLabels,
+  type DatevBelegtyp,
+  type DatevBelegtypLabelOverrides,
+} from "@/lib/datev/belegtyp";
 
 export type OrganizationIdentity = {
   legalName: string;
@@ -15,6 +22,10 @@ export type OrganizationProfileDto = OrganizationIdentity & {
   id: string;
   /** Endziffern der Firmenkarten (2-4 Ziffern, keine vollstaendigen Kartennummern). */
   companyCardLastDigits: string[];
+  /** Belegtyp, mit dem jeder neue Beleg startet. */
+  defaultDatevBelegtyp: DatevBelegtyp;
+  /** Eigene Bezeichnungen je Belegtyp, nur abweichende Eintraege. */
+  datevBelegtypLabelOverrides: DatevBelegtypLabelOverrides;
   updatedAt: string | null;
 };
 
@@ -60,6 +71,8 @@ export async function getOrganizationProfileDto(): Promise<OrganizationProfileDt
       id: "default",
       ...EMPTY_IDENTITY,
       companyCardLastDigits: [...DEFAULT_COMPANY_CARD_LAST_DIGITS],
+      defaultDatevBelegtyp: DEFAULT_DATEV_BELEGTYP,
+      datevBelegtypLabelOverrides: {},
       updatedAt: null,
     };
   }
@@ -74,24 +87,45 @@ export async function getOrganizationProfileDto(): Promise<OrganizationProfileDt
     city: profile.city,
     countryCode: profile.countryCode,
     companyCardLastDigits: profile.companyCardLastDigits,
+    defaultDatevBelegtyp: profile.defaultDatevBelegtyp,
+    datevBelegtypLabelOverrides: normalizeDatevBelegtypLabelOverrides(profile.datevBelegtypLabelOverrides),
     updatedAt: profile.updatedAt.toISOString(),
   };
 }
 
 /**
- * Endziffern der Firmenkarten fuer die Belegtyp-Erkennung.
+ * Belegtyp-Einstellungen der Organisation fuer Erfassung, Liste und Filter.
  *
- * Ohne angelegtes Firmenprofil greifen die Standard-Karten, damit eine frische
+ * Ohne angelegtes Firmenprofil greifen die Standardwerte, damit eine frische
  * Installation nicht ohne Kreditkarten-Erkennung dasteht.
  */
-export async function getCompanyCardLastDigits(): Promise<string[]> {
+export type OrganizationDatevSettings = {
+  /** Endziffern der Firmenkarten fuer die Belegtyp-Erkennung. */
+  companyCardLastDigits: string[];
+  defaultBelegtyp: DatevBelegtyp;
+  labelOverrides: DatevBelegtypLabelOverrides;
+  /** Fertig aufgeloeste Anzeigenamen (eigene Bezeichnung vor DATEV-Standardname). */
+  labels: Record<DatevBelegtyp, string>;
+};
+
+export async function getOrganizationDatevSettings(): Promise<OrganizationDatevSettings> {
   const profile = await prisma.organizationProfile.findUnique({
     where: { id: "default" },
-    select: { companyCardLastDigits: true },
+    select: {
+      companyCardLastDigits: true,
+      defaultDatevBelegtyp: true,
+      datevBelegtypLabelOverrides: true,
+    },
   });
 
-  if (!profile) return [...DEFAULT_COMPANY_CARD_LAST_DIGITS];
-  return profile.companyCardLastDigits;
+  const labelOverrides = normalizeDatevBelegtypLabelOverrides(profile?.datevBelegtypLabelOverrides);
+
+  return {
+    companyCardLastDigits: profile ? profile.companyCardLastDigits : [...DEFAULT_COMPANY_CARD_LAST_DIGITS],
+    defaultBelegtyp: profile?.defaultDatevBelegtyp ?? DEFAULT_DATEV_BELEGTYP,
+    labelOverrides,
+    labels: resolveDatevBelegtypLabels(labelOverrides),
+  };
 }
 
 export function normalizeCompanyName(value: string): string {

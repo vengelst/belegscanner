@@ -4,9 +4,9 @@ import { Card } from "@/components/ui/card";
 import { SelectField } from "@/components/ui/select-field";
 import type { Purpose, Country, Vehicle, PrefillSource } from "@/lib/receipts/form-helpers";
 import {
+  DATEV_BELEGTYP_FIELD_LABEL,
   DATEV_BELEGTYP_VALUES,
   datevBelegtypHints,
-  datevBelegtypLabels,
   type DatevBelegtyp,
 } from "@/lib/datev/belegtyp";
 
@@ -18,6 +18,8 @@ type Props = {
   countryId: string;
   vehicleId: string;
   datevBelegtyp: DatevBelegtyp;
+  /** Anzeigenamen der Belegtypen inkl. eigener Bezeichnungen aus den Einstellungen. */
+  datevBelegtypLabels: Record<DatevBelegtyp, string>;
   prefillSource: PrefillSource;
   setPurposeId: (v: string) => void;
   setCountryId: (v: string) => void;
@@ -34,6 +36,7 @@ export function ReceiptFormAssignmentSection({
   countryId,
   vehicleId,
   datevBelegtyp,
+  datevBelegtypLabels,
   prefillSource,
   setPurposeId,
   setCountryId,
@@ -78,7 +81,7 @@ export function ReceiptFormAssignmentSection({
         </SelectField>
         <div className="grid gap-1">
           <SelectField
-            label="DATEV-Belegtyp"
+            label={DATEV_BELEGTYP_FIELD_LABEL}
             name="datevBelegtyp"
             required
             value={datevBelegtyp}

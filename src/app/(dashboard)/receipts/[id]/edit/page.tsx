@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ReceiptEditForm } from "@/components/receipts/receipt-edit-form";
 import { parseStructuredData } from "@/components/receipts/detail/parse-structured-data";
 import { connection } from "next/server";
-import { getCompanyCardLastDigits } from "@/lib/organization";
+import { getOrganizationDatevSettings } from "@/lib/organization";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -32,11 +32,11 @@ export default async function EditReceiptPage({ params }: Props) {
     notFound();
   }
 
-  const [purposes, countries, vehicles, companyCardLastDigits] = await Promise.all([
+  const [purposes, countries, vehicles, datevSettings] = await Promise.all([
     prisma.purpose.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     prisma.country.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     prisma.vehicle.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
-    getCompanyCardLastDigits(),
+    getOrganizationDatevSettings(),
   ]);
 
   return (
@@ -87,7 +87,9 @@ export default async function EditReceiptPage({ params }: Props) {
           vatRatePercent: c.vatRatePercent != null ? Number(c.vatRatePercent) : null,
         }))}
         vehicles={vehicles.map((v) => ({ id: v.id, plate: v.plate, description: v.description }))}
-        companyCardLastDigits={companyCardLastDigits}
+        companyCardLastDigits={datevSettings.companyCardLastDigits}
+        defaultDatevBelegtyp={datevSettings.defaultBelegtyp}
+        datevBelegtypLabels={datevSettings.labels}
       />
     </div>
   );

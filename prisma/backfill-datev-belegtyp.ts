@@ -9,7 +9,11 @@
  * Adressen an. Aufruf: npx tsx prisma/backfill-datev-belegtyp.ts
  */
 import { PrismaClient } from "@prisma/client";
-import { DEFAULT_COMPANY_CARD_LAST_DIGITS, suggestDatevBelegtyp } from "../src/lib/datev/belegtyp";
+import {
+  DEFAULT_COMPANY_CARD_LAST_DIGITS,
+  DEFAULT_DATEV_BELEGTYP,
+  suggestDatevBelegtyp,
+} from "../src/lib/datev/belegtyp";
 
 const prisma = new PrismaClient();
 
@@ -25,9 +29,10 @@ function extractedString(structuredData: unknown, field: string): string | null 
 async function main() {
   const organization = await prisma.organizationProfile.findUnique({
     where: { id: "default" },
-    select: { companyCardLastDigits: true },
+    select: { companyCardLastDigits: true, defaultDatevBelegtyp: true },
   });
   const companyCardLastDigits = organization?.companyCardLastDigits ?? DEFAULT_COMPANY_CARD_LAST_DIGITS;
+  const defaultBelegtyp = organization?.defaultDatevBelegtyp ?? DEFAULT_DATEV_BELEGTYP;
 
   const receipts = await prisma.receipt.findMany({
     where: { datevBelegtyp: null },
@@ -44,7 +49,7 @@ async function main() {
           cardLastDigits: extractedString(receipt.aiStructuredData, "cardLastDigits"),
           documentType: receipt.aiDocumentType,
           companyCardLastDigits,
-        }),
+        }, { defaultBelegtyp }),
       },
     });
   }

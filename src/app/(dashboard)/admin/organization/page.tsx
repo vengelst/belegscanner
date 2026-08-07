@@ -2,6 +2,7 @@ import { connection } from "next/server";
 import { getOrganizationProfileDto } from "@/lib/organization";
 import { OrganizationSettingsForm } from "@/components/admin/organization-settings-form";
 import { CompanyCardsForm } from "@/components/admin/company-cards-form";
+import { DatevBelegtypSettingsForm } from "@/components/admin/datev-belegtyp-settings-form";
 
 export default async function OrganizationPage() {
   await connection();
@@ -29,6 +30,12 @@ export default async function OrganizationPage() {
         }}
       />
       <CompanyCardsForm initial={profile.companyCardLastDigits} />
+      <DatevBelegtypSettingsForm
+        initial={{
+          defaultDatevBelegtyp: profile.defaultDatevBelegtyp,
+          datevBelegtypLabelOverrides: profile.datevBelegtypLabelOverrides,
+        }}
+      />
     </div>
   );
 }
