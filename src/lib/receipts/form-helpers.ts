@@ -26,7 +26,7 @@ export type ReceiptSelectionState = {
   vehicleId: string;
 };
 
-export type PrefillSource = "session" | "defaults" | "none";
+export type PrefillSource = "defaults" | "none";
 export type CaptureSource = "upload" | "camera";
 export type CaptureTrigger = "manual" | "auto";
 
@@ -44,62 +44,79 @@ export type ValidIds = {
   vehicles: Set<string>;
 };
 
-const LAST_SELECTIONS_STORAGE_KEY = "belegbox.receipts.last-selection.v1";
-
-export function readLastSelections(): Partial<ReceiptSelectionState> | null {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const raw = window.localStorage.getItem(LAST_SELECTIONS_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<ReceiptSelectionState>;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
-export function persistLastSelections(selection: ReceiptSelectionState) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(LAST_SELECTIONS_STORAGE_KEY, JSON.stringify(selection));
-}
-
+/**
+ * Vorbelegung der Zuordnung. Bewusst ausschliesslich aus den User-Standardwerten:
+ * Angaben des vorherigen Belegs werden nie uebernommen.
+ */
 export function resolveSelectionState({
-  sessionSelections,
   userDefaults,
   validIds,
 }: {
-  sessionSelections: Partial<ReceiptSelectionState> | null;
   userDefaults: UserDefaults;
   validIds: ValidIds;
 }): { selection: ReceiptSelectionState; source: PrefillSource } {
+  const pickValue = (defaultValue: string | null | undefined, ids: Set<string>) =>
+    defaultValue && ids.has(defaultValue) ? defaultValue : "";
+
   const selection: ReceiptSelectionState = {
-    purposeId: "",
-    categoryId: "",
-    countryId: "",
-    vehicleId: "",
+    purposeId: pickValue(userDefaults.defaultPurposeId, validIds.purposes),
+    categoryId: pickValue(userDefaults.defaultCategoryId, validIds.categories),
+    countryId: pickValue(userDefaults.defaultCountryId, validIds.countries),
+    vehicleId: pickValue(userDefaults.defaultVehicleId, validIds.vehicles),
   };
 
-  const pickValue = (sessionValue: string | null | undefined, defaultValue: string | null | undefined, ids: Set<string>) => {
-    if (sessionValue && ids.has(sessionValue)) return { value: sessionValue, source: "session" as const };
-    if (defaultValue && ids.has(defaultValue)) return { value: defaultValue, source: "defaults" as const };
-    return { value: "", source: "none" as const };
+  const hasDefault = Object.values(selection).some((value) => value !== "");
+  return { selection, source: hasDefault ? "defaults" : "none" };
+}
+
+export type ExcludableLineItem = { excluded?: boolean };
+
+export function isLineItemActive(item: ExcludableLineItem): boolean {
+  return item.excluded !== true;
+}
+
+export type LineItemSummary = {
+  totalCount: number;
+  activeCount: number;
+  /** Summe der aktiven Positionen mit Betrag; null, wenn keine aktive Position einen Betrag hat. */
+  activeSum: number | null;
+};
+
+/** Fasst eine Positionsliste zusammen: aktive Positionen zaehlen und deren Betraege summieren. */
+export function sumActiveLineItems<T extends ExcludableLineItem>(
+  items: T[],
+  getAmount: (item: T) => number | null,
+): LineItemSummary {
+  const active = items.filter(isLineItemActive);
+  const amounts = active
+    .map(getAmount)
+    .filter((value): value is number => value !== null && Number.isFinite(value));
+
+  return {
+    totalCount: items.length,
+    activeCount: active.length,
+    activeSum: amounts.length > 0
+      ? Math.round(amounts.reduce((sum, value) => sum + value, 0) * 100) / 100
+      : null,
   };
+}
 
-  const purpose = pickValue(sessionSelections?.purposeId, userDefaults.defaultPurposeId, validIds.purposes);
-  const category = pickValue(sessionSelections?.categoryId, userDefaults.defaultCategoryId, validIds.categories);
-  const country = pickValue(sessionSelections?.countryId, userDefaults.defaultCountryId, validIds.countries);
-  const vehicle = pickValue(sessionSelections?.vehicleId, userDefaults.defaultVehicleId, validIds.vehicles);
-
-  selection.purposeId = purpose.value;
-  selection.categoryId = category.value;
-  selection.countryId = country.value;
-  selection.vehicleId = vehicle.value;
-
-  const sources = [purpose.source, category.source, country.source, vehicle.source];
-  if (sources.includes("session")) return { selection, source: "session" };
-  if (sources.includes("defaults")) return { selection, source: "defaults" };
-  return { selection, source: "none" };
+/**
+ * Leitet Netto und Steuer aus einem Bruttobetrag ab. Liefert null, wenn kein
+ * Steuersatz bekannt ist (dann bleibt die Aufteilung dem Nutzer ueberlassen).
+ */
+export function deriveNetAndTax({
+  gross,
+  vatRatePercent,
+  reverseCharge,
+}: {
+  gross: number;
+  vatRatePercent: number | null;
+  reverseCharge: boolean;
+}): { net: number; tax: number } | null {
+  if (reverseCharge) return { net: gross, tax: 0 };
+  if (vatRatePercent == null || vatRatePercent < 0) return null;
+  return splitGrossByVatRate(gross, vatRatePercent);
 }
 
 export function parseLocalizedNumber(value: string): number | null {

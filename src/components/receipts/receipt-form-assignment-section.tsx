@@ -42,11 +42,11 @@ export function ReceiptFormAssignmentSection({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Zuordnung</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Diese Felder werden zuerst aus der letzten Folgeerfassung, dann aus deinen Standardwerten vorbelegt.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Diese Felder werden ausschliesslich aus deinen Standardwerten vorbelegt. Angaben des vorherigen Belegs werden nicht uebernommen.</p>
         </div>
         {prefillSource !== "none" ? (
           <span className="rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
-            {prefillSource === "session" ? "Vorbelegt aus letzter Erfassung" : "Vorbelegt aus deinen Standardwerten"}
+            Vorbelegt aus deinen Standardwerten
           </span>
         ) : null}
       </div>

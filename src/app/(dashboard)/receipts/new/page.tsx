@@ -5,7 +5,7 @@ import { ReceiptForm } from "@/components/receipts/receipt-form";
 import { connection } from "next/server";
 
 type Props = {
-  searchParams: Promise<{ continued?: string }>;
+  searchParams: Promise<{ continued?: string; t?: string }>;
 };
 
 export default async function NewReceiptPage({ searchParams }: Props) {
@@ -37,7 +37,11 @@ export default async function NewReceiptPage({ searchParams }: Props) {
       {isContinued ? (
         <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
           <p className="text-sm font-medium text-primary">
-            Vorheriger Beleg erfolgreich gespeichert. Du kannst den naechsten Beleg erfassen.
+            Vorheriger Beleg erfolgreich gespeichert.
+          </p>
+          <p className="mt-1 text-sm text-primary/80">
+            Das Formular startet leer - es werden keine Angaben des vorherigen Belegs uebernommen.
+            Lade den naechsten Beleg hoch oder fotografiere ihn; die Felder werden aus der Belegerkennung gefuellt.
           </p>
         </div>
       ) : null}
@@ -47,7 +51,9 @@ export default async function NewReceiptPage({ searchParams }: Props) {
         </p>
         <h1 className="text-3xl font-semibold tracking-tight">Neuen Beleg anlegen</h1>
       </div>
+      {/* key erzwingt einen Remount bei Folgeerfassungen, damit kein State des Vorgaengerbelegs stehen bleibt. */}
       <ReceiptForm
+        key={`receipt-form-${params.t ?? "initial"}`}
         purposes={purposes.map((p) => ({ id: p.id, name: p.name, isHospitality: p.isHospitality }))}
         categories={categories.map((c) => ({ id: c.id, name: c.name }))}
         countries={countries.map((c) => ({

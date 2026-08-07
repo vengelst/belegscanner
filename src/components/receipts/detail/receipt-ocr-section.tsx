@@ -36,27 +36,30 @@ export function ReceiptOcrSection({ structuredData, detectedDocumentType }: Rece
               <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
                 <p className="text-sm font-semibold">Rechnungspositionen</p>
                 <div className="mt-3 space-y-2">
-                  {structuredData.special.invoice.lineItems.map((item, index) => (
-                    <div key={`${item.description}-${index}`} className="rounded-xl border border-border bg-background px-3 py-2 text-sm">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-medium">{item.lineNumber ? `${item.lineNumber}. ` : ""}{item.description}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {[
-                              item.quantity !== null ? `Menge ${item.quantity}` : null,
-                              item.unit ? `Einheit ${item.unit}` : null,
-                              item.unitPrice !== null ? `Einzelpreis ${item.unitPrice.toFixed(2)}` : null,
-                              item.taxHint ? `Steuer ${item.taxHint}` : null,
-                            ].filter(Boolean).join(" / ") || "Teilweise erkannt"}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold">{item.totalPrice !== null ? formatSuggestedValue(item.totalPrice.toFixed(2), structuredData.fieldReviewStates?.invoiceLineItems, item.confidence) : "-"}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">{item.status === "confident" ? "sicher" : item.status === "uncertain" ? "pruefen" : "teilweise"}</p>
+                  {structuredData.special.invoice.lineItems.map((item, index) => {
+                    const excluded = item.excluded === true;
+                    return (
+                      <div key={`${item.description}-${index}`} className={`rounded-xl border px-3 py-2 text-sm ${excluded ? "border-dashed border-border bg-muted/40 opacity-70" : "border-border bg-background"}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className={excluded ? "line-through" : ""}>
+                            <p className="font-medium">{item.lineNumber ? `${item.lineNumber}. ` : ""}{item.description}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              {[
+                                item.quantity !== null ? `Menge ${item.quantity}` : null,
+                                item.unit ? `Einheit ${item.unit}` : null,
+                                item.unitPrice !== null ? `Einzelpreis ${item.unitPrice.toFixed(2)}` : null,
+                                item.taxHint ? `Steuer ${item.taxHint}` : null,
+                              ].filter(Boolean).join(" / ") || "Teilweise erkannt"}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className={`font-semibold ${excluded ? "line-through" : ""}`}>{item.totalPrice !== null ? formatSuggestedValue(item.totalPrice.toFixed(2), structuredData.fieldReviewStates?.invoiceLineItems, item.confidence) : "-"}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">{excluded ? "nicht uebernommen" : item.status === "confident" ? "sicher" : item.status === "uncertain" ? "pruefen" : "teilweise"}</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : null}
@@ -82,7 +85,7 @@ export function ReceiptOcrSection({ structuredData, detectedDocumentType }: Rece
                   <div className="mt-3 space-y-2">
                     <p className="text-xs text-muted-foreground">Erkannte Positionen</p>
                     {structuredData.special.hospitality.lineItems.map((item, index) => (
-                      <div key={`${item.label}-${index}`} className="flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-sm">
+                      <div key={`${item.label}-${index}`} className={`flex items-center justify-between rounded-xl border px-3 py-2 text-sm ${item.excluded ? "border-dashed border-border bg-muted/40 line-through opacity-70" : "border-border bg-background"}`}>
                         <span>{item.label}</span>
                         <span>{item.amount !== null ? item.amount.toFixed(2) : "-"}</span>
                       </div>
@@ -105,7 +108,7 @@ export function ReceiptOcrSection({ structuredData, detectedDocumentType }: Rece
                   <div className="mt-3 space-y-2">
                     <p className="text-xs text-muted-foreground">Erkannte Zusatzpositionen</p>
                     {structuredData.special.lodging.lineItems.map((item, index) => (
-                      <div key={`${item.label}-${index}`} className="flex items-center justify-between rounded-xl border border-border bg-background px-3 py-2 text-sm">
+                      <div key={`${item.label}-${index}`} className={`flex items-center justify-between rounded-xl border px-3 py-2 text-sm ${item.excluded ? "border-dashed border-border bg-muted/40 line-through opacity-70" : "border-border bg-background"}`}>
                         <span>{item.label}</span>
                         <span>{item.amount !== null ? item.amount.toFixed(2) : "-"}</span>
                       </div>

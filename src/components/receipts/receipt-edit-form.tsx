@@ -4,8 +4,10 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { splitGrossByVatRate } from "@/lib/receipts/form-helpers";
+import { deriveNetAndTax, splitGrossByVatRate, sumActiveLineItems } from "@/lib/receipts/form-helpers";
 import { DuplicateWarning } from "@/components/receipts/duplicate-warning";
+import { InvoiceLineItemEditor, SimpleLineItemEditor } from "@/components/receipts/line-item-editor";
+import type { StructuredData } from "@/components/receipts/detail/parse-structured-data";
 import { useDuplicateCheck } from "@/hooks/useDuplicateCheck";
 
 type Purpose = { id: string; name: string; isHospitality: boolean };
@@ -39,6 +41,7 @@ type ReceiptData = {
 
 type Props = {
   receipt: ReceiptData;
+  structuredData: StructuredData | null;
   hasOriginalFile: boolean;
   purposes: Purpose[];
   categories: Category[];
@@ -46,7 +49,7 @@ type Props = {
   vehicles: Vehicle[];
 };
 
-export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories, countries, vehicles }: Props) {
+export function ReceiptEditForm({ receipt, structuredData, hasOriginalFile, purposes, categories, countries, vehicles }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [purposeId, setPurposeId] = useState(receipt.purposeId);
@@ -70,6 +73,9 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
   const [date, setDate] = useState(receipt.date);
   const [supplier, setSupplier] = useState(receipt.supplier ?? "");
   const [invoiceNumber, setInvoiceNumber] = useState(receipt.invoiceNumber ?? "");
+  const [lineItemData, setLineItemData] = useState<StructuredData | null>(structuredData);
+  const [lineItemsDirty, setLineItemsDirty] = useState(false);
+  const [lineItemNotice, setLineItemNotice] = useState<string | null>(null);
 
   const duplicateCheck = useDuplicateCheck();
 
@@ -82,6 +88,12 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
       excludeReceiptId: receipt.id,
     });
   }, [date, amount, supplier, invoiceNumber]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const hasLineItems = Boolean(
+    (lineItemData?.special.invoice?.lineItems.length ?? 0) > 0
+      || (lineItemData?.special.hospitality?.lineItems.length ?? 0) > 0
+      || (lineItemData?.special.lodging?.lineItems.length ?? 0) > 0,
+  );
 
   const selectedPurpose = purposes.find((p) => p.id === purposeId);
   const isHospitality = selectedPurpose?.isHospitality ?? false;
@@ -173,6 +185,88 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
     if (!taxManuallyOverridden) setTaxAmount(formatAmountInput(tax));
   }, [amount, countryId, countries, reverseCharge, netManuallyOverridden, taxManuallyOverridden]);
 
+  /** Uebernimmt den aus den aktiven Positionen berechneten Bruttobetrag inkl. Netto/Steuer. */
+  function applyGrossFromLineItems(summary: { activeCount: number; totalCount: number; activeSum: number | null }) {
+    setLineItemsDirty(true);
+
+    if (summary.activeCount === 0) {
+      setAmount(formatAmountInput(0));
+      setNetAmount(formatAmountInput(0));
+      setTaxAmount(formatAmountInput(0));
+      setNetManuallyOverridden(true);
+      setTaxManuallyOverridden(true);
+      setLineItemNotice("Alle Positionen sind deaktiviert. Betrag, Netto und Steuer stehen auf 0,00 - der Beleg kann so nicht gespeichert werden.");
+      return;
+    }
+
+    if (summary.activeSum === null) {
+      setLineItemNotice("Keine der aktiven Positionen hat einen Betrag. Der Rechnungsbetrag wurde nicht veraendert und muss manuell geprueft werden.");
+      return;
+    }
+
+    const gross = summary.activeSum;
+    const selectedCountry = countries.find((country) => country.id === countryId);
+    const derived = deriveNetAndTax({
+      gross,
+      vatRatePercent: selectedCountry?.vatRatePercent ?? null,
+      reverseCharge,
+    });
+
+    setAmount(formatAmountInput(gross));
+    if (derived) {
+      setNetAmount(formatAmountInput(derived.net));
+      setTaxAmount(formatAmountInput(derived.tax));
+      setVatRatePercent(reverseCharge ? null : selectedCountry?.vatRatePercent ?? null);
+    } else {
+      setNetAmount("");
+      setTaxAmount("");
+      setVatRatePercent(null);
+    }
+    setNetManuallyOverridden(true);
+    setTaxManuallyOverridden(true);
+    setLineItemNotice(
+      derived
+        ? `Rechnungsbetrag aus ${summary.activeCount} von ${summary.totalCount} Positionen neu berechnet.`
+        : `Rechnungsbetrag aus ${summary.activeCount} von ${summary.totalCount} Positionen neu berechnet. Netto und Steuer bitte pruefen.`,
+    );
+  }
+
+  function toggleInvoiceLineItem(index: number) {
+    const invoice = lineItemData?.special.invoice;
+    if (!lineItemData || !invoice) return;
+
+    const lineItems = invoice.lineItems.map((item, itemIndex) => (
+      itemIndex === index ? { ...item, excluded: !(item.excluded ?? false) } : item
+    ));
+
+    setLineItemData({ ...lineItemData, special: { ...lineItemData.special, invoice: { ...invoice, lineItems } } });
+    applyGrossFromLineItems(sumActiveLineItems(lineItems, (item) => item.totalPrice));
+  }
+
+  function toggleHospitalityLineItem(index: number) {
+    const hospitality = lineItemData?.special.hospitality;
+    if (!lineItemData || !hospitality) return;
+
+    const lineItems = hospitality.lineItems.map((item, itemIndex) => (
+      itemIndex === index ? { ...item, excluded: !(item.excluded ?? false) } : item
+    ));
+
+    setLineItemData({ ...lineItemData, special: { ...lineItemData.special, hospitality: { ...hospitality, lineItems } } });
+    applyGrossFromLineItems(sumActiveLineItems(lineItems, (item) => item.amount));
+  }
+
+  function toggleLodgingLineItem(index: number) {
+    const lodging = lineItemData?.special.lodging;
+    if (!lineItemData || !lodging) return;
+
+    const lineItems = lodging.lineItems.map((item, itemIndex) => (
+      itemIndex === index ? { ...item, excluded: !(item.excluded ?? false) } : item
+    ));
+
+    setLineItemData({ ...lineItemData, special: { ...lineItemData.special, lodging: { ...lodging, lineItems } } });
+    applyGrossFromLineItems(sumActiveLineItems(lineItems, (item) => item.amount));
+  }
+
   function handleSubmit(formData: FormData) {
     setError(null);
 
@@ -213,6 +307,9 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
       categoryId: formData.get("categoryId"),
       remark: formData.get("remark") || null,
     };
+
+    // Positions-Flags nur mitschicken, wenn sie in diesem Formular geaendert wurden.
+    if (lineItemsDirty && lineItemData) body.aiStructuredData = lineItemData;
 
     if (isHospitality) {
       body.hospitality = {
@@ -368,6 +465,37 @@ export function ReceiptEditForm({ receipt, hasOriginalFile, purposes, categories
           </div>
         ) : null}
       </Card>
+
+      {hasLineItems ? (
+        <Card>
+          <h2 className="text-lg font-semibold tracking-tight">Positionen</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Positionen, die nicht zur Firma gehoeren, koennen deaktiviert werden. Rechnungsbetrag, Netto und
+            Steuer werden aus den aktiven Positionen neu berechnet.
+          </p>
+          <InvoiceLineItemEditor
+            items={lineItemData?.special.invoice?.lineItems ?? []}
+            currency={currency}
+            title="Rechnungspositionen"
+            onToggleExcluded={toggleInvoiceLineItem}
+          />
+          <SimpleLineItemEditor
+            items={lineItemData?.special.hospitality?.lineItems ?? []}
+            title="Bewirtungspositionen"
+            currency={currency}
+            onToggleExcluded={toggleHospitalityLineItem}
+          />
+          <SimpleLineItemEditor
+            items={lineItemData?.special.lodging?.lineItems ?? []}
+            title="Unterkunft-Zusatzpositionen"
+            currency={currency}
+            onToggleExcluded={toggleLodgingLineItem}
+          />
+          {lineItemNotice ? (
+            <p className="mt-3 text-xs font-medium text-accent-foreground">{lineItemNotice}</p>
+          ) : null}
+        </Card>
+      ) : null}
 
       <Card>
         <h2 className="text-lg font-semibold tracking-tight">Originalbeleg</h2>

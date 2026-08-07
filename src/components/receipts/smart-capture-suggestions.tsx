@@ -1,4 +1,5 @@
-﻿import type { OcrInvoiceLineItem, OcrResult } from "@/lib/document-analysis";
+﻿import type { OcrResult } from "@/lib/document-analysis";
+import { InvoiceLineItemEditor, SimpleLineItemEditor } from "@/components/receipts/line-item-editor";
 import {
   documentTypeLabels,
   fieldReviewStatusLabels,
@@ -33,6 +34,9 @@ type Props = {
   fieldReviewStates?: Partial<Record<string, OcrFieldReviewStatus>>;
   onApplySuggestedPurpose?: (purposeId: string) => void;
   onApplySuggestedCountry?: (countryId: string) => void;
+  onToggleInvoiceLineItem?: (index: number) => void;
+  onToggleHospitalityLineItem?: (index: number) => void;
+  onToggleLodgingLineItem?: (index: number) => void;
 };
 
 export function SmartCaptureSuggestions({
@@ -44,6 +48,9 @@ export function SmartCaptureSuggestions({
   fieldReviewStates,
   onApplySuggestedPurpose,
   onApplySuggestedCountry,
+  onToggleInvoiceLineItem,
+  onToggleHospitalityLineItem,
+  onToggleLodgingLineItem,
 }: Props) {
   const formatMoney = (value: number | null) => value !== null ? `${value.toFixed(2)} ${ocrResult.extracted.currency ?? ""}`.trim() : null;
 
@@ -106,7 +113,11 @@ export function SmartCaptureSuggestions({
 
       {ocrResult.special.invoice ? (
         <SpecialSuggestionCard title="Rechnungspositionen" status={fieldReviewStates?.invoiceLineItems} confidence={ocrResult.specialConfidence.invoice?.lineItems ?? "none"}>
-          <InvoiceLineItemList items={ocrResult.special.invoice.lineItems} currency={ocrResult.extracted.currency} />
+          <InvoiceLineItemEditor
+            items={ocrResult.special.invoice.lineItems}
+            currency={ocrResult.extracted.currency}
+            onToggleExcluded={onToggleInvoiceLineItem}
+          />
         </SpecialSuggestionCard>
       ) : null}
 
@@ -128,7 +139,12 @@ export function SmartCaptureSuggestions({
             <SuggestionPill label="Zwischensumme" value={formatNullableNumber(ocrResult.special.hospitality.subtotal)} confidence={ocrResult.specialConfidence.hospitality?.subtotal ?? "none"} status={fieldReviewStates?.hospitalitySubtotal} />
             <SuggestionPill label="Trinkgeld" value={formatNullableNumber(ocrResult.special.hospitality.tip)} confidence={ocrResult.specialConfidence.hospitality?.tip ?? "none"} status={fieldReviewStates?.hospitalityTip} />
           </div>
-          <LineItemList items={ocrResult.special.hospitality.lineItems} title="Erkannte Positionen" />
+          <SimpleLineItemEditor
+            items={ocrResult.special.hospitality.lineItems}
+            title="Erkannte Positionen"
+            currency={ocrResult.extracted.currency}
+            onToggleExcluded={onToggleHospitalityLineItem}
+          />
         </SpecialSuggestionCard>
       ) : null}
 
@@ -141,7 +157,12 @@ export function SmartCaptureSuggestions({
             <SuggestionPill label="Tax / Kurtaxe" value={formatNullableNumber(ocrResult.special.lodging.tax)} confidence={ocrResult.specialConfidence.lodging?.tax ?? "none"} status={fieldReviewStates?.lodgingTax} />
             <SuggestionPill label="Gebuehren" value={formatNullableNumber(ocrResult.special.lodging.fees)} confidence={ocrResult.specialConfidence.lodging?.fees ?? "none"} status={fieldReviewStates?.lodgingFees} />
           </div>
-          <LineItemList items={ocrResult.special.lodging.lineItems} title="Erkannte Zusatzpositionen" />
+          <SimpleLineItemEditor
+            items={ocrResult.special.lodging.lineItems}
+            title="Erkannte Zusatzpositionen"
+            currency={ocrResult.extracted.currency}
+            onToggleExcluded={onToggleLodgingLineItem}
+          />
         </SpecialSuggestionCard>
       ) : null}
 
@@ -195,53 +216,6 @@ function SpecialSuggestionCard({ title, status, confidence, children }: { title:
         <span className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${STATUS_STYLES[currentStatus]}`}>{fieldReviewStatusLabels[currentStatus]}</span>
       </div>
       {children}
-    </div>
-  );
-}
-
-function LineItemList({ items, title }: { items: Array<{ label: string; amount: number | null }>; title: string }) {
-  if (items.length === 0) return null;
-
-  return (
-    <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-      <p className="font-semibold text-foreground">{title}</p>
-      {items.map((item, index) => (
-        <div key={`${item.label}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-background/70 px-3 py-2">
-          <span>{item.label}</span>
-          <span>{item.amount !== null ? item.amount.toFixed(2) : "-"}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function InvoiceLineItemList({ items, currency }: { items: OcrInvoiceLineItem[]; currency: string | null }) {
-  if (!items || items.length === 0) return null;
-
-  return (
-    <div className="mt-3 space-y-2 text-xs text-muted-foreground">
-      <p className="font-semibold text-foreground">Erkannte Positionen</p>
-      {items.map((item, index) => (
-        <div key={`${item.description}-${index}`} className="rounded-xl border border-border/70 bg-background/70 px-3 py-2">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-foreground">{item.lineNumber ? `${item.lineNumber}. ` : ""}{item.description}</p>
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                {[
-                  item.quantity !== null ? `Menge ${item.quantity}` : null,
-                  item.unit ? `Einheit ${item.unit}` : null,
-                  item.unitPrice !== null ? `Einzelpreis ${item.unitPrice.toFixed(2)} ${currency ?? ""}`.trim() : null,
-                  item.taxHint ? `Steuer ${item.taxHint}` : null,
-                ].filter(Boolean).join(" / ") || "Teilweise erkannt"}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-semibold text-foreground">{item.totalPrice !== null ? `${item.totalPrice.toFixed(2)} ${currency ?? ""}`.trim() : "-"}</p>
-              <p className="mt-1 text-[11px] text-muted-foreground">{item.status === "confident" ? "sicher" : item.status === "uncertain" ? "pruefen" : "teilweise"}</p>
-            </div>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }

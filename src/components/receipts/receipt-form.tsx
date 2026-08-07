@@ -13,11 +13,12 @@ import { useSelectionPrefill } from "@/hooks/useSelectionPrefill";
 import { buildFieldReviewStates, buildStructuredData, hasDetectedOcrValues, type OcrFieldKey } from "@/lib/receipts/field-review-states";
 import {
   buildCurrencyOptions,
+  deriveNetAndTax,
   formatLocalizedNumber,
   getApiErrorMessage,
   parseLocalizedNumber,
-  persistLastSelections,
   splitGrossByVatRate,
+  sumActiveLineItems,
   type CaptureSource,
   type CaptureTrigger,
   type Purpose,
@@ -37,6 +38,23 @@ import { useDuplicateCheck } from "@/hooks/useDuplicateCheck";
 function formatAmountInput(value: number): string {
   return value.toFixed(2).replace(".", ",");
 }
+
+function todayIsoDate(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
+const EMPTY_MANUAL_OVERRIDES: Record<OcrFieldKey, boolean> = {
+  date: false,
+  dueDate: false,
+  serviceDate: false,
+  invoiceNumber: false,
+  amount: false,
+  grossAmount: false,
+  netAmount: false,
+  taxAmount: false,
+  currency: false,
+  supplier: false,
+};
 
 type Props = {
   purposes: Purpose[];
@@ -61,7 +79,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
   const [ocrRunning, setOcrRunning] = useState(false);
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null);
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayIsoDate();
   const [date, setDate] = useState(today);
   const [partyRole, setPartyRole] = useState<"CREDITOR" | "DEBTOR">("CREDITOR");
   const [partyRoleManuallyChanged, setPartyRoleManuallyChanged] = useState(false);
@@ -80,18 +98,8 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
   const [guests, setGuests] = useState("");
   const [hospitalityLocation, setHospitalityLocation] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [manualOverrides, setManualOverrides] = useState<Record<OcrFieldKey, boolean>>({
-    date: false,
-    dueDate: false,
-    serviceDate: false,
-    invoiceNumber: false,
-    amount: false,
-    grossAmount: false,
-    netAmount: false,
-    taxAmount: false,
-    currency: false,
-    supplier: false,
-  });
+  const [lineItemNotice, setLineItemNotice] = useState<string | null>(null);
+  const [manualOverrides, setManualOverrides] = useState<Record<OcrFieldKey, boolean>>(EMPTY_MANUAL_OVERRIDES);
   const [hospitalityLocationManual, setHospitalityLocationManual] = useState(false);
 
   const validIds = useMemo(() => ({
@@ -103,7 +111,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
 
   const {
     purposeId, categoryId, countryId, vehicleId, prefillSource,
-    setPurposeId, setCategoryId, setCountryId, setVehicleId,
+    setPurposeId, setCategoryId, setCountryId, setVehicleId, resetSelection,
   } = useSelectionPrefill(userDefaults, validIds);
 
   const selectedPurpose = purposes.find((purpose) => purpose.id === purposeId);
@@ -200,6 +208,132 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     setManualOverrides((current) => (current[field] ? current : { ...current, [field]: true }));
   }
 
+  /**
+   * Landwechsel durch den Nutzer: Netto und Steuer duerfen danach wieder aus
+   * dem Bruttobetrag abgeleitet werden.
+   */
+  function changeCountry(value: string) {
+    setManualOverrides((current) => ({ ...current, netAmount: false, taxAmount: false }));
+    setCountryManuallyChanged(true);
+    setCountryId(value);
+  }
+
+  /** Setzt das komplette Formular auf einen leeren Neubeleg zurueck. */
+  function resetForm() {
+    setOriginalFile(null);
+    setPreviewUrl(null);
+    setCaptureSource(null);
+    setCaptureTrigger(null);
+    setWorkingImageInfo(null);
+    setIsPreparingAsset(false);
+    setOcrRunning(false);
+    setOcrResult(null);
+    setDate(todayIsoDate());
+    setPartyRole("CREDITOR");
+    setPartyRoleManuallyChanged(false);
+    setDueDate("");
+    setServiceDate("");
+    setInvoiceNumber("");
+    setAmount("");
+    setNetAmount("");
+    setTaxAmount("");
+    setReverseCharge(false);
+    setVatRatePercent(null);
+    setCurrency("EUR");
+    setSupplier("");
+    setCountryManuallyChanged(false);
+    setOccasion("");
+    setGuests("");
+    setHospitalityLocation("");
+    setHospitalityLocationManual(false);
+    setManualOverrides(EMPTY_MANUAL_OVERRIDES);
+    setError(null);
+    setLineItemNotice(null);
+    duplicateCheck.reset();
+    resetSelection();
+  }
+
+  /**
+   * Uebernimmt einen aus den aktiven Positionen berechneten Bruttobetrag und
+   * leitet Netto/Steuer nach der bestehenden MwSt-Logik neu ab.
+   */
+  function applyGrossFromLineItems(summary: { activeCount: number; totalCount: number; activeSum: number | null }) {
+    if (summary.activeCount === 0) {
+      setAmount(formatAmountInput(0));
+      setNetAmount(formatAmountInput(0));
+      setTaxAmount(formatAmountInput(0));
+      setManualOverrides((current) => ({ ...current, amount: true, grossAmount: true, netAmount: true, taxAmount: true }));
+      setLineItemNotice("Alle Positionen sind deaktiviert. Betrag, Netto und Steuer stehen auf 0,00 - der Beleg kann so nicht gespeichert werden.");
+      return;
+    }
+
+    if (summary.activeSum === null) {
+      setLineItemNotice("Keine der aktiven Positionen hat einen erkannten Betrag. Der Rechnungsbetrag wurde nicht veraendert und muss manuell geprueft werden.");
+      return;
+    }
+
+    const gross = summary.activeSum;
+    const selectedCountry = countries.find((country) => country.id === countryId);
+    const derived = deriveNetAndTax({
+      gross,
+      vatRatePercent: selectedCountry?.vatRatePercent ?? null,
+      reverseCharge,
+    });
+
+    setAmount(formatAmountInput(gross));
+    if (derived) {
+      setNetAmount(formatAmountInput(derived.net));
+      setTaxAmount(formatAmountInput(derived.tax));
+      setVatRatePercent(reverseCharge ? null : selectedCountry?.vatRatePercent ?? null);
+    } else {
+      setNetAmount("");
+      setTaxAmount("");
+      setVatRatePercent(null);
+    }
+    setManualOverrides((current) => ({ ...current, amount: true, grossAmount: true, netAmount: true, taxAmount: true }));
+    setLineItemNotice(
+      derived
+        ? `Rechnungsbetrag aus ${summary.activeCount} von ${summary.totalCount} Positionen neu berechnet.`
+        : `Rechnungsbetrag aus ${summary.activeCount} von ${summary.totalCount} Positionen neu berechnet. Netto und Steuer bitte nach Auswahl des Landes pruefen.`,
+    );
+  }
+
+  function toggleInvoiceLineItem(index: number) {
+    const invoice = ocrResult?.special.invoice;
+    if (!ocrResult || !invoice) return;
+
+    const lineItems = invoice.lineItems.map((item, itemIndex) => (
+      itemIndex === index ? { ...item, excluded: !(item.excluded ?? false) } : item
+    ));
+
+    setOcrResult({ ...ocrResult, special: { ...ocrResult.special, invoice: { ...invoice, lineItems } } });
+    applyGrossFromLineItems(sumActiveLineItems(lineItems, (item) => item.totalPrice));
+  }
+
+  function toggleHospitalityLineItem(index: number) {
+    const hospitality = ocrResult?.special.hospitality;
+    if (!ocrResult || !hospitality) return;
+
+    const lineItems = hospitality.lineItems.map((item, itemIndex) => (
+      itemIndex === index ? { ...item, excluded: !(item.excluded ?? false) } : item
+    ));
+
+    setOcrResult({ ...ocrResult, special: { ...ocrResult.special, hospitality: { ...hospitality, lineItems } } });
+    applyGrossFromLineItems(sumActiveLineItems(lineItems, (item) => item.amount));
+  }
+
+  function toggleLodgingLineItem(index: number) {
+    const lodging = ocrResult?.special.lodging;
+    if (!ocrResult || !lodging) return;
+
+    const lineItems = lodging.lineItems.map((item, itemIndex) => (
+      itemIndex === index ? { ...item, excluded: !(item.excluded ?? false) } : item
+    ));
+
+    setOcrResult({ ...ocrResult, special: { ...ocrResult.special, lodging: { ...lodging, lineItems } } });
+    applyGrossFromLineItems(sumActiveLineItems(lineItems, (item) => item.amount));
+  }
+
   useOcrPrefill({
     ocrResult,
     manualOverrides,
@@ -266,6 +400,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     }
 
     setError(null);
+    setLineItemNotice(null);
     setIsPreparingAsset(true);
     setOriginalFile(nextFile);
     setCaptureSource(source);
@@ -396,10 +531,11 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
 
       const { receipt } = await response.json();
 
-      persistLastSelections({ purposeId, categoryId, countryId, vehicleId });
-
       if (shouldContinue) {
-        router.push("/receipts/new?continued=1");
+        // Leeres Formular fuer den naechsten Beleg: State sofort leeren und
+        // ueber den wechselnden Query-Parameter zusaetzlich einen Remount erzwingen.
+        resetForm();
+        router.push(`/receipts/new?continued=1&t=${Date.now()}`);
         router.refresh();
         return;
       }
@@ -500,7 +636,11 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
           onOpenCamera={() => setCameraOpen(true)}
           onFileChange={handleFileChange}
           onApplySuggestedPurpose={setPurposeId}
-          onApplySuggestedCountry={(value) => { setCountryId(value); setCountryManuallyChanged(true); }}
+          onApplySuggestedCountry={changeCountry}
+          onToggleInvoiceLineItem={toggleInvoiceLineItem}
+          onToggleHospitalityLineItem={toggleHospitalityLineItem}
+          onToggleLodgingLineItem={toggleLodgingLineItem}
+          lineItemNotice={lineItemNotice}
         />
 
         <ReceiptFormDataSection
@@ -558,7 +698,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
           prefillSource={prefillSource}
           setPurposeId={setPurposeId}
           setCategoryId={setCategoryId}
-          setCountryId={setCountryId}
+          setCountryId={changeCountry}
           setCountryManuallyChanged={setCountryManuallyChanged}
           setVehicleId={setVehicleId}
         />

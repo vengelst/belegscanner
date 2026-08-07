@@ -9,6 +9,8 @@ export type DocumentAnalysisSourceType = "image" | "pdf";
 export type DocumentAnalysisLineItem = {
   label: string;
   amount: number | null;
+  /** true, wenn die Position vom Nutzer nicht uebernommen wird (zaehlt nicht zum Betrag). */
+  excluded?: boolean;
 };
 
 export type DocumentAnalysisInvoiceLineItemStatus = "confident" | "uncertain" | "partial";
@@ -23,6 +25,8 @@ export type DocumentAnalysisInvoiceLineItem = {
   taxHint: string | null;
   confidence: OcrConfidenceLevel;
   status: DocumentAnalysisInvoiceLineItemStatus;
+  /** true, wenn die Position vom Nutzer nicht uebernommen wird (zaehlt nicht zum Betrag). */
+  excluded?: boolean;
 };
 
 export type DocumentAnalysisOcrSource = "paddleocr+openai" | "openai-vision" | "openai-pdf";

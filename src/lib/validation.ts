@@ -203,6 +203,7 @@ const fieldReviewStatusSchema = z.enum(OCR_FIELD_REVIEW_STATUSES);
 const aiLineItemSchema = z.object({
   label: z.string().min(1).max(120),
   amount: z.number().nullable(),
+  excluded: z.boolean().optional(),
 });
 
 const aiLodgingSchema = z.object({
@@ -237,6 +238,7 @@ const aiInvoiceLineItemSchema = z.object({
   taxHint: z.string().max(40).nullable(),
   confidence: aiConfidenceSchema,
   status: z.enum(["confident", "uncertain", "partial"]),
+  excluded: z.boolean().optional(),
 });
 
 export const aiStructuredDataSchema = z.object({

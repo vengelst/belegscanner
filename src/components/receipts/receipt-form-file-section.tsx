@@ -28,6 +28,10 @@ type Props = {
   onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onApplySuggestedPurpose: (purposeId: string) => void;
   onApplySuggestedCountry: (countryId: string) => void;
+  onToggleInvoiceLineItem: (index: number) => void;
+  onToggleHospitalityLineItem: (index: number) => void;
+  onToggleLodgingLineItem: (index: number) => void;
+  lineItemNotice?: string | null;
 };
 
 export function ReceiptFormFileSection({
@@ -50,6 +54,10 @@ export function ReceiptFormFileSection({
   onFileChange,
   onApplySuggestedPurpose,
   onApplySuggestedCountry,
+  onToggleInvoiceLineItem,
+  onToggleHospitalityLineItem,
+  onToggleLodgingLineItem,
+  lineItemNotice,
 }: Props) {
   return (
     <Card>
@@ -134,7 +142,13 @@ export function ReceiptFormFileSection({
                   fieldReviewStates={fieldReviewStates}
                   onApplySuggestedPurpose={onApplySuggestedPurpose}
                   onApplySuggestedCountry={onApplySuggestedCountry}
+                  onToggleInvoiceLineItem={onToggleInvoiceLineItem}
+                  onToggleHospitalityLineItem={onToggleHospitalityLineItem}
+                  onToggleLodgingLineItem={onToggleLodgingLineItem}
                 />
+                {lineItemNotice ? (
+                  <p className="mt-2 text-xs font-medium text-accent-foreground">{lineItemNotice}</p>
+                ) : null}
               </div>
             ) : (
               <p className="mt-2 text-xs text-muted-foreground">Es wurden keine verlaesslichen Werte erkannt. Du kannst den Beleg komplett manuell erfassen.</p>

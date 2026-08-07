@@ -40,7 +40,7 @@ export type StructuredData = {
       location: string | null;
       subtotal: number | null;
       tip: number | null;
-      lineItems: Array<{ label: string; amount: number | null }>;
+      lineItems: Array<{ label: string; amount: number | null; excluded?: boolean }>;
     } | null;
     lodging: {
       location: string | null;
@@ -48,7 +48,7 @@ export type StructuredData = {
       subtotal: number | null;
       tax: number | null;
       fees: number | null;
-      lineItems: Array<{ label: string; amount: number | null }>;
+      lineItems: Array<{ label: string; amount: number | null; excluded?: boolean }>;
     } | null;
     parking: {
       location: string | null;
@@ -72,6 +72,7 @@ export type StructuredData = {
         taxHint: string | null;
         confidence: string;
         status: "confident" | "uncertain" | "partial";
+        excluded?: boolean;
       }>;
     } | null;
   };

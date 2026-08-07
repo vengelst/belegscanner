@@ -1,35 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
-  readLastSelections,
   resolveSelectionState,
   type PrefillSource,
   type UserDefaults,
   type ValidIds,
 } from "@/lib/receipts/form-helpers";
 
+/**
+ * Vorbelegung der Zuordnungsfelder. Quelle sind ausschliesslich die
+ * Standardwerte aus den Einstellungen - nie der zuletzt erfasste Beleg.
+ */
 export function useSelectionPrefill(userDefaults: UserDefaults, validIds: ValidIds) {
-  const [purposeId, setPurposeId] = useState(userDefaults.defaultPurposeId ?? "");
-  const [categoryId, setCategoryId] = useState(userDefaults.defaultCategoryId ?? "");
-  const [countryId, setCountryId] = useState(userDefaults.defaultCountryId ?? "");
-  const [vehicleId, setVehicleId] = useState(userDefaults.defaultVehicleId ?? "");
-  const [prefillSource, setPrefillSource] = useState<PrefillSource>("none");
+  const [initial] = useState(() => resolveSelectionState({ userDefaults, validIds }));
+  const [purposeId, setPurposeId] = useState(initial.selection.purposeId);
+  const [categoryId, setCategoryId] = useState(initial.selection.categoryId);
+  const [countryId, setCountryId] = useState(initial.selection.countryId);
+  const [vehicleId, setVehicleId] = useState(initial.selection.vehicleId);
+  const [prefillSource, setPrefillSource] = useState<PrefillSource>(initial.source);
 
-  useEffect(() => {
-    const sessionSelections = readLastSelections();
-    const resolved = resolveSelectionState({
-      sessionSelections,
-      userDefaults,
-      validIds,
-    });
-
-    setPurposeId(resolved.selection.purposeId);
-    setCategoryId(resolved.selection.categoryId);
-    setCountryId(resolved.selection.countryId);
-    setVehicleId(resolved.selection.vehicleId);
-    setPrefillSource(resolved.source);
-  }, [userDefaults, validIds]);
+  const resetSelection = useCallback(() => {
+    setPurposeId(initial.selection.purposeId);
+    setCategoryId(initial.selection.categoryId);
+    setCountryId(initial.selection.countryId);
+    setVehicleId(initial.selection.vehicleId);
+    setPrefillSource(initial.source);
+  }, [initial]);
 
   return {
     purposeId,
@@ -42,5 +39,6 @@ export function useSelectionPrefill(userDefaults: UserDefaults, validIds: ValidI
     setCountryId,
     setVehicleId,
     setPrefillSource,
+    resetSelection,
   };
 }

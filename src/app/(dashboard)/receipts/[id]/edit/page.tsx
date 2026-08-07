@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { ReceiptEditForm } from "@/components/receipts/receipt-edit-form";
+import { parseStructuredData } from "@/components/receipts/detail/parse-structured-data";
 import { connection } from "next/server";
 
 type Props = {
@@ -73,6 +74,7 @@ export default async function EditReceiptPage({ params }: Props) {
             location: receipt.hospitality.location,
           } : null,
         }}
+        structuredData={parseStructuredData(receipt.aiStructuredData)}
         hasOriginalFile={receipt.files.length > 0}
         purposes={purposes.map((p) => ({ id: p.id, name: p.name, isHospitality: p.isHospitality }))}
         categories={categories.map((c) => ({ id: c.id, name: c.name }))}
