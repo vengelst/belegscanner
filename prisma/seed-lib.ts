@@ -119,11 +119,12 @@ export async function seedDefaultDatevProfile(prisma: PrismaClient, senderAddres
       name: "Standard",
       datevAddress: "datev@steuerberater.example",
       senderAddress,
-      subjectTemplate: "Beleg {date} - {supplier} - {amount} {currency}",
+      subjectTemplate: "[{belegtyp}] Beleg {date} - {supplier} - {amount} {currency}",
       bodyTemplate: `Beleg vom {date}
 
 Lieferant: {supplier}
 Betrag: {amount} {currency}
+Belegtyp: {belegtyp}
 Zweck: {purpose}
 Kategorie: {category}
 Benutzer: {user}
@@ -133,6 +134,12 @@ Benutzer: {user}
 -- BelegBox`,
       isDefault: true,
       active: true,
+      // Upload-Mail-Adresse je Belegtyp: in DATEV anlegen und hier eintragen.
+      belegtypAddresses: {
+        create: [
+          { belegtyp: "RECHNUNGSEINGANG", datevAddress: "datev@steuerberater.example" },
+        ],
+      },
     },
   });
 }

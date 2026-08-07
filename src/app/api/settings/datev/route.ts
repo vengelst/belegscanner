@@ -9,6 +9,7 @@ export async function GET() {
 
   const profiles = await prisma.datevProfile.findMany({
     orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+    include: { belegtypAddresses: { orderBy: { belegtyp: "asc" } } },
   });
 
   return NextResponse.json(profiles);
@@ -49,7 +50,16 @@ export async function POST(request: NextRequest) {
       subjectTemplate: parsed.data.subjectTemplate ?? null,
       bodyTemplate: parsed.data.bodyTemplate ?? null,
       isDefault: parsed.data.isDefault ?? false,
+      belegtypAddresses: parsed.data.belegtypAddresses?.length
+        ? {
+            create: parsed.data.belegtypAddresses.map((entry) => ({
+              belegtyp: entry.belegtyp,
+              datevAddress: entry.datevAddress,
+            })),
+          }
+        : undefined,
     },
+    include: { belegtypAddresses: { orderBy: { belegtyp: "asc" } } },
   });
 
   return NextResponse.json(profile, { status: 201 });

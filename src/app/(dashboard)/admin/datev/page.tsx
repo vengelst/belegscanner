@@ -6,6 +6,7 @@ export default async function DatevPage() {
   await connection();
   const profiles = await prisma.datevProfile.findMany({
     orderBy: [{ isDefault: "desc" }, { name: "asc" }],
+    include: { belegtypAddresses: { orderBy: { belegtyp: "asc" } } },
   });
 
   return (
@@ -13,7 +14,7 @@ export default async function DatevPage() {
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">DATEV-Profile</h1>
         <p className="text-sm text-muted-foreground">
-          DATEV-Versandprofile mit Zieladresse, Absender und optionalen Templates verwalten.
+          DATEV-Versandprofile mit Upload-Mail-Adressen je Belegtyp, Absender und optionalen Templates verwalten.
         </p>
       </div>
       <DatevProfileManager profiles={profiles.map((p) => ({
@@ -25,6 +26,10 @@ export default async function DatevPage() {
         bodyTemplate: p.bodyTemplate ?? "",
         isDefault: p.isDefault,
         active: p.active,
+        belegtypAddresses: p.belegtypAddresses.map((a) => ({
+          belegtyp: a.belegtyp,
+          datevAddress: a.datevAddress,
+        })),
       }))} />
     </div>
   );

@@ -39,7 +39,7 @@ export async function POST(
   }
 
   // Validate technical prerequisites (same as initial send)
-  const validationErrors = await validateForSend(id);
+  const validationErrors = await validateForSend(id, datevProfileId);
   if (validationErrors.length > 0) {
     return NextResponse.json(
       { error: "Versandvoraussetzungen nicht erfuellt.", details: validationErrors },

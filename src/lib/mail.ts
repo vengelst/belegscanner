@@ -4,6 +4,7 @@ import { decrypt } from "@/lib/encryption";
 import { readFile } from "@/lib/storage";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { datevBelegtypLabel, resolveDatevAddress } from "@/lib/datev/belegtyp";
 
 // ============================================================
 // Types
@@ -26,7 +27,10 @@ export type SendValidationError = {
   message: string;
 };
 
-export async function validateForSend(receiptId: string): Promise<SendValidationError[]> {
+export async function validateForSend(
+  receiptId: string,
+  datevProfileId?: string,
+): Promise<SendValidationError[]> {
   const errors: SendValidationError[] = [];
 
   const receipt = await prisma.receipt.findUnique({
@@ -53,13 +57,25 @@ export async function validateForSend(receiptId: string): Promise<SendValidation
     errors.push({ field: "smtp", message: "SMTP-Einstellungen sind nicht konfiguriert." });
   }
 
-  const datev = await prisma.datevProfile.findFirst({
-    where: { active: true, isDefault: true },
-  });
+  // Der Belegtyp bestimmt die DATEV-Zieladresse und ist deshalb Pflicht.
+  if (!receipt.datevBelegtyp) {
+    errors.push({
+      field: "datevBelegtyp",
+      message: "DATEV-Belegtyp fehlt. Bitte am Beleg setzen.",
+    });
+  }
+
+  const datev = await resolveDatevProfile(datevProfileId);
   if (!datev) {
-    const anyProfile = await prisma.datevProfile.findFirst({ where: { active: true } });
-    if (!anyProfile) {
-      errors.push({ field: "datev", message: "Kein aktives DATEV-Profil vorhanden." });
+    errors.push({ field: "datev", message: "Kein aktives DATEV-Profil vorhanden." });
+  } else if (receipt.datevBelegtyp) {
+    const resolved = resolveDatevAddress({
+      belegtyp: receipt.datevBelegtyp,
+      addresses: datev.belegtypAddresses,
+      fallbackAddress: datev.datevAddress,
+    });
+    if (!resolved.ok) {
+      errors.push({ field: "datevAddress", message: resolved.error });
     }
   }
 
@@ -99,15 +115,33 @@ export async function sendReceipt(
   }
 
   // Resolve DATEV profile
-  const datev = datevProfileId
-    ? await prisma.datevProfile.findUnique({ where: { id: datevProfileId, active: true } })
-    : await prisma.datevProfile.findFirst({
-        where: { active: true, isDefault: true },
-      }) ?? await prisma.datevProfile.findFirst({ where: { active: true } });
+  const datev = await resolveDatevProfile(datevProfileId);
 
   if (!datev) {
     return { success: false, messageId: null, errorMessage: "Kein aktives DATEV-Profil gefunden." };
   }
+
+  // Zieladresse ergibt sich aus dem Belegtyp: DATEV bestimmt den Belegtyp
+  // ueber die Empfaengeradresse der Upload Mail.
+  if (!receipt.datevBelegtyp) {
+    return {
+      success: false,
+      messageId: null,
+      errorMessage: "DATEV-Belegtyp fehlt. Bitte am Beleg setzen.",
+    };
+  }
+
+  const resolvedAddress = resolveDatevAddress({
+    belegtyp: receipt.datevBelegtyp,
+    addresses: datev.belegtypAddresses,
+    fallbackAddress: datev.datevAddress,
+  });
+
+  if (!resolvedAddress.ok) {
+    return { success: false, messageId: null, errorMessage: resolvedAddress.error };
+  }
+
+  const toAddress = resolvedAddress.address;
 
   // Load SMTP config
   const smtp = await prisma.smtpConfig.findUnique({ where: { id: "default" } });
@@ -175,7 +209,7 @@ export async function sendReceipt(
 
   // Build email
   const subject = renderTemplate(
-    datev.subjectTemplate ?? "Beleg {date}",
+    datev.subjectTemplate ?? defaultSubjectTemplate(),
     receipt,
     { amountEur: sendAmountEur },
   );
@@ -195,7 +229,7 @@ export async function sendReceipt(
   try {
     const info = await transporter.sendMail({
       from: datev.senderAddress,
-      to: datev.datevAddress,
+      to: toAddress,
       replyTo: smtp.replyToAddress ?? undefined,
       subject,
       text: body,
@@ -208,7 +242,7 @@ export async function sendReceipt(
     await prisma.sendLog.create({
       data: {
         receiptId,
-        toAddress: datev.datevAddress,
+        toAddress,
         success: true,
         messageId,
       },
@@ -231,7 +265,7 @@ export async function sendReceipt(
     await prisma.sendLog.create({
       data: {
         receiptId,
-        toAddress: datev.datevAddress,
+        toAddress,
         success: false,
         errorMessage,
       },
@@ -253,6 +287,28 @@ export async function sendReceipt(
 // ============================================================
 // Helpers
 // ============================================================
+
+/**
+ * Aktives DATEV-Profil inklusive der Upload-Mail-Adressen je Belegtyp.
+ * Ohne explizite ID: Standardprofil, sonst erstes aktives Profil.
+ */
+async function resolveDatevProfile(datevProfileId?: string) {
+  const include = { belegtypAddresses: true } as const;
+
+  if (datevProfileId) {
+    return prisma.datevProfile.findFirst({
+      where: { id: datevProfileId, active: true },
+      include,
+    });
+  }
+
+  return (
+    await prisma.datevProfile.findFirst({
+      where: { active: true, isDefault: true },
+      include,
+    })
+  ) ?? prisma.datevProfile.findFirst({ where: { active: true }, include });
+}
 
 async function loadReceiptForSend(receiptId: string) {
   return prisma.receipt.findUnique({
@@ -285,6 +341,7 @@ function renderTemplate(
   });
 
   return template
+    .replace(/\{belegtyp\}/g, datevBelegtypLabel(receipt.datevBelegtyp) ?? "—")
     .replace(/\{date\}/g, dateStr)
     .replace(/\{supplier\}/g, receipt.supplier ?? "Unbekannt")
     .replace(/\{amount\}/g, amountStr)
@@ -370,6 +427,10 @@ async function buildDatevAttachment(
     content: Buffer.from(pdfBuffer),
     contentType: "application/pdf",
   };
+}
+
+function defaultSubjectTemplate(): string {
+  return "[{belegtyp}] Beleg {date} - {supplier}";
 }
 
 function defaultBodyTemplate(): string {

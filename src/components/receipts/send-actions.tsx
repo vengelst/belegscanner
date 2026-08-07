@@ -3,6 +3,20 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { SendReadiness } from "@/lib/validation";
+import {
+  datevBelegtypLabels,
+  resolveDatevAddress,
+  type DatevBelegtyp,
+  type DatevBelegtypAddressEntry,
+} from "@/lib/datev/belegtyp";
+
+export type SendActionsDatevProfile = {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  datevAddress: string;
+  belegtypAddresses: DatevBelegtypAddressEntry[];
+};
 
 type Props = {
   receiptId: string;
@@ -10,8 +24,9 @@ type Props = {
   reviewStatus: string;
   isAdmin: boolean;
   canSendWithoutApproval?: boolean;
-  datevProfiles: { id: string; name: string; isDefault: boolean }[];
+  datevProfiles: SendActionsDatevProfile[];
   receiptDatevProfileId?: string | null;
+  datevBelegtyp?: DatevBelegtyp | null;
   readiness?: SendReadiness;
 };
 
@@ -27,7 +42,7 @@ const statusColors: Record<SendReadiness["status"], string> = {
   nicht_sendbar: "border-danger/30 bg-danger/5 text-danger",
 };
 
-export function SendActions({ receiptId, sendStatus, reviewStatus, isAdmin, canSendWithoutApproval = false, datevProfiles, receiptDatevProfileId, readiness }: Props) {
+export function SendActions({ receiptId, sendStatus, reviewStatus, isAdmin, canSendWithoutApproval = false, datevProfiles, receiptDatevProfileId, datevBelegtyp, readiness }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
@@ -40,9 +55,21 @@ export function SendActions({ receiptId, sendStatus, reviewStatus, isAdmin, canS
       ?? "",
   );
 
+  const activeProfile = datevProfiles.find((p) => p.id === selectedProfile) ?? null;
+  // Zieladresse haengt am Belegtyp: DATEV steuert den Belegtyp ueber die Empfaengeradresse.
+  const targetAddress = activeProfile
+    ? resolveDatevAddress({
+        belegtyp: datevBelegtyp,
+        addresses: activeProfile.belegtypAddresses,
+        fallbackAddress: activeProfile.datevAddress,
+      })
+    : null;
+
   const canSend = sendStatus === "OPEN" || sendStatus === "READY";
   const canRetry = sendStatus === "FAILED" || sendStatus === "SENT";
-  const isBlocked = readiness?.status === "nicht_sendbar";
+  // Ohne Belegtyp bzw. ohne Upload-Adresse fuer diesen Typ kann nicht gesendet werden.
+  const addressBlocked = targetAddress !== null && !targetAddress.ok;
+  const isBlocked = readiness?.status === "nicht_sendbar" || addressBlocked;
   const needsApproval = !isAdmin && !canSendWithoutApproval && reviewStatus !== "APPROVED";
 
   function handleSend() {
@@ -123,6 +150,29 @@ export function SendActions({ receiptId, sendStatus, reviewStatus, isAdmin, canS
         </div>
       ) : null}
 
+      {/* Belegtyp und daraus abgeleitete DATEV-Zieladresse */}
+      <div className="rounded-2xl border border-border bg-muted/40 p-4 text-sm">
+        <p>
+          <span className="text-muted-foreground">DATEV-Belegtyp: </span>
+          <span className="font-medium">
+            {datevBelegtyp ? datevBelegtypLabels[datevBelegtyp] : "nicht gesetzt"}
+          </span>
+        </p>
+        <p className="mt-1">
+          <span className="text-muted-foreground">Zieladresse: </span>
+          {targetAddress?.ok ? (
+            <span className="font-medium">
+              {targetAddress.address}
+              {targetAddress.source === "fallback" ? " (Standard-Adresse des Profils)" : ""}
+            </span>
+          ) : (
+            <span className="font-medium text-danger">
+              {targetAddress?.error ?? "Kein DATEV-Profil ausgewaehlt."}
+            </span>
+          )}
+        </p>
+      </div>
+
       {/* Profile selector */}
       {datevProfiles.length > 1 ? (
         <label className="grid gap-1 text-sm font-medium">
@@ -148,7 +198,13 @@ export function SendActions({ receiptId, sendStatus, reviewStatus, isAdmin, canS
             type="button"
             onClick={handleSend}
             disabled={isPending || isBlocked || needsApproval}
-            title={isBlocked ? "Bitte fehlende Pflichtfelder ergaenzen" : needsApproval ? "Freigabe erforderlich" : undefined}
+            title={addressBlocked && !targetAddress.ok
+              ? targetAddress.error
+              : isBlocked
+                ? "Bitte fehlende Pflichtfelder ergaenzen"
+                : needsApproval
+                  ? "Freigabe erforderlich"
+                  : undefined}
             className="rounded-2xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isPending ? "Wird gesendet..." : "Jetzt senden"}

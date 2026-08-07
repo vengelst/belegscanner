@@ -178,6 +178,7 @@ export async function POST(request: NextRequest) {
       purposeId: d.purposeId,
       categoryId: d.categoryId,
       datevProfileId: defaultDatev?.id ?? null,
+      datevBelegtyp: d.datevBelegtyp,
       remark: d.remark ?? null,
       aiRawText: d.aiRawText ?? null,
       aiDocumentType: d.aiDocumentType ?? null,

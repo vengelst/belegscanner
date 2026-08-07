@@ -129,4 +129,34 @@ describe("checkSendReadiness", () => {
     expect(result.status).toBe("pruefen");
     expect(result.issues.some((i) => i.field === "amount")).toBe(true);
   });
+
+  it('gibt "nicht_sendbar" zurück ohne DATEV-Belegtyp', () => {
+    const result = checkSendReadiness({
+      ...vollstaendigerBeleg,
+      datevBelegtyp: null,
+    });
+    expect(result.status).toBe("nicht_sendbar");
+    expect(result.issues.some((i) => i.field === "datevBelegtyp" && i.severity === "error")).toBe(true);
+  });
+
+  it('gibt "nicht_sendbar" zurück ohne Upload-Adresse für den Belegtyp', () => {
+    const result = checkSendReadiness({
+      ...vollstaendigerBeleg,
+      datevBelegtyp: "KASSE",
+      hasDatevBelegtypAddress: false,
+    });
+    expect(result.status).toBe("nicht_sendbar");
+    expect(result.issues.some((i) => i.field === "datevAddress" && i.severity === "error")).toBe(true);
+    expect(result.issues.find((i) => i.field === "datevAddress")?.message).toContain("Kasse");
+  });
+
+  it('bleibt "sendbar" mit Belegtyp und passender Upload-Adresse', () => {
+    const result = checkSendReadiness({
+      ...vollstaendigerBeleg,
+      datevBelegtyp: "KASSE",
+      hasDatevBelegtypAddress: true,
+    });
+    expect(result.status).toBe("sendbar");
+    expect(result.issues).toHaveLength(0);
+  });
 });

@@ -6,6 +6,13 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { recalculateAmountsFromLineItemSum, splitGrossByVatRate, sumActiveLineItems } from "@/lib/receipts/form-helpers";
 import { DuplicateWarning } from "@/components/receipts/duplicate-warning";
+import {
+  DATEV_BELEGTYP_VALUES,
+  datevBelegtypHints,
+  datevBelegtypLabels,
+  suggestDatevBelegtyp,
+  type DatevBelegtyp,
+} from "@/lib/datev/belegtyp";
 import { InvoiceLineItemEditor, SimpleLineItemEditor } from "@/components/receipts/line-item-editor";
 import type { StructuredData } from "@/components/receipts/detail/parse-structured-data";
 import { useDuplicateCheck } from "@/hooks/useDuplicateCheck";
@@ -35,6 +42,7 @@ type ReceiptData = {
   vehicleId: string | null;
   purposeId: string;
   categoryId: string;
+  datevBelegtyp: DatevBelegtyp | null;
   remark: string | null;
   hospitality: { occasion: string; guests: string; location: string } | null;
 };
@@ -53,7 +61,20 @@ export function ReceiptEditForm({ receipt, structuredData, hasOriginalFile, purp
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [purposeId, setPurposeId] = useState(receipt.purposeId);
+  const [categoryId, setCategoryId] = useState(receipt.categoryId);
   const [partyRole, setPartyRole] = useState<"CREDITOR" | "DEBTOR">(receipt.partyRole);
+  // Belege ohne gespeicherten Belegtyp (Altbestand) bekommen einen Vorschlag,
+  // der bei Aenderung von Belegrichtung/Kategorie mitwandert.
+  const [datevBelegtyp, setDatevBelegtyp] = useState<DatevBelegtyp>(
+    receipt.datevBelegtyp
+      ?? suggestDatevBelegtyp({
+        partyRole: receipt.partyRole,
+        categoryName: categories.find((category) => category.id === receipt.categoryId)?.name ?? null,
+      }),
+  );
+  const [datevBelegtypManuallyChanged, setDatevBelegtypManuallyChanged] = useState(
+    receipt.datevBelegtyp !== null,
+  );
   const [countryId, setCountryId] = useState(receipt.countryId ?? "");
   const [currency, setCurrency] = useState(receipt.currency);
   const [amount, setAmount] = useState(String(receipt.amount).replace(".", ","));
@@ -96,7 +117,13 @@ export function ReceiptEditForm({ receipt, structuredData, hasOriginalFile, purp
   );
 
   const selectedPurpose = purposes.find((p) => p.id === purposeId);
+  const selectedCategoryName = categories.find((c) => c.id === categoryId)?.name ?? null;
   const isHospitality = selectedPurpose?.isHospitality ?? false;
+
+  useEffect(() => {
+    if (datevBelegtypManuallyChanged) return;
+    setDatevBelegtyp(suggestDatevBelegtyp({ partyRole, categoryName: selectedCategoryName }));
+  }, [partyRole, selectedCategoryName, datevBelegtypManuallyChanged]);
   const requiresExchangeRate = currency.trim().toUpperCase() !== "EUR";
   const normalizedCurrency = currency.trim().toUpperCase() || "EUR";
   const currencyOptions = useMemo(() => buildCurrencyOptions(countries), [countries]);
@@ -333,6 +360,7 @@ export function ReceiptEditForm({ receipt, structuredData, hasOriginalFile, purp
       vehicleId: formData.get("vehicleId") || null,
       purposeId: formData.get("purposeId"),
       categoryId: formData.get("categoryId"),
+      datevBelegtyp: formData.get("datevBelegtyp") || datevBelegtyp,
       remark: formData.get("remark") || null,
     };
 
@@ -556,7 +584,7 @@ export function ReceiptEditForm({ receipt, structuredData, hasOriginalFile, purp
           <SelectField label="Zweck" name="purposeId" required value={purposeId} onChange={setPurposeId}>
             {purposes.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </SelectField>
-          <SelectField label="Kategorie" name="categoryId" required defaultValue={receipt.categoryId}>
+          <SelectField label="Kategorie" name="categoryId" required value={categoryId} onChange={setCategoryId}>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </SelectField>
           <SelectField label="Land" name="countryId" value={countryId} onChange={(value) => {
@@ -571,6 +599,27 @@ export function ReceiptEditForm({ receipt, structuredData, hasOriginalFile, purp
             <option value="">-- optional --</option>
             {vehicles.map((v) => <option key={v.id} value={v.id}>{v.plate}</option>)}
           </SelectField>
+          <div className="grid gap-1">
+            <SelectField
+              label="DATEV-Belegtyp"
+              name="datevBelegtyp"
+              required
+              value={datevBelegtyp}
+              onChange={(value) => {
+                setDatevBelegtypManuallyChanged(true);
+                setDatevBelegtyp(value as DatevBelegtyp);
+              }}
+            >
+              {DATEV_BELEGTYP_VALUES.map((belegtyp) => (
+                <option key={belegtyp} value={belegtyp}>
+                  {datevBelegtypLabels[belegtyp]} ({datevBelegtypHints[belegtyp]})
+                </option>
+              ))}
+            </SelectField>
+            <p className="text-xs text-muted-foreground">
+              Bestimmt, an welche DATEV-Upload-Adresse der Beleg versendet wird.
+            </p>
+          </div>
           <label className="grid gap-1 text-sm font-medium sm:col-span-2">
             <span className="text-xs text-muted-foreground">Bemerkung</span>
             <textarea name="remark" rows={2} maxLength={2000} defaultValue={receipt.remark ?? ""} className="bb-input bb-textarea input-3d rounded-xl px-3 py-2.5 text-sm outline-none transition-all duration-200 focus:ring-2 focus:ring-primary/20" />

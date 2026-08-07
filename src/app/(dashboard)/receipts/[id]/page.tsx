@@ -13,6 +13,7 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { fromReceiptDocumentType, paymentMethodLabels } from "@/lib/ocr-suggestions";
 import { checkSendReadiness } from "@/lib/validation";
+import { datevBelegtypLabel, resolveDatevAddress } from "@/lib/datev/belegtyp";
 import {
   StatusBadge,
   ReceiptCoreData,
@@ -63,11 +64,43 @@ export default async function ReceiptDetailPage({ params }: Props) {
     select: { canSendWithoutApproval: true },
   });
 
-  const datevProfiles = await prisma.datevProfile.findMany({
+  const datevProfilesRaw = await prisma.datevProfile.findMany({
     where: { active: true },
-    select: { id: true, name: true, isDefault: true },
+    select: {
+      id: true,
+      name: true,
+      isDefault: true,
+      datevAddress: true,
+      belegtypAddresses: { select: { belegtyp: true, datevAddress: true } },
+    },
     orderBy: [{ isDefault: "desc" }, { name: "asc" }],
   });
+
+  const datevProfiles = datevProfilesRaw.map((profile) => ({
+    id: profile.id,
+    name: profile.name,
+    isDefault: profile.isDefault,
+    datevAddress: profile.datevAddress,
+    belegtypAddresses: profile.belegtypAddresses.map((a) => ({
+      belegtyp: a.belegtyp,
+      datevAddress: a.datevAddress,
+    })),
+  }));
+
+  // Das Profil, das beim Versand ohne explizite Auswahl greifen wuerde.
+  const effectiveDatevProfile =
+    datevProfiles.find((p) => p.id === receipt.datevProfileId)
+    ?? datevProfiles.find((p) => p.isDefault)
+    ?? datevProfiles[0]
+    ?? null;
+
+  const resolvedDatevAddress = effectiveDatevProfile
+    ? resolveDatevAddress({
+        belegtyp: receipt.datevBelegtyp,
+        addresses: effectiveDatevProfile.belegtypAddresses,
+        fallbackAddress: effectiveDatevProfile.datevAddress,
+      })
+    : null;
 
   const originalFile = receipt.files[0] ?? null;
   const isImage = originalFile?.mimeType.startsWith("image/");
@@ -104,6 +137,9 @@ export default async function ReceiptDetailPage({ params }: Props) {
     hasFile: receipt.files.length > 0,
     hasSmtp: !!smtpConfigured,
     hasDatev: datevProfiles.length > 0,
+    datevBelegtyp: receipt.datevBelegtyp,
+    // Ohne Profil meldet bereits hasDatev den Blocker — dann hier nicht doppelt warnen.
+    hasDatevBelegtypAddress: effectiveDatevProfile ? resolvedDatevAddress?.ok === true : undefined,
   });
 
   return (
@@ -130,6 +166,20 @@ export default async function ReceiptDetailPage({ params }: Props) {
           <p className="text-sm font-medium text-accent-foreground">
             Keine Belegdatei vorhanden. Versand und Einreichung sind ohne Datei nicht moeglich.
             <Link href={`/receipts/${receipt.id}/edit`} className="ml-1 underline">Datei nachreichen</Link>
+          </p>
+        </div>
+      ) : null}
+      {!receipt.datevBelegtyp ? (
+        <div className="rounded-2xl border border-danger/30 bg-danger/5 p-4">
+          <p className="text-sm font-medium text-danger">
+            DATEV-Belegtyp fehlt. Der Belegtyp bestimmt die DATEV-Zieladresse; ohne ihn ist kein Versand moeglich.
+            <Link href={`/receipts/${receipt.id}/edit`} className="ml-1 underline">Jetzt setzen</Link>
+          </p>
+        </div>
+      ) : resolvedDatevAddress && !resolvedDatevAddress.ok ? (
+        <div className="rounded-2xl border border-danger/30 bg-danger/5 p-4">
+          <p className="text-sm font-medium text-danger">
+            {resolvedDatevAddress.error} Bitte unter Admin &rarr; DATEV-Profile die Upload-Mail-Adresse eintragen.
           </p>
         </div>
       ) : null}
@@ -219,6 +269,7 @@ export default async function ReceiptDetailPage({ params }: Props) {
             canSendWithoutApproval={Boolean(currentUser?.canSendWithoutApproval)}
             datevProfiles={datevProfiles}
             receiptDatevProfileId={receipt.datevProfileId}
+            datevBelegtyp={receipt.datevBelegtyp}
             readiness={readiness}
           />
         </div>
@@ -268,6 +319,7 @@ export default async function ReceiptDetailPage({ params }: Props) {
         categoryName={receipt.category.name}
         countryDisplay={receipt.country ? `${receipt.country.name}${receipt.country.code ? ` (${receipt.country.code})` : ""}` : "—"}
         vehiclePlate={receipt.vehicle ? receipt.vehicle.plate : null}
+        datevBelegtypLabel={datevBelegtypLabel(receipt.datevBelegtyp)}
         detectedPaymentMethod={detectedPaymentMethod}
         detectedCardLastDigits={detectedCardLastDigits}
         remark={receipt.remark}

@@ -27,6 +27,7 @@ import {
   type Vehicle,
   type UserDefaults,
 } from "@/lib/receipts/form-helpers";
+import { suggestDatevBelegtyp, type DatevBelegtyp } from "@/lib/datev/belegtyp";
 import { ReceiptFormFileSection } from "@/components/receipts/receipt-form-file-section";
 import { ReceiptFormDataSection } from "@/components/receipts/receipt-form-data-section";
 import { ReceiptFormAssignmentSection } from "@/components/receipts/receipt-form-assignment-section";
@@ -97,6 +98,8 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
   const [occasion, setOccasion] = useState("");
   const [guests, setGuests] = useState("");
   const [hospitalityLocation, setHospitalityLocation] = useState("");
+  const [datevBelegtyp, setDatevBelegtyp] = useState<DatevBelegtyp>("RECHNUNGSEINGANG");
+  const [datevBelegtypManuallyChanged, setDatevBelegtypManuallyChanged] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lineItemNotice, setLineItemNotice] = useState<string | null>(null);
   const [manualOverrides, setManualOverrides] = useState<Record<OcrFieldKey, boolean>>(EMPTY_MANUAL_OVERRIDES);
@@ -115,6 +118,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
   } = useSelectionPrefill(userDefaults, validIds);
 
   const selectedPurpose = purposes.find((purpose) => purpose.id === purposeId);
+  const selectedCategoryName = categories.find((category) => category.id === categoryId)?.name ?? null;
   const isHospitality = selectedPurpose?.isHospitality ?? false;
   const requiresExchangeRate = currency.trim().toUpperCase() !== "EUR";
   const normalizedCurrency = currency.trim().toUpperCase() || "EUR";
@@ -204,6 +208,15 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     setCameraSupported(secure && !!navigator.mediaDevices?.getUserMedia);
   }, []);
 
+  /**
+   * DATEV-Belegtyp aus Belegrichtung und Kategorie vorbelegen. Sobald der Nutzer
+   * den Typ selbst gewaehlt hat, wird der Vorschlag nicht mehr angewendet.
+   */
+  useEffect(() => {
+    if (datevBelegtypManuallyChanged) return;
+    setDatevBelegtyp(suggestDatevBelegtyp({ partyRole, categoryName: selectedCategoryName }));
+  }, [partyRole, selectedCategoryName, datevBelegtypManuallyChanged]);
+
   function markManualOverride(field: OcrFieldKey) {
     setManualOverrides((current) => (current[field] ? current : { ...current, [field]: true }));
   }
@@ -246,6 +259,8 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     setGuests("");
     setHospitalityLocation("");
     setHospitalityLocationManual(false);
+    setDatevBelegtyp("RECHNUNGSEINGANG");
+    setDatevBelegtypManuallyChanged(false);
     setManualOverrides(EMPTY_MANUAL_OVERRIDES);
     setError(null);
     setLineItemNotice(null);
@@ -595,6 +610,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
       vehicleId: formData.get("vehicleId") || null,
       purposeId: formData.get("purposeId"),
       categoryId: formData.get("categoryId"),
+      datevBelegtyp: formData.get("datevBelegtyp") || datevBelegtyp,
       remark: formData.get("remark") || null,
       aiRawText: ocrResult?.rawText ?? null,
       aiDocumentType: toReceiptDocumentType(ocrResult?.extracted.documentType),
@@ -714,12 +730,17 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
           categoryId={categoryId}
           countryId={countryId}
           vehicleId={vehicleId}
+          datevBelegtyp={datevBelegtyp}
           prefillSource={prefillSource}
           setPurposeId={setPurposeId}
           setCategoryId={setCategoryId}
           setCountryId={changeCountry}
           setCountryManuallyChanged={setCountryManuallyChanged}
           setVehicleId={setVehicleId}
+          setDatevBelegtyp={(value) => {
+            setDatevBelegtypManuallyChanged(true);
+            setDatevBelegtyp(value);
+          }}
         />
 
         {isHospitality ? (

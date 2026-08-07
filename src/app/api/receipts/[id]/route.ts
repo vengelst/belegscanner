@@ -99,6 +99,7 @@ export async function PUT(
   if (input.vehicleId !== undefined) data.vehicleId = input.vehicleId ?? null;
   if (input.purposeId !== undefined) data.purposeId = input.purposeId;
   if (input.categoryId !== undefined) data.categoryId = input.categoryId;
+  if (input.datevBelegtyp !== undefined) data.datevBelegtyp = input.datevBelegtyp;
   if (input.remark !== undefined) data.remark = input.remark ?? null;
   if (input.aiRawText !== undefined) data.aiRawText = input.aiRawText ?? null;
   if (input.aiDocumentType !== undefined) data.aiDocumentType = input.aiDocumentType ?? null;

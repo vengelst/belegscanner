@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { OCR_CONFIDENCE_LEVELS, OCR_DOCUMENT_TYPES, OCR_FIELD_REVIEW_STATUSES, OCR_PAYMENT_METHODS, RECEIPT_DOCUMENT_TYPE_VALUES } from "@/lib/ocr-suggestions";
+import { DATEV_BELEGTYP_VALUES, datevBelegtypLabels } from "@/lib/datev/belegtyp";
 
 export const loginSchema = z.object({
   email: z.string().email("Bitte eine gültige E-Mail-Adresse eingeben."),
@@ -172,6 +173,34 @@ export const smtpConfigSchema = z.object({
 // DATEV profile schema
 // ============================================================
 
+export const datevBelegtypSchema = z.enum(DATEV_BELEGTYP_VALUES);
+
+/**
+ * Upload-Mail-Adressen je Belegtyp. Leere Adressen bedeuten "nicht konfiguriert"
+ * und werden vom Client gar nicht erst gesendet.
+ */
+export const datevBelegtypAddressSchema = z.object({
+  belegtyp: datevBelegtypSchema,
+  datevAddress: z.string().email("Gueltige DATEV-Upload-Adresse erforderlich."),
+});
+
+const datevBelegtypAddressesSchema = z
+  .array(datevBelegtypAddressSchema)
+  .max(DATEV_BELEGTYP_VALUES.length)
+  .superRefine((entries, ctx) => {
+    const seen = new Set<string>();
+    for (const entry of entries) {
+      if (seen.has(entry.belegtyp)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Fuer Belegtyp "${datevBelegtypLabels[entry.belegtyp]}" wurde mehr als eine Adresse uebergeben.`,
+        });
+        return;
+      }
+      seen.add(entry.belegtyp);
+    }
+  });
+
 export const datevProfileSchema = z.object({
   name: z.string().min(1, "Profilname ist erforderlich.").max(100),
   datevAddress: z.string().email("Gueltige DATEV-Adresse erforderlich."),
@@ -180,6 +209,7 @@ export const datevProfileSchema = z.object({
   bodyTemplate: z.string().max(5000).nullable().optional(),
   isDefault: z.boolean().optional(),
   active: z.boolean().optional(),
+  belegtypAddresses: datevBelegtypAddressesSchema.optional(),
 });
 
 // ============================================================
@@ -368,6 +398,11 @@ const receiptSchemaBase = z.object({
   vehicleId: z.string().min(1).nullable().optional(),
   purposeId: z.string().min(1),
   categoryId: z.string().min(1),
+  // Pflichtfeld: DATEV steuert den Belegtyp ueber die Upload-Mail-Zieladresse.
+  datevBelegtyp: z.enum(DATEV_BELEGTYP_VALUES, {
+    required_error: "DATEV-Belegtyp ist erforderlich.",
+    invalid_type_error: "DATEV-Belegtyp ist erforderlich.",
+  }),
   remark: z.string().max(2000).nullable().optional(),
   aiRawText: z.string().nullable().optional(),
   aiDocumentType: receiptDocumentTypeSchema.nullable().optional(),
@@ -460,6 +495,10 @@ export function checkSendReadiness(receipt: {
   hasFile?: boolean;
   hasSmtp?: boolean;
   hasDatev?: boolean;
+  /** DATEV-Belegtyp des Belegs; ohne ihn ist kein Versand moeglich. */
+  datevBelegtyp?: string | null;
+  /** Upload-Mail-Adresse fuer diesen Belegtyp im gewaehlten Profil vorhanden? */
+  hasDatevBelegtypAddress?: boolean;
 }): SendReadiness {
   const issues: SendReadiness["issues"] = [];
 
@@ -473,6 +512,22 @@ export function checkSendReadiness(receipt: {
   }
   if (receipt.hasDatev === false) {
     issues.push({ field: "datev", message: "Kein aktives DATEV-Profil vorhanden.", severity: "error" });
+  }
+  // Der Belegtyp bestimmt die DATEV-Zieladresse. Ohne Typ bzw. ohne passende
+  // Upload-Mail-Adresse kann die Mail nicht korrekt zugestellt werden.
+  if (receipt.datevBelegtyp === null || receipt.datevBelegtyp === "") {
+    issues.push({
+      field: "datevBelegtyp",
+      message: "DATEV-Belegtyp fehlt. Bitte am Beleg setzen.",
+      severity: "error",
+    });
+  } else if (receipt.datevBelegtyp && receipt.hasDatevBelegtypAddress === false) {
+    const label = datevBelegtypLabels[receipt.datevBelegtyp as keyof typeof datevBelegtypLabels] ?? receipt.datevBelegtyp;
+    issues.push({
+      field: "datevAddress",
+      message: `Keine DATEV-Upload-Adresse fuer Belegtyp "${label}" konfiguriert.`,
+      severity: "error",
+    });
   }
 
   // --- Hinweis: Fremdwaehrung ohne gespeicherten Kurs ---

@@ -41,7 +41,31 @@ export async function PUT(
     });
   }
 
-  const profile = await prisma.datevProfile.update({ where: { id }, data: parsed.data });
+  // Belegtyp-Adressen werden als komplette Liste gesetzt: nicht uebergebene
+  // Belegtypen gelten als "nicht konfiguriert" und werden entfernt.
+  const { belegtypAddresses, ...profileData } = parsed.data;
+
+  const profile = await prisma.$transaction(async (tx) => {
+    if (belegtypAddresses) {
+      await tx.datevBelegtypAddress.deleteMany({ where: { profileId: id } });
+      if (belegtypAddresses.length > 0) {
+        await tx.datevBelegtypAddress.createMany({
+          data: belegtypAddresses.map((entry) => ({
+            profileId: id,
+            belegtyp: entry.belegtyp,
+            datevAddress: entry.datevAddress,
+          })),
+        });
+      }
+    }
+
+    return tx.datevProfile.update({
+      where: { id },
+      data: profileData,
+      include: { belegtypAddresses: { orderBy: { belegtyp: "asc" } } },
+    });
+  });
+
   return NextResponse.json(profile);
 }
 

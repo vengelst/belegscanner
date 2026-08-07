@@ -62,8 +62,8 @@ export async function POST(
     // No body is fine — use default profile
   }
 
-  // Validate
-  const validationErrors = await validateForSend(id);
+  // Validate (inkl. Upload-Mail-Adresse fuer den Belegtyp im gewaehlten Profil)
+  const validationErrors = await validateForSend(id, datevProfileId);
   if (validationErrors.length > 0) {
     return NextResponse.json(
       { error: "Versandvoraussetzungen nicht erfuellt.", details: validationErrors },

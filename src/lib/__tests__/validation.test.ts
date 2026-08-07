@@ -61,6 +61,7 @@ describe("receiptSchema", () => {
     currency: "EUR",
     purposeId: "purpose-1",
     categoryId: "category-1",
+    datevBelegtyp: "RECHNUNGSEINGANG",
   };
 
   it("akzeptiert ein vollständig gültiges Objekt", () => {
@@ -169,6 +170,30 @@ describe("receiptSchema", () => {
     const { date: _, ...withoutDate } = validReceipt;
     const result = receiptSchema.safeParse(withoutDate);
     expect(result.success).toBe(false);
+  });
+
+  it("scheitert wenn datevBelegtyp fehlt", () => {
+    const { datevBelegtyp: _, ...withoutBelegtyp } = validReceipt;
+    const result = receiptSchema.safeParse(withoutBelegtyp);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((i) => i.path[0] === "datevBelegtyp")).toBe(true);
+    }
+  });
+
+  it("scheitert bei unbekanntem datevBelegtyp", () => {
+    const result = receiptSchema.safeParse({
+      ...validReceipt,
+      datevBelegtyp: "LOHN",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("akzeptiert alle DATEV-Belegtypen", () => {
+    for (const belegtyp of ["RECHNUNGSEINGANG", "RECHNUNGSAUSGANG", "KASSE", "KREDITKARTENBELEGE", "SONSTIGE", "REISEKOSTEN"]) {
+      const result = receiptSchema.safeParse({ ...validReceipt, datevBelegtyp: belegtyp });
+      expect(result.success).toBe(true);
+    }
   });
 });
 

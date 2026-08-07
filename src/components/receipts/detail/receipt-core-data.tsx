@@ -20,6 +20,7 @@ type ReceiptCoreDataProps = {
   categoryName: string;
   countryDisplay: string;
   vehiclePlate: string | null;
+  datevBelegtypLabel: string | null;
   detectedPaymentMethod: string | null;
   detectedCardLastDigits: string | null;
   remark: string | null;
@@ -43,6 +44,7 @@ export function ReceiptCoreData({
   categoryName,
   countryDisplay,
   vehiclePlate,
+  datevBelegtypLabel,
   detectedPaymentMethod,
   detectedCardLastDigits,
   remark,
@@ -85,6 +87,7 @@ export function ReceiptCoreData({
         <Field label="Kategorie" value={categoryName} />
         <Field label="Land" value={countryDisplay} />
         <Field label="Kfz" value={vehiclePlate ?? "—"} />
+        <Field label="DATEV-Belegtyp" value={datevBelegtypLabel ?? "— (fehlt, Versand nicht moeglich)"} />
         {detectedPaymentMethod ? <Field label="Zahlungsart" value={detectedPaymentMethod} /> : null}
         {detectedCardLastDigits ? <Field label="Kartenendziffern" value={detectedCardLastDigits} /> : null}
         {remark ? (

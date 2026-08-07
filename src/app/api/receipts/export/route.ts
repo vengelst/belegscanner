@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth/require-auth";
 import { Prisma } from "@prisma/client";
 import { getReviewStatusLabel } from "@/lib/receipts/review-status";
+import { datevBelegtypLabel } from "@/lib/datev/belegtyp";
 
 export async function GET(request: NextRequest) {
   const { error } = await requireAdmin();
@@ -69,8 +70,8 @@ export async function GET(request: NextRequest) {
   const SEP = ";";
   const headers = [
     "Datum", "Lieferant", "Betrag", "Waehrung", "EUR-Betrag", "Wechselkurs",
-    "Zweck", "Kategorie", "Land", "Kfz", "Benutzer", "Pruefstatus", "Versandstatus",
-    "Bemerkung", "Erstellt",
+    "Zweck", "Kategorie", "Land", "Kfz", "DATEV-Belegtyp", "Benutzer", "Pruefstatus",
+    "Versandstatus", "Bemerkung", "Erstellt",
   ];
 
   const formatDate = (d: Date) => {
@@ -93,6 +94,7 @@ export async function GET(request: NextRequest) {
     esc(r.category.name),
     esc(r.country?.name ?? ""),
     esc(r.vehicle?.plate ?? ""),
+    esc(datevBelegtypLabel(r.datevBelegtyp) ?? ""),
     esc(r.user.name),
     esc(getReviewStatusLabel(r.reviewStatus)),
     r.sendStatus,

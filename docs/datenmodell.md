@@ -28,6 +28,15 @@ Systemdaten:      User, SmtpConfig, DatevProfile, AuditLog
 - ORIGINAL: Hochgeladene Originaldatei
 - PRINT_PDF: Generierte Druckdatei
 
+### DatevBelegtyp
+Steuert die DATEV-Upload-Mail-Zieladresse (Anzeigename in DATEV in Klammern):
+- RECHNUNGSEINGANG (Rechnungseingang)
+- RECHNUNGSAUSGANG (Rechnungsausgang)
+- KASSE (Kasse)
+- KREDITKARTENBELEGE (Kreditkartenbelege)
+- SONSTIGE (Sonstige)
+- REISEKOSTEN (DATEV Reisekosten-Belege)
+
 ## Relationen
 
 - Ein User hat viele Receipt
@@ -60,7 +69,8 @@ Systemdaten:      User, SmtpConfig, DatevProfile, AuditLog
 ## Bewegungsdaten
 
 ### Receipt
-Pflichtfelder: userId, date, amount, currency, amountEur, purposeId, categoryId
+Pflichtfelder: userId, date, amount, currency, amountEur, purposeId, categoryId,
+datevBelegtyp (bei Neuerfassung Pflicht; Altbestand nullable, aber ohne Wert kein Versand)
 Optionale Felder: supplier, countryId, vehicleId, exchangeRate, exchangeRateDate, remark, ocrRawText
 Systemfelder: sendStatus (Default OPEN), sendStatusUpdatedAt
 Relationen: User, Country, Vehicle, Purpose, Category, Hospitality (1:1), ReceiptFile (1:N), SendLog (1:N)
@@ -88,9 +98,16 @@ host, port, secure, username, passwordEncrypted (AES-256-GCM)
 fromAddress, replyToAddress (optional)
 
 ### DatevProfile
-name (eindeutig), datevAddress, senderAddress
+name (eindeutig), datevAddress (Standard/Fallback fuer Rechnungseingang), senderAddress
 subjectTemplate, bodyTemplate (optional)
 isDefault, active
+Relation: DatevBelegtypAddress (1:N)
+
+### DatevBelegtypAddress
+profileId, belegtyp (DatevBelegtyp), datevAddress
+Eindeutig je (profileId, belegtyp), Cascade-Delete mit DatevProfile
+Upload-Mail-Adresse aus DATEV Unternehmen online je Belegtyp; bestimmt beim Versand die
+Zieladresse (siehe docs/datev-workflow.md).
 
 ### AuditLog
 userId, action, entity, entityId, details (JSON)

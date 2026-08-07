@@ -3,6 +3,12 @@
 import { Card } from "@/components/ui/card";
 import { SelectField } from "@/components/ui/select-field";
 import type { Purpose, Category, Country, Vehicle, PrefillSource } from "@/lib/receipts/form-helpers";
+import {
+  DATEV_BELEGTYP_VALUES,
+  datevBelegtypHints,
+  datevBelegtypLabels,
+  type DatevBelegtyp,
+} from "@/lib/datev/belegtyp";
 
 type Props = {
   purposes: Purpose[];
@@ -13,12 +19,14 @@ type Props = {
   categoryId: string;
   countryId: string;
   vehicleId: string;
+  datevBelegtyp: DatevBelegtyp;
   prefillSource: PrefillSource;
   setPurposeId: (v: string) => void;
   setCategoryId: (v: string) => void;
   setCountryId: (v: string) => void;
   setCountryManuallyChanged: (v: boolean) => void;
   setVehicleId: (v: string) => void;
+  setDatevBelegtyp: (v: DatevBelegtyp) => void;
 };
 
 export function ReceiptFormAssignmentSection({
@@ -30,12 +38,14 @@ export function ReceiptFormAssignmentSection({
   categoryId,
   countryId,
   vehicleId,
+  datevBelegtyp,
   prefillSource,
   setPurposeId,
   setCategoryId,
   setCountryId,
   setCountryManuallyChanged,
   setVehicleId,
+  setDatevBelegtyp,
 }: Props) {
   return (
     <Card>
@@ -78,6 +88,24 @@ export function ReceiptFormAssignmentSection({
             <option key={vehicle.id} value={vehicle.id}>{vehicle.plate}{vehicle.description ? ` - ${vehicle.description}` : ""}</option>
           ))}
         </SelectField>
+        <div className="grid gap-1">
+          <SelectField
+            label="DATEV-Belegtyp"
+            name="datevBelegtyp"
+            required
+            value={datevBelegtyp}
+            onChange={(value) => setDatevBelegtyp(value as DatevBelegtyp)}
+          >
+            {DATEV_BELEGTYP_VALUES.map((belegtyp) => (
+              <option key={belegtyp} value={belegtyp}>
+                {datevBelegtypLabels[belegtyp]} ({datevBelegtypHints[belegtyp]})
+              </option>
+            ))}
+          </SelectField>
+          <p className="text-xs text-muted-foreground">
+            Bestimmt, an welche DATEV-Upload-Adresse der Beleg versendet wird.
+          </p>
+        </div>
         <label className="grid gap-1 text-sm font-medium sm:col-span-2 lg:col-span-2">
           <span className="text-xs text-muted-foreground">Bemerkung</span>
           <textarea

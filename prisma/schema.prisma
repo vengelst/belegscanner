@@ -51,6 +51,17 @@ enum PartyRole {
   DEBTOR
 }
 
+// DATEV-Belegtyp. Steuert beim Upload-Mail-Versand die Zieladresse:
+// DATEV bestimmt den Belegtyp ueber die Empfaengeradresse, nicht ueber den Inhalt.
+enum DatevBelegtyp {
+  RECHNUNGSEINGANG
+  RECHNUNGSAUSGANG
+  KASSE
+  KREDITKARTENBELEGE
+  SONSTIGE
+  REISEKOSTEN
+}
+
 // ============================================================
 // Stammdaten
 // ============================================================
@@ -198,6 +209,9 @@ model Receipt {
   datevProfileId      String?
   datevProfile        DatevProfile? @relation(fields: [datevProfileId], references: [id])
 
+  // DATEV-Belegtyp (Pflicht vor Versand; bestimmt die Upload-Mail-Zieladresse)
+  datevBelegtyp       DatevBelegtyp?
+
   // Versandstatus (technisch: SMTP-Ergebnis)
   sendStatus          SendStatus @default(OPEN)
   sendStatusUpdatedAt DateTime?
@@ -234,6 +248,7 @@ model Receipt {
   @@index([categoryId])
   @@index([countryId])
   @@index([datevProfileId])
+  @@index([datevBelegtyp])
   @@index([aiDocumentType], map: "Receipt_detectedDocumentType_idx")
   @@index([createdAt])
   @@index([invoiceNumber])
@@ -305,19 +320,35 @@ model SmtpConfig {
 
 // DATEV-Versandprofil
 model DatevProfile {
-  id              String    @id @default(cuid())
-  name            String    @unique
-  datevAddress    String
-  senderAddress   String
-  subjectTemplate String?
-  bodyTemplate    String?   @db.Text
-  isDefault       Boolean   @default(false)
-  active          Boolean   @default(true)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  receipts        Receipt[]
+  id                String    @id @default(cuid())
+  name              String    @unique
+  // Standard-/Fallback-Adresse (entspricht fachlich dem Belegtyp Rechnungseingang)
+  datevAddress      String
+  senderAddress     String
+  subjectTemplate   String?
+  bodyTemplate      String?   @db.Text
+  isDefault         Boolean   @default(false)
+  active            Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  receipts          Receipt[]
+  belegtypAddresses DatevBelegtypAddress[]
 
   @@index([active, isDefault])
+}
+
+// DATEV-Upload-Mail-Adresse je Belegtyp (aus DATEV Unternehmen online uebernommen)
+model DatevBelegtypAddress {
+  id           String        @id @default(cuid())
+  profileId    String
+  profile      DatevProfile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  belegtyp     DatevBelegtyp
+  datevAddress String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@unique([profileId, belegtyp])
+  @@index([profileId])
 }
 
 // Versandprotokoll

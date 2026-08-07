@@ -67,6 +67,7 @@ export default async function EditReceiptPage({ params }: Props) {
           vehicleId: receipt.vehicleId,
           purposeId: receipt.purposeId,
           categoryId: receipt.categoryId,
+          datevBelegtyp: receipt.datevBelegtyp,
           remark: receipt.remark,
           hospitality: receipt.hospitality ? {
             occasion: receipt.hospitality.occasion,

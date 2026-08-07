@@ -1,7 +1,7 @@
 # BelegBox - DATEV- und Buchhaltungs-Workflow
 
-Stand: 2026-08-04
-Version: 1.3.0
+Stand: 2026-08-07
+Version: 1.4.0
 
 ---
 
@@ -68,8 +68,80 @@ Details:
 - **ADMIN**: jederzeit senden (Override); das User-Recht ist fuer Admins irrelevant
 - Das Recht setzt nur der Admin (Benutzerverwaltung); Default ist aus
 - Der Pruef-/Freigabe-Workflow bleibt bestehen und sichtbar
-- Versand-Validierung prueft zusaetzlich: Datei, SMTP, DATEV-Profil, Pflichtfelder
+- Versand-Validierung prueft zusaetzlich: Datei, SMTP, DATEV-Profil, DATEV-Belegtyp,
+  Upload-Mail-Adresse fuer diesen Belegtyp, Pflichtfelder
 - Server-Gate in `POST /api/receipts/[id]/send` ist massgeblich (Flag wird aus der DB gelesen)
+
+## Belegtyp / Upload Mail
+
+**DATEV steuert den Belegtyp ueber die Empfaengeradresse.** Bei DATEV Upload Mail
+(Unternehmen online → Belege → Einstellungen → Upload Mail) legt man pro Belegtyp eine
+eigene Zieladresse an („Belegtyp hinzufuegen“). Eine Mail an die Adresse fuer
+„Rechnungseingang“ landet im Rechnungseingang, eine an die Adresse fuer „Kasse“ in der Kasse.
+Der Mail-Inhalt spielt fuer die Zuordnung keine Rolle.
+
+Deshalb gilt in BelegBox:
+
+- Jeder Beleg hat einen **Pflicht-Belegtyp** (`Receipt.datevBelegtyp`). Es gibt kein
+  „ohne Belegtyp“ und keinen Lohn-Belegtyp.
+- Jedes DATEV-Profil hat **pro genutztem Belegtyp eine eigene Upload-Mail-Adresse**
+  (`DatevBelegtypAddress`).
+- Der Versand geht an die Adresse des jeweiligen Belegtyps.
+
+### Mapping Enum ↔ DATEV-Anzeigename
+
+| Enum-Wert (intern) | Anzeigename in DATEV |
+|---|---|
+| `RECHNUNGSEINGANG` | Rechnungseingang |
+| `RECHNUNGSAUSGANG` | Rechnungsausgang |
+| `KASSE` | Kasse |
+| `KREDITKARTENBELEGE` | Kreditkartenbelege |
+| `SONSTIGE` | Sonstige |
+| `REISEKOSTEN` | DATEV Reisekosten-Belege |
+
+### Vorbelegung bei Erfassung und Bearbeitung
+
+Der Belegtyp wird im Formular („Zuordnung“) vorgeschlagen und ist jederzeit
+ueberschreibbar. Sobald der Nutzer den Typ selbst gewaehlt hat, bleibt seine Wahl stehen.
+
+| Bedingung | Vorschlag |
+|---|---|
+| `partyRole = DEBTOR` | Rechnungsausgang |
+| Kategorie enthaelt „Kasse“ | Kasse |
+| Kategorie enthaelt „Kreditkarte“ | Kreditkartenbelege |
+| Kategorie enthaelt „Reise“ | DATEV Reisekosten-Belege |
+| sonst | Rechnungseingang |
+
+### Adressauflösung beim Versand
+
+1. Adresse des Belegtyps aus den Belegtyp-Adressen des Profils
+2. Nur fuer `RECHNUNGSEINGANG`: Fallback auf `DatevProfile.datevAddress`
+   (Kompatibilitaet mit bestehenden Installationen)
+3. Sonst Fehler: „Keine DATEV-Upload-Adresse fuer Belegtyp X konfiguriert.“ — der
+   Versand wird blockiert.
+
+Die tatsaechlich genutzte Adresse steht im `SendLog.toAddress` und in der Versandhistorie.
+
+### Aufgabe des Admins
+
+Unter **Admin → DATEV-Profile** je Belegtyp die aus DATEV Unternehmen online kopierte
+Upload-Mail-Adresse eintragen. Leeres Feld = Belegtyp nicht konfiguriert; Belege dieses
+Typs koennen dann nicht versendet werden (Ausnahme: Rechnungseingang faellt auf die
+Standard-Adresse zurueck).
+
+### Bestandsbelege
+
+Die Migration `20260807100000_add_datev_belegtyp` setzt den Belegtyp fuer vorhandene
+Belege nach obiger Heuristik und uebernimmt die bisherige `datevAddress` als
+Upload-Mail fuer Rechnungseingang.
+
+Wird das Schema per `prisma db push` statt `prisma migrate deploy` synchronisiert
+(Standard von `scripts/release.ps1`), laeuft dieser Backfill **nicht** mit. Dann einmalig
+ausfuehren:
+
+```bash
+npm run prisma:backfill:belegtyp
+```
 
 ## DATEV-Profil-Zuordnung
 
@@ -77,6 +149,7 @@ Details:
 - Wenn kein Profil am Beleg: Default-Profil wird beim Versand verwendet
 - Profil-Auswahl beim Versand via DATEV-Profil-Dropdown
 - Admin verwaltet Profile unter Admin → DATEV-Profile
+- Der Belegtyp bestimmt innerhalb des gewaehlten Profils die Zieladresse
 
 ## Interne Kommentare
 
@@ -91,6 +164,7 @@ DATEV-Profile unterstuetzen Betreff- und Body-Templates mit Platzhaltern:
 
 | Platzhalter | Wert |
 |---|---|
+| `{belegtyp}` | DATEV-Belegtyp (Anzeigename, z. B. „Kasse“) |
 | `{date}` | Belegdatum (DD.MM.YYYY) |
 | `{supplier}` | Lieferant/Haendler |
 | `{amount}` | Originalbetrag |
@@ -104,6 +178,9 @@ DATEV-Profile unterstuetzen Betreff- und Body-Templates mit Platzhaltern:
 | `{remark}` | Bemerkung |
 
 Fehlende Werte werden durch Fallbacks ersetzt (z.B. "Unbekannt", "—").
+
+Default-Betreff ohne eigenes Template: `[{belegtyp}] Beleg {date} - {supplier}`.
+Bestehende Templates bleiben unveraendert; `{belegtyp}` kann bei Bedarf ergaenzt werden.
 
 ## Rollenmatrix
 
