@@ -98,7 +98,7 @@ export function ReceiptForm({ purposes, countries, vehicles, userDefaults, compa
   const [occasion, setOccasion] = useState("");
   const [guests, setGuests] = useState("");
   const [hospitalityLocation, setHospitalityLocation] = useState("");
-  const [datevBelegtyp, setDatevBelegtyp] = useState<DatevBelegtyp>("SONSTIGE");
+  const [datevBelegtyp, setDatevBelegtyp] = useState<DatevBelegtyp>("RECHNUNGSEINGANG");
   const [datevBelegtypManuallyChanged, setDatevBelegtypManuallyChanged] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lineItemNotice, setLineItemNotice] = useState<string | null>(null);
@@ -275,7 +275,7 @@ export function ReceiptForm({ purposes, countries, vehicles, userDefaults, compa
     setGuests("");
     setHospitalityLocation("");
     setHospitalityLocationManual(false);
-    setDatevBelegtyp("SONSTIGE");
+    setDatevBelegtyp("RECHNUNGSEINGANG");
     setDatevBelegtypManuallyChanged(false);
     setManualOverrides(EMPTY_MANUAL_OVERRIDES);
     setError(null);
