@@ -53,14 +53,22 @@ export function useOcrPrefill({
   useEffect(() => {
     if (!ocrResult) return;
     const extracted = ocrResult.extracted;
+    const hasExcludedLineItem = Boolean(
+      ocrResult.special.invoice?.lineItems.some((item) => item.excluded)
+      || ocrResult.special.hospitality?.lineItems.some((item) => item.excluded)
+      || ocrResult.special.lodging?.lineItems.some((item) => item.excluded),
+    );
 
     if (extracted.date && !manualOverrides.date) setters.setDate(extracted.date);
     if (!manualOverrides.dueDate) setters.setDueDate(extracted.dueDate ?? "");
     if (!manualOverrides.serviceDate) setters.setServiceDate(extracted.serviceDate ?? "");
     if (extracted.invoiceNumber && !manualOverrides.invoiceNumber) setters.setInvoiceNumber(extracted.invoiceNumber);
-    if (extracted.amount !== null && !manualOverrides.amount) setters.setAmount(String(extracted.amount).replace(".", ","));
-    if (extracted.netAmount !== null && !manualOverrides.netAmount) setters.setNetAmount(String(extracted.netAmount).replace(".", ","));
-    if (extracted.taxAmount !== null && !manualOverrides.taxAmount) setters.setTaxAmount(String(extracted.taxAmount).replace(".", ","));
+    // Nach Positionsausschluss keine OCR-Betraege mehr zurueckschreiben.
+    if (!hasExcludedLineItem) {
+      if (extracted.amount !== null && !manualOverrides.amount) setters.setAmount(String(extracted.amount).replace(".", ","));
+      if (extracted.netAmount !== null && !manualOverrides.netAmount) setters.setNetAmount(String(extracted.netAmount).replace(".", ","));
+      if (extracted.taxAmount !== null && !manualOverrides.taxAmount) setters.setTaxAmount(String(extracted.taxAmount).replace(".", ","));
+    }
     if (extracted.currency && !manualOverrides.currency) setters.setCurrency(extracted.currency);
     if (extracted.supplier && !manualOverrides.supplier) setters.setSupplier(extracted.supplier);
     if (

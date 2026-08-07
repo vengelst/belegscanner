@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ReceiptFilterBar } from "@/components/receipts/receipt-filter-bar";
+import { NewReceiptLink } from "@/components/receipts/new-receipt-link";
 import { getReviewStatusBadgeClass, getReviewStatusLabel } from "@/lib/receipts/review-status";
 
 // ============================================================
@@ -367,9 +368,9 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
               Filter zuruecksetzen
             </Button>
           ) : (
-            <Link href="/receipts/new" className="inline-flex items-center justify-center rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90">
+            <NewReceiptLink className="inline-flex items-center justify-center rounded-2xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90">
               Neuen Beleg anlegen
-            </Link>
+            </NewReceiptLink>
           )}
         </Card>
       ) : (

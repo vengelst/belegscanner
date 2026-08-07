@@ -13,10 +13,10 @@ import { useSelectionPrefill } from "@/hooks/useSelectionPrefill";
 import { buildFieldReviewStates, buildStructuredData, hasDetectedOcrValues, type OcrFieldKey } from "@/lib/receipts/field-review-states";
 import {
   buildCurrencyOptions,
-  deriveNetAndTax,
   formatLocalizedNumber,
   getApiErrorMessage,
   parseLocalizedNumber,
+  recalculateAmountsFromLineItemSum,
   splitGrossByVatRate,
   sumActiveLineItems,
   type CaptureSource,
@@ -254,14 +254,18 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
   }
 
   /**
-   * Uebernimmt einen aus den aktiven Positionen berechneten Bruttobetrag und
-   * leitet Netto/Steuer nach der bestehenden MwSt-Logik neu ab.
+   * Uebernimmt die Summe der aktiven Positionen und setzt Betrag, Netto und MwSt
+   * anhand der Beleg-Summen (OCR) bzw. des Laender-Steuersatzes neu.
    */
-  function applyGrossFromLineItems(summary: { activeCount: number; totalCount: number; activeSum: number | null }) {
+  function applyGrossFromLineItems(
+    summary: { activeCount: number; totalCount: number; activeSum: number | null },
+    allItemsSum: number | null,
+  ) {
     if (summary.activeCount === 0) {
       setAmount(formatAmountInput(0));
       setNetAmount(formatAmountInput(0));
       setTaxAmount(formatAmountInput(0));
+      setVatRatePercent(null);
       setManualOverrides((current) => ({ ...current, amount: true, grossAmount: true, netAmount: true, taxAmount: true }));
       setLineItemNotice("Alle Positionen sind deaktiviert. Betrag, Netto und Steuer stehen auf 0,00 - der Beleg kann so nicht gespeichert werden.");
       return;
@@ -272,29 +276,29 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
       return;
     }
 
-    const gross = summary.activeSum;
     const selectedCountry = countries.find((country) => country.id === countryId);
-    const derived = deriveNetAndTax({
-      gross,
-      vatRatePercent: selectedCountry?.vatRatePercent ?? null,
+    const extracted = ocrResult?.extracted;
+    const recalc = recalculateAmountsFromLineItemSum({
+      activeSum: summary.activeSum,
+      allItemsSum,
       reverseCharge,
+      countryVatRatePercent: selectedCountry?.vatRatePercent ?? null,
+      receipt: {
+        gross: extracted?.grossAmount ?? extracted?.amount ?? null,
+        net: extracted?.netAmount ?? null,
+        tax: extracted?.taxAmount ?? null,
+      },
     });
 
-    setAmount(formatAmountInput(gross));
-    if (derived) {
-      setNetAmount(formatAmountInput(derived.net));
-      setTaxAmount(formatAmountInput(derived.tax));
-      setVatRatePercent(reverseCharge ? null : selectedCountry?.vatRatePercent ?? null);
-    } else {
-      setNetAmount("");
-      setTaxAmount("");
-      setVatRatePercent(null);
-    }
+    setAmount(formatAmountInput(recalc.amount));
+    setNetAmount(formatAmountInput(recalc.net));
+    setTaxAmount(formatAmountInput(recalc.tax));
+    setVatRatePercent(reverseCharge ? null : recalc.vatRatePercent);
     setManualOverrides((current) => ({ ...current, amount: true, grossAmount: true, netAmount: true, taxAmount: true }));
+
+    const basisHint = recalc.lineItemsAreNet ? "Positionen als Netto erkannt" : "MwSt aus Beleg/Land";
     setLineItemNotice(
-      derived
-        ? `Rechnungsbetrag aus ${summary.activeCount} von ${summary.totalCount} Positionen neu berechnet.`
-        : `Rechnungsbetrag aus ${summary.activeCount} von ${summary.totalCount} Positionen neu berechnet. Netto und Steuer bitte nach Auswahl des Landes pruefen.`,
+      `Betrag, Netto und Steuer aus ${summary.activeCount} von ${summary.totalCount} Positionen neu berechnet (${basisHint}).`,
     );
   }
 
@@ -307,7 +311,12 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     ));
 
     setOcrResult({ ...ocrResult, special: { ...ocrResult.special, invoice: { ...invoice, lineItems } } });
-    applyGrossFromLineItems(sumActiveLineItems(lineItems, (item) => item.totalPrice));
+    const active = sumActiveLineItems(lineItems, (item) => item.totalPrice);
+    const all = sumActiveLineItems(
+      lineItems.map((item) => ({ ...item, excluded: false })),
+      (item) => item.totalPrice,
+    );
+    applyGrossFromLineItems(active, all.activeSum);
   }
 
   function toggleHospitalityLineItem(index: number) {
@@ -319,7 +328,12 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     ));
 
     setOcrResult({ ...ocrResult, special: { ...ocrResult.special, hospitality: { ...hospitality, lineItems } } });
-    applyGrossFromLineItems(sumActiveLineItems(lineItems, (item) => item.amount));
+    const active = sumActiveLineItems(lineItems, (item) => item.amount);
+    const all = sumActiveLineItems(
+      lineItems.map((item) => ({ ...item, excluded: false })),
+      (item) => item.amount,
+    );
+    applyGrossFromLineItems(active, all.activeSum);
   }
 
   function toggleLodgingLineItem(index: number) {
@@ -331,7 +345,12 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     ));
 
     setOcrResult({ ...ocrResult, special: { ...ocrResult.special, lodging: { ...lodging, lineItems } } });
-    applyGrossFromLineItems(sumActiveLineItems(lineItems, (item) => item.amount));
+    const active = sumActiveLineItems(lineItems, (item) => item.amount);
+    const all = sumActiveLineItems(
+      lineItems.map((item) => ({ ...item, excluded: false })),
+      (item) => item.amount,
+    );
+    applyGrossFromLineItems(active, all.activeSum);
   }
 
   useOcrPrefill({

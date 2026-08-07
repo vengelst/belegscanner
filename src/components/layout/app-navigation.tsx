@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, type MouseEvent } from "react";
 import { cn } from "@/lib/utils";
 import {
   adminNav,
@@ -69,9 +70,23 @@ function NavLink({
   userRole: "ADMIN" | "USER";
   isModern: boolean;
 }) {
+  const router = useRouter();
+  const isNewReceipt = item.href === "/receipts/new";
+
+  function handleClick(event: MouseEvent<HTMLAnchorElement>) {
+    if (!isNewReceipt) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    // Timestamp erzwingt Remount des Formulars (kein State vom vorherigen Beleg).
+    router.push(`/receipts/new?t=${Date.now()}`);
+  }
+
   return (
     <Link
       href={item.href}
+      onClick={handleClick}
       aria-label={item.label}
       title={item.label}
       className={cn(

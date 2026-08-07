@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { deriveNetAndTax, splitGrossByVatRate, sumActiveLineItems } from "@/lib/receipts/form-helpers";
+import { recalculateAmountsFromLineItemSum, splitGrossByVatRate, sumActiveLineItems } from "@/lib/receipts/form-helpers";
 import { DuplicateWarning } from "@/components/receipts/duplicate-warning";
 import { InvoiceLineItemEditor, SimpleLineItemEditor } from "@/components/receipts/line-item-editor";
 import type { StructuredData } from "@/components/receipts/detail/parse-structured-data";
@@ -185,14 +185,18 @@ export function ReceiptEditForm({ receipt, structuredData, hasOriginalFile, purp
     if (!taxManuallyOverridden) setTaxAmount(formatAmountInput(tax));
   }, [amount, countryId, countries, reverseCharge, netManuallyOverridden, taxManuallyOverridden]);
 
-  /** Uebernimmt den aus den aktiven Positionen berechneten Bruttobetrag inkl. Netto/Steuer. */
-  function applyGrossFromLineItems(summary: { activeCount: number; totalCount: number; activeSum: number | null }) {
+  /** Uebernimmt die Summe der aktiven Positionen inkl. Netto/MwSt aus Beleg oder Land. */
+  function applyGrossFromLineItems(
+    summary: { activeCount: number; totalCount: number; activeSum: number | null },
+    allItemsSum: number | null,
+  ) {
     setLineItemsDirty(true);
 
     if (summary.activeCount === 0) {
       setAmount(formatAmountInput(0));
       setNetAmount(formatAmountInput(0));
       setTaxAmount(formatAmountInput(0));
+      setVatRatePercent(null);
       setNetManuallyOverridden(true);
       setTaxManuallyOverridden(true);
       setLineItemNotice("Alle Positionen sind deaktiviert. Betrag, Netto und Steuer stehen auf 0,00 - der Beleg kann so nicht gespeichert werden.");
@@ -204,30 +208,39 @@ export function ReceiptEditForm({ receipt, structuredData, hasOriginalFile, purp
       return;
     }
 
-    const gross = summary.activeSum;
     const selectedCountry = countries.find((country) => country.id === countryId);
-    const derived = deriveNetAndTax({
-      gross,
-      vatRatePercent: selectedCountry?.vatRatePercent ?? null,
+    const receiptRate = receipt.vatRatePercent
+      ?? (
+        receipt.netAmount != null && receipt.netAmount > 0 && receipt.taxAmount != null
+          ? Math.round((receipt.taxAmount / receipt.netAmount) * 10000) / 100
+          : null
+      );
+    const recalc = recalculateAmountsFromLineItemSum({
+      activeSum: summary.activeSum,
+      allItemsSum,
       reverseCharge,
+      countryVatRatePercent: receiptRate ?? selectedCountry?.vatRatePercent ?? null,
+      receipt: {
+        // Volle Positionssumme als Beleg-Brutto-Proxy, Netto/Steuer aus gespeichertem Satz.
+        gross: allItemsSum,
+        net: receiptRate != null && allItemsSum != null
+          ? Math.round((allItemsSum / (1 + receiptRate / 100)) * 100) / 100
+          : null,
+        tax: receiptRate != null && allItemsSum != null
+          ? Math.round((allItemsSum - allItemsSum / (1 + receiptRate / 100)) * 100) / 100
+          : null,
+      },
     });
 
-    setAmount(formatAmountInput(gross));
-    if (derived) {
-      setNetAmount(formatAmountInput(derived.net));
-      setTaxAmount(formatAmountInput(derived.tax));
-      setVatRatePercent(reverseCharge ? null : selectedCountry?.vatRatePercent ?? null);
-    } else {
-      setNetAmount("");
-      setTaxAmount("");
-      setVatRatePercent(null);
-    }
+    setAmount(formatAmountInput(recalc.amount));
+    setNetAmount(formatAmountInput(recalc.net));
+    setTaxAmount(formatAmountInput(recalc.tax));
+    setVatRatePercent(reverseCharge ? null : recalc.vatRatePercent);
     setNetManuallyOverridden(true);
     setTaxManuallyOverridden(true);
+    const basisHint = recalc.lineItemsAreNet ? "Positionen als Netto erkannt" : "MwSt aus Beleg/Land";
     setLineItemNotice(
-      derived
-        ? `Rechnungsbetrag aus ${summary.activeCount} von ${summary.totalCount} Positionen neu berechnet.`
-        : `Rechnungsbetrag aus ${summary.activeCount} von ${summary.totalCount} Positionen neu berechnet. Netto und Steuer bitte pruefen.`,
+      `Betrag, Netto und Steuer aus ${summary.activeCount} von ${summary.totalCount} Positionen neu berechnet (${basisHint}).`,
     );
   }
 
@@ -240,7 +253,12 @@ export function ReceiptEditForm({ receipt, structuredData, hasOriginalFile, purp
     ));
 
     setLineItemData({ ...lineItemData, special: { ...lineItemData.special, invoice: { ...invoice, lineItems } } });
-    applyGrossFromLineItems(sumActiveLineItems(lineItems, (item) => item.totalPrice));
+    const active = sumActiveLineItems(lineItems, (item) => item.totalPrice);
+    const all = sumActiveLineItems(
+      lineItems.map((item) => ({ ...item, excluded: false })),
+      (item) => item.totalPrice,
+    );
+    applyGrossFromLineItems(active, all.activeSum);
   }
 
   function toggleHospitalityLineItem(index: number) {
@@ -252,7 +270,12 @@ export function ReceiptEditForm({ receipt, structuredData, hasOriginalFile, purp
     ));
 
     setLineItemData({ ...lineItemData, special: { ...lineItemData.special, hospitality: { ...hospitality, lineItems } } });
-    applyGrossFromLineItems(sumActiveLineItems(lineItems, (item) => item.amount));
+    const active = sumActiveLineItems(lineItems, (item) => item.amount);
+    const all = sumActiveLineItems(
+      lineItems.map((item) => ({ ...item, excluded: false })),
+      (item) => item.amount,
+    );
+    applyGrossFromLineItems(active, all.activeSum);
   }
 
   function toggleLodgingLineItem(index: number) {
@@ -264,7 +287,12 @@ export function ReceiptEditForm({ receipt, structuredData, hasOriginalFile, purp
     ));
 
     setLineItemData({ ...lineItemData, special: { ...lineItemData.special, lodging: { ...lodging, lineItems } } });
-    applyGrossFromLineItems(sumActiveLineItems(lineItems, (item) => item.amount));
+    const active = sumActiveLineItems(lineItems, (item) => item.amount);
+    const all = sumActiveLineItems(
+      lineItems.map((item) => ({ ...item, excluded: false })),
+      (item) => item.amount,
+    );
+    applyGrossFromLineItems(active, all.activeSum);
   }
 
   function handleSubmit(formData: FormData) {

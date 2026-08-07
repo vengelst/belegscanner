@@ -119,6 +119,175 @@ export function deriveNetAndTax({
   return splitGrossByVatRate(gross, vatRatePercent);
 }
 
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function nearlyEqual(a: number, b: number, tolerance = 0.05): boolean {
+  if (a === 0 && b === 0) return true;
+  const base = Math.max(Math.abs(a), Math.abs(b), 0.01);
+  return Math.abs(a - b) / base <= tolerance;
+}
+
+export type ReceiptAmountBasis = {
+  gross: number | null;
+  net: number | null;
+  tax: number | null;
+};
+
+export type LineItemAmountRecalc = {
+  /** Anzuzeigender Rechnungsbetrag (Brutto). */
+  amount: number;
+  net: number;
+  tax: number;
+  vatRatePercent: number | null;
+  /** true, wenn die Positionssumme als Netto interpretiert wurde. */
+  lineItemsAreNet: boolean;
+  source: "reverse_charge" | "receipt_scale" | "receipt_rate" | "country_rate" | "fallback_net_eq_gross";
+};
+
+/**
+ * Berechnet Brutto/Netto/MwSt neu, wenn Positionen (de)aktiviert werden.
+ *
+ * Prioritaet:
+ * 1. Reverse Charge
+ * 2. Anteile aus den Beleg-Summen (OCR-Brutto/Netto/Steuer) – behaelt die MwSt des Belegs
+ * 3. Steuersatz aus dem Beleg (Steuer/Netto), sonst Laender-Satz
+ * 4. Fallback: Netto = Summe, Steuer = 0 (nur wenn gar kein Satz bekannt)
+ *
+ * Erkennt ausserdem, ob Positionssummen eher dem Netto oder dem Brutto des Belegs entsprechen.
+ */
+export function recalculateAmountsFromLineItemSum({
+  activeSum,
+  allItemsSum,
+  reverseCharge,
+  countryVatRatePercent,
+  receipt,
+}: {
+  activeSum: number;
+  /** Summe aller Positionen (inkl. ausgeschlossener), zur Erkennung Netto vs. Brutto. */
+  allItemsSum: number | null;
+  reverseCharge: boolean;
+  countryVatRatePercent: number | null;
+  receipt: ReceiptAmountBasis;
+}): LineItemAmountRecalc {
+  const receiptGross = receipt.gross;
+  const receiptNet = receipt.net;
+  const receiptTax = receipt.tax;
+
+  const lineItemsAreNet = Boolean(
+    allItemsSum != null
+    && receiptNet != null
+    && receiptNet > 0
+    && nearlyEqual(allItemsSum, receiptNet)
+    && (receiptGross == null || !nearlyEqual(allItemsSum, receiptGross)),
+  );
+
+  if (reverseCharge) {
+    if (lineItemsAreNet) {
+      return {
+        amount: activeSum,
+        net: activeSum,
+        tax: 0,
+        vatRatePercent: null,
+        lineItemsAreNet: true,
+        source: "reverse_charge",
+      };
+    }
+    return {
+      amount: activeSum,
+      net: activeSum,
+      tax: 0,
+      vatRatePercent: null,
+      lineItemsAreNet: false,
+      source: "reverse_charge",
+    };
+  }
+
+  let vatRatePercent: number | null = null;
+  if (receiptNet != null && receiptNet > 0 && receiptTax != null && receiptTax >= 0) {
+    vatRatePercent = roundMoney((receiptTax / receiptNet) * 100);
+  } else if (receiptGross != null && receiptNet != null && receiptNet > 0 && receiptGross > receiptNet) {
+    vatRatePercent = roundMoney(((receiptGross - receiptNet) / receiptNet) * 100);
+  } else if (countryVatRatePercent != null && countryVatRatePercent >= 0) {
+    vatRatePercent = countryVatRatePercent;
+  }
+
+  // Beleg-Summen proportional skalieren (bevorzugt – exakte MwSt-Anteile des Belegs)
+  if (
+    !lineItemsAreNet
+    && receiptGross != null
+    && receiptGross > 0
+    && receiptNet != null
+    && receiptTax != null
+  ) {
+    const ratio = activeSum / receiptGross;
+    const net = roundMoney(receiptNet * ratio);
+    const tax = roundMoney(activeSum - net);
+    return {
+      amount: activeSum,
+      net,
+      tax,
+      vatRatePercent,
+      lineItemsAreNet: false,
+      source: "receipt_scale",
+    };
+  }
+
+  if (lineItemsAreNet && vatRatePercent != null) {
+    const rate = vatRatePercent / 100;
+    const net = activeSum;
+    const amount = roundMoney(net * (1 + rate));
+    const tax = roundMoney(amount - net);
+    return {
+      amount,
+      net,
+      tax,
+      vatRatePercent,
+      lineItemsAreNet: true,
+      source: vatRatePercent === countryVatRatePercent ? "country_rate" : "receipt_rate",
+    };
+  }
+
+  if (lineItemsAreNet && receiptGross != null && receiptNet != null && receiptNet > 0 && receiptTax != null) {
+    const ratio = activeSum / receiptNet;
+    const net = activeSum;
+    const tax = roundMoney(receiptTax * ratio);
+    const amount = roundMoney(net + tax);
+    return {
+      amount,
+      net,
+      tax,
+      vatRatePercent,
+      lineItemsAreNet: true,
+      source: "receipt_scale",
+    };
+  }
+
+  if (vatRatePercent != null) {
+    const { net, tax } = splitGrossByVatRate(activeSum, vatRatePercent);
+    return {
+      amount: activeSum,
+      net,
+      tax,
+      vatRatePercent,
+      lineItemsAreNet: false,
+      source: countryVatRatePercent != null && vatRatePercent === countryVatRatePercent
+        ? "country_rate"
+        : "receipt_rate",
+    };
+  }
+
+  return {
+    amount: activeSum,
+    net: activeSum,
+    tax: 0,
+    vatRatePercent: null,
+    lineItemsAreNet,
+    source: "fallback_net_eq_gross",
+  };
+}
+
 export function parseLocalizedNumber(value: string): number | null {
   const normalized = value.trim().replace(",", ".");
   if (!normalized) return null;

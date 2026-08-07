@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   resolveSelectionState,
   type PrefillSource,
@@ -13,20 +13,29 @@ import {
  * Standardwerte aus den Einstellungen - nie der zuletzt erfasste Beleg.
  */
 export function useSelectionPrefill(userDefaults: UserDefaults, validIds: ValidIds) {
-  const [initial] = useState(() => resolveSelectionState({ userDefaults, validIds }));
-  const [purposeId, setPurposeId] = useState(initial.selection.purposeId);
-  const [categoryId, setCategoryId] = useState(initial.selection.categoryId);
-  const [countryId, setCountryId] = useState(initial.selection.countryId);
-  const [vehicleId, setVehicleId] = useState(initial.selection.vehicleId);
-  const [prefillSource, setPrefillSource] = useState<PrefillSource>(initial.source);
+  const resolved = useMemo(
+    () => resolveSelectionState({ userDefaults, validIds }),
+    [userDefaults, validIds],
+  );
+
+  const [purposeId, setPurposeId] = useState(resolved.selection.purposeId);
+  const [categoryId, setCategoryId] = useState(resolved.selection.categoryId);
+  const [countryId, setCountryId] = useState(resolved.selection.countryId);
+  const [vehicleId, setVehicleId] = useState(resolved.selection.vehicleId);
+  const [prefillSource, setPrefillSource] = useState<PrefillSource>(resolved.source);
+
+  const applyResolvedDefaults = useCallback(() => {
+    const next = resolveSelectionState({ userDefaults, validIds });
+    setPurposeId(next.selection.purposeId);
+    setCategoryId(next.selection.categoryId);
+    setCountryId(next.selection.countryId);
+    setVehicleId(next.selection.vehicleId);
+    setPrefillSource(next.source);
+  }, [userDefaults, validIds]);
 
   const resetSelection = useCallback(() => {
-    setPurposeId(initial.selection.purposeId);
-    setCategoryId(initial.selection.categoryId);
-    setCountryId(initial.selection.countryId);
-    setVehicleId(initial.selection.vehicleId);
-    setPrefillSource(initial.source);
-  }, [initial]);
+    applyResolvedDefaults();
+  }, [applyResolvedDefaults]);
 
   return {
     purposeId,

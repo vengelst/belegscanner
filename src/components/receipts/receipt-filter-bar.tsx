@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { REVIEW_STATUS_OPTIONS } from "@/lib/receipts/review-status";
+import { NewReceiptLink } from "@/components/receipts/new-receipt-link";
 
 type Filters = {
   search: string;
@@ -132,12 +133,11 @@ export function ReceiptFilterBar({
               Export
             </a>
           ) : null}
-          <a
-            href="/receipts/new"
+          <NewReceiptLink
             className="rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
           >
             Neuer Beleg
-          </a>
+          </NewReceiptLink>
         </div>
         {footerContent ? <div className="flex flex-wrap items-center gap-2">{footerContent}</div> : null}
       </div>
