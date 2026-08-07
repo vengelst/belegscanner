@@ -22,15 +22,14 @@ type Props = {
 
 type CameraState = "camera" | "crop" | "review";
 
-const ANALYZE_INTERVAL_MS = 250;
-const AUTO_CAPTURE_HOLD_MS = 400;
-const AUTO_CAPTURE_COOLDOWN_MS = 2200;
+const ANALYZE_INTERVAL_MS = 200;
+const AUTO_CAPTURE_HOLD_MS = 350;
+const AUTO_CAPTURE_COOLDOWN_MS = 2000;
 /**
- * Solange ein Frame nur knapp an den Schwellwerten scheitert, laeuft der
- * Auto-Capture-Timer weiter. Ohne diese Toleranz hat ein einzelner Wackler den
- * Countdown staendig zurueckgesetzt und der Auto-Scan loeste praktisch nie aus.
+ * Nach Start des Countdowns duerfen einzelne schlechte Frames den Timer nicht
+ * sofort killen. Erst wenn laenger kein Beleg mehr erkannt wird, Reset.
  */
-const AUTO_CAPTURE_GRACE_MS = 600;
+const AUTO_CAPTURE_MISS_GRACE_MS = 900;
 const ANALYSIS_WIDTH = 400;
 
 export function CameraCapture({ open, onClose, onCapture }: Props) {
@@ -39,9 +38,15 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
   const fallbackInputRef = useRef<HTMLInputElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const readySinceRef = useRef<number | null>(null);
-  const lastEligibleAtRef = useRef<number>(0);
+  const lastSeenDocumentAtRef = useRef<number>(0);
   const cooldownUntilRef = useRef<number>(0);
   const latestDetectionRef = useRef<DocumentDetectionResult | null>(null);
+  const cameraStateRef = useRef<CameraState>("camera");
+  const capturingRef = useRef(false);
+  const analyzeLoopRef = useRef<() => void>(() => undefined);
+  const handleCaptureRef = useRef<(trigger: "manual" | "auto", detectionSnapshot?: DocumentDetectionResult | null) => Promise<void>>(
+    async () => undefined,
+  );
 
   const [state, setState] = useState<CameraState>("camera");
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +57,8 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
   const [detection, setDetection] = useState<DocumentDetectionResult | null>(null);
   /** Restzeit bis zum automatischen Ausloesen in ms, null wenn kein Countdown laeuft. */
   const [autoCaptureCountdownMs, setAutoCaptureCountdownMs] = useState<number | null>(null);
+
+  cameraStateRef.current = state;
 
   useEffect(() => {
     if (!open) {
@@ -65,6 +72,7 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
     setError(null);
     setDetection(null);
     resetAutoCaptureState();
+    capturingRef.current = false;
     void startCamera();
 
     return () => {
@@ -76,7 +84,7 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
     if (!open || state !== "camera") return;
 
     const interval = window.setInterval(() => {
-      analyzeCurrentFrame();
+      analyzeLoopRef.current();
     }, ANALYZE_INTERVAL_MS);
 
     return () => {
@@ -96,8 +104,6 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
     if (!detection?.bounds || !video || video.videoWidth === 0 || video.clientWidth === 0) {
       return null;
     }
-    // Der Rahmen liegt absolut ueber dem Video-Element, also wird auch gegen
-    // dessen Box gerechnet - nicht gegen den aeusseren Container.
     return mapBoundsToVideoBox(
       detection.bounds,
       video.videoWidth,
@@ -153,7 +159,7 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
 
   function resetAutoCaptureState() {
     readySinceRef.current = null;
-    lastEligibleAtRef.current = 0;
+    lastSeenDocumentAtRef.current = 0;
     latestDetectionRef.current = null;
     setAutoCaptureCountdownMs(null);
   }
@@ -166,11 +172,11 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
     setCapturedPreviewUrl(null);
   }
 
-  function analyzeCurrentFrame() {
+  analyzeLoopRef.current = () => {
+    if (capturingRef.current || cameraStateRef.current !== "camera") return;
+
     const video = videoRef.current;
-    if (!video || video.videoWidth === 0 || video.videoHeight === 0 || state !== "camera") {
-      return;
-    }
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) return;
 
     const canvas = analysisCanvasRef.current ?? document.createElement("canvas");
     analysisCanvasRef.current = canvas;
@@ -187,19 +193,15 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
     setDetection(result);
 
     const now = Date.now();
-    const eligible = result.autoCaptureEligible && !error;
-    // Hysterese: ein knapp verfehlter Frame haelt den Countdown, solange die
-    // Grace-Zeit seit dem letzten wirklich guten Frame nicht abgelaufen ist.
-    const withinGrace =
-      !eligible
-      && result.nearReady
-      && readySinceRef.current !== null
-      && now - lastEligibleAtRef.current <= AUTO_CAPTURE_GRACE_MS;
+    const documentSeen = Boolean(result.bounds) && result.autoCaptureEligible;
 
-    if (eligible) {
-      lastEligibleAtRef.current = now;
+    if (documentSeen) {
+      lastSeenDocumentAtRef.current = now;
       if (!readySinceRef.current) readySinceRef.current = now;
-    } else if (!withinGrace) {
+    } else if (
+      readySinceRef.current !== null
+      && now - lastSeenDocumentAtRef.current > AUTO_CAPTURE_MISS_GRACE_MS
+    ) {
       readySinceRef.current = null;
     }
 
@@ -213,43 +215,60 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
       cooldownUntilRef.current = now + AUTO_CAPTURE_COOLDOWN_MS;
       readySinceRef.current = null;
       setAutoCaptureCountdownMs(null);
-      void handleCapture("auto", result);
+      void handleCaptureRef.current("auto", result);
       return;
     }
 
     setAutoCaptureCountdownMs(Math.max(0, AUTO_CAPTURE_HOLD_MS - heldMs));
-  }
+  };
 
-  async function handleCapture(trigger: "manual" | "auto", detectionSnapshot?: DocumentDetectionResult | null) {
+  handleCaptureRef.current = async (
+    trigger: "manual" | "auto",
+    detectionSnapshot?: DocumentDetectionResult | null,
+  ) => {
+    if (capturingRef.current || cameraStateRef.current !== "camera") return;
+    capturingRef.current = true;
+
     const video = videoRef.current;
     if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
+      capturingRef.current = false;
       setError("Kamerabild ist noch nicht bereit. Bitte kurz warten.");
       return;
     }
 
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const context = canvas.getContext("2d");
-    if (!context) {
-      setError("Kamerabild konnte nicht uebernommen werden.");
-      return;
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        setError("Kamerabild konnte nicht uebernommen werden.");
+        capturingRef.current = false;
+        return;
+      }
+
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const blob = await canvasToBlob(canvas);
+      const file = new File([blob], `camera-${Date.now()}.jpg`, {
+        type: "image/jpeg",
+        lastModified: Date.now(),
+      });
+
+      resetCapture();
+      setCapturedFile(file);
+      setCapturedPreviewUrl(URL.createObjectURL(blob));
+      setCaptureTrigger(trigger);
+      setDetection(detectionSnapshot ?? latestDetectionRef.current);
+      setState("crop");
+      stopCamera();
+    } catch {
+      setError("Aufnahme fehlgeschlagen. Bitte erneut versuchen.");
+      capturingRef.current = false;
     }
+  };
 
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const blob = await canvasToBlob(canvas);
-    const file = new File([blob], `camera-${Date.now()}.jpg`, {
-      type: "image/jpeg",
-      lastModified: Date.now(),
-    });
-
-    resetCapture();
-    setCapturedFile(file);
-    setCapturedPreviewUrl(URL.createObjectURL(blob));
-    setCaptureTrigger(trigger);
-    setDetection(detectionSnapshot ?? latestDetectionRef.current);
-    setState("crop");
-    stopCamera();
+  async function handleCapture(trigger: "manual" | "auto", detectionSnapshot?: DocumentDetectionResult | null) {
+    await handleCaptureRef.current(trigger, detectionSnapshot);
   }
 
   function handleRetake() {
@@ -257,6 +276,7 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
     setDetection(null);
     setState("camera");
     resetAutoCaptureState();
+    capturingRef.current = false;
     void startCamera();
   }
 
@@ -303,6 +323,7 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
     setError(null);
     setDetection(null);
     resetAutoCaptureState();
+    capturingRef.current = false;
     onClose();
   }
 
@@ -354,13 +375,27 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
           </button>
         </div>
 
-        <div className="flex flex-1 flex-col justify-between gap-4 p-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
           {state === "camera" ? (
-            <div className="flex-1 overflow-hidden rounded-[2rem] border border-border bg-black/90">
-              <div className="relative h-full min-h-[18rem]">
+            <div className="relative min-h-0 flex-1 overflow-hidden rounded-[2rem] border border-border bg-black/90">
+              <div
+                className="relative h-full min-h-[18rem] cursor-pointer"
+                role="button"
+                tabIndex={0}
+                aria-label="Tippen zum Aufnehmen"
+                onClick={() => {
+                  if (!isStarting && !error) void handleCapture("manual");
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    if (!isStarting && !error) void handleCapture("manual");
+                  }
+                }}
+              >
                 <video
                   ref={videoRef}
-                  className="h-full w-full object-cover"
+                  className="pointer-events-none h-full w-full object-cover"
                   playsInline
                   muted
                   autoPlay
@@ -375,25 +410,60 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
                     style={overlayStyle}
                   />
                 ) : (
-                  <div className="pointer-events-none absolute inset-x-6 top-6 bottom-24 rounded-[1.75rem] border-2 border-white/60 shadow-[0_0_0_9999px_rgba(0,0,0,0.24)]" />
+                  <div className="pointer-events-none absolute inset-x-6 top-6 bottom-28 rounded-[1.75rem] border-2 border-white/60 shadow-[0_0_0_9999px_rgba(0,0,0,0.24)]" />
                 )}
                 {autoCaptureCountdownMs !== null ? (
-                  <div className="pointer-events-none absolute inset-x-4 top-4 rounded-full bg-primary/90 px-4 py-2 text-center text-sm font-semibold text-primary-foreground">
-                    Aufnahme in {(autoCaptureCountdownMs / 1000).toFixed(1)}s - bitte stillhalten
+                  <div className="pointer-events-none absolute inset-x-4 top-4 z-30 rounded-full bg-primary px-4 py-2 text-center text-sm font-semibold text-primary-foreground shadow-lg">
+                    Auto-Aufnahme in {(autoCaptureCountdownMs / 1000).toFixed(1)}s
                   </div>
                 ) : null}
-                <div className="absolute inset-x-4 bottom-4 space-y-2">
-                  <StatusBadge detection={detection} />
+                <div className="pointer-events-none absolute inset-x-4 bottom-24 z-20 space-y-2">
+                  <StatusBadge detection={detection} countdownActive={autoCaptureCountdownMs !== null} />
                   <p className="rounded-full bg-black/60 px-4 py-2 text-center text-xs font-medium text-white">
-                    {detection?.hint ?? "Beleg ins Sichtfeld bringen oder manuell ausloesen"}
+                    {detection?.hint ?? "Beleg ins Bild bringen · Tippen oder Ausloeser unten"}
                   </p>
                 </div>
+              </div>
+
+              <div className="absolute inset-x-0 bottom-0 z-30 flex items-center justify-center gap-4 bg-gradient-to-t from-black/80 to-transparent px-4 pb-5 pt-10">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    openFallbackPicker();
+                  }}
+                  className="rounded-full border border-white/30 bg-black/50 px-4 py-3 text-xs font-semibold text-white"
+                >
+                  Galerie
+                </button>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (!isStarting && !error) void handleCapture("manual");
+                  }}
+                  disabled={isStarting || !!error}
+                  aria-label="Foto aufnehmen"
+                  className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-white bg-primary shadow-lg transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span className="h-12 w-12 rounded-full bg-white/95" />
+                </button>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleClose();
+                  }}
+                  className="rounded-full border border-white/30 bg-black/50 px-4 py-3 text-xs font-semibold text-white"
+                >
+                  Abbruch
+                </button>
               </div>
             </div>
           ) : null}
 
           {state === "crop" && capturedPreviewUrl ? (
-            <div className="flex flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 flex-col">
               <CropEditor
                 imageUrl={capturedPreviewUrl}
                 initialBounds={detection?.bounds ?? null}
@@ -405,68 +475,50 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
           ) : null}
 
           {state === "review" && capturedPreviewUrl ? (
-            <div className="flex-1 overflow-hidden rounded-[2rem] border border-border bg-black/90">
+            <div className="min-h-0 flex-1 overflow-hidden rounded-[2rem] border border-border bg-black/90">
               <img src={capturedPreviewUrl} alt="Aufgenommener Beleg" className="h-full w-full object-contain" />
             </div>
           ) : null}
 
-          <div className={`space-y-3 ${state === "crop" ? "hidden" : ""}`}>
-            {error ? <p className="text-sm font-medium text-danger">{error}</p> : null}
-            {!error && state === "camera" ? (
-              <p className="text-sm text-muted-foreground">
-                Auto-Capture loest aus, sobald ein Beleg erkannt ist und das Bild kurz stabil bleibt. Manuelles Ausloesen und die native Handy-Kamera bleiben immer moeglich.
-              </p>
-            ) : null}
+          {error ? <p className="text-sm font-medium text-danger">{error}</p> : null}
 
+          {state === "camera" && !error ? (
+            <p className="text-center text-xs text-muted-foreground">
+              Tippen auf das Bild oder den Ausloeser nimmt sofort auf. Auto-Aufnahme startet, sobald der Beleg erkannt ist.
+            </p>
+          ) : null}
+
+          {state === "review" ? (
             <div className="flex flex-wrap gap-3">
-              {state === "camera" ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void handleCapture("manual");
-                    }}
-                    disabled={isStarting || !!error}
-                    className="flex-1 rounded-2xl bg-primary px-6 py-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isStarting ? "Kamera startet..." : detection?.autoCaptureEligible ? "Manuell jetzt aufnehmen" : "Foto aufnehmen"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={openFallbackPicker}
-                    className="bb-chip-button rounded-2xl px-6 py-4 text-sm"
-                  >
-                    Handy-Kamera / Bild waehlen
-                  </button>
-                </>
-              ) : null}
-              {state === "review" ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleRetake}
-                    className="bb-chip-button rounded-2xl px-6 py-4 text-sm"
-                  >
-                    Neu aufnehmen
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleAccept}
-                    className="flex-1 rounded-2xl bg-primary px-6 py-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
-                  >
-                    Bild uebernehmen
-                  </button>
-                </>
-              ) : null}
+              <button
+                type="button"
+                onClick={handleRetake}
+                className="bb-chip-button rounded-2xl px-6 py-4 text-sm"
+              >
+                Neu aufnehmen
+              </button>
+              <button
+                type="button"
+                onClick={handleAccept}
+                className="flex-1 rounded-2xl bg-primary px-6 py-4 text-sm font-semibold text-primary-foreground transition hover:opacity-90"
+              >
+                Bild uebernehmen
+              </button>
             </div>
-          </div>
+          ) : null}
         </div>
       </div>
     </div>
   );
 }
 
-function StatusBadge({ detection }: { detection: DocumentDetectionResult | null }) {
+function StatusBadge({
+  detection,
+  countdownActive,
+}: {
+  detection: DocumentDetectionResult | null;
+  countdownActive: boolean;
+}) {
   if (!detection) {
     return <div className="rounded-full bg-black/60 px-4 py-2 text-center text-xs font-semibold text-white">Dokumentsuche startet...</div>;
   }
@@ -477,17 +529,18 @@ function StatusBadge({ detection }: { detection: DocumentDetectionResult | null 
     ready: "bg-primary/85 text-primary-foreground",
   } as const;
 
-  const labels = {
-    not_found: "Kein Dokument sicher erkannt",
-    uncertain: detection.autoCaptureEligible
-      ? "Dokument erkannt - Auto-Aufnahme startet"
-      : "Dokument erkannt, bitte etwas ruhiger ausrichten",
-    ready: "Dokument bereit fuer Auto-Capture",
-  } as const;
+  let label = "Kein Dokument sicher erkannt";
+  if (detection.status === "ready") {
+    label = countdownActive ? "Auto-Aufnahme laeuft..." : "Dokument bereit fuer Auto-Capture";
+  } else if (detection.status === "uncertain") {
+    label = detection.autoCaptureEligible
+      ? (countdownActive ? "Auto-Aufnahme laeuft..." : "Dokument erkannt - Auto startet")
+      : "Dokument erkannt, bitte etwas ruhiger ausrichten";
+  }
 
   return (
     <div className={`rounded-full px-4 py-2 text-center text-xs font-semibold ${config[detection.status]}`}>
-      {labels[detection.status]}
+      {label}
     </div>
   );
 }
@@ -511,51 +564,53 @@ function mapBoundsToVideoBox(
   boxHeight: number,
 ) {
   const scale = Math.max(boxWidth / videoWidth, boxHeight / videoHeight);
-  const renderedWidth = videoWidth * scale;
-  const renderedHeight = videoHeight * scale;
-  const offsetX = (boxWidth - renderedWidth) / 2;
-  const offsetY = (boxHeight - renderedHeight) / 2;
+  const drawnWidth = videoWidth * scale;
+  const drawnHeight = videoHeight * scale;
+  const offsetX = (boxWidth - drawnWidth) / 2;
+  const offsetY = (boxHeight - drawnHeight) / 2;
 
   return {
-    left: `${offsetX + bounds.x * renderedWidth}px`,
-    top: `${offsetY + bounds.y * renderedHeight}px`,
-    width: `${bounds.width * renderedWidth}px`,
-    height: `${bounds.height * renderedHeight}px`,
+    left: `${offsetX + bounds.x * drawnWidth}px`,
+    top: `${offsetY + bounds.y * drawnHeight}px`,
+    width: `${bounds.width * drawnWidth}px`,
+    height: `${bounds.height * drawnHeight}px`,
   };
 }
 
 function isCameraAvailable() {
-  if (typeof window === "undefined" || typeof navigator === "undefined") return false;
-  const secure = window.isSecureContext || ["localhost", "127.0.0.1"].includes(window.location.hostname);
-  return secure && !!navigator.mediaDevices?.getUserMedia;
+  return typeof window !== "undefined"
+    && Boolean(navigator.mediaDevices?.getUserMedia)
+    && (window.isSecureContext || window.location.hostname === "localhost");
 }
 
 function mapCameraError(error: unknown) {
-  if (error instanceof DOMException) {
-    if (error.name === "NotAllowedError") {
-      return "Kamerazugriff wurde verweigert. Bitte Browser-Berechtigung pruefen.";
-    }
-    if (error.name === "NotFoundError") {
-      return "Keine Kamera verfuegbar.";
-    }
-    if (error.name === "NotReadableError") {
-      return "Kamera ist bereits in Benutzung oder nicht lesbar.";
-    }
-    if (error.name === "AbortError") {
-      return "Kameraaufnahme wurde abgebrochen.";
-    }
+  if (!(error instanceof DOMException)) {
+    return "Kamera konnte nicht gestartet werden.";
+  }
+  if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+    return "Kamerazugriff wurde verweigert. Bitte in den Browser-Einstellungen erlauben.";
+  }
+  if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+    return "Keine Kamera gefunden.";
+  }
+  if (error.name === "NotReadableError" || error.name === "TrackStartError") {
+    return "Kamera wird bereits von einer anderen App verwendet.";
   }
   return "Kamera konnte nicht gestartet werden.";
 }
 
-function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        reject(new Error("Kamerabild konnte nicht erstellt werden."));
-        return;
-      }
-      resolve(blob);
-    }, "image/jpeg", 0.92);
+function canvasToBlob(canvas: HTMLCanvasElement) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          reject(new Error("Blob konnte nicht erzeugt werden."));
+          return;
+        }
+        resolve(blob);
+      },
+      "image/jpeg",
+      0.92,
+    );
   });
 }

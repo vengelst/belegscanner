@@ -114,7 +114,7 @@ describe("analyzeDocumentFrame", () => {
     expect(Math.abs(small.metrics.coverage - large.metrics.coverage)).toBeLessThan(0.05);
   });
 
-  it("meldet zu starke Bewegung und blockiert Auto-Capture", () => {
+  it("meldet starke Bewegung im Hinweis, blockiert Auto-Capture aber nicht mehr", () => {
     const frame = buildDocumentFrame(160, 220);
     const stable = analyze(frame);
     const shifted = analyze(frame, {
@@ -125,8 +125,8 @@ describe("analyzeDocumentFrame", () => {
     });
 
     expect(shifted.metrics.motion).toBeGreaterThan(0.35);
-    expect(shifted.autoCaptureEligible).toBe(false);
-    expect(shifted.hint).toBe("Kamera ruhiger halten");
+    expect(shifted.autoCaptureEligible).toBe(true);
+    expect(shifted.bounds).not.toBeNull();
   });
 
   it("laesst Auto-Capture auch bei imperfectem Ready-Status zu", () => {

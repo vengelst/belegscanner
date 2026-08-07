@@ -47,15 +47,13 @@ const MIN_SHARPNESS = 8;
 const MAX_MOTION = 0.28;
 
 /**
- * Fuer Auto-Capture reichen "Dokument da + grob stabil/beleuchtet".
- * Schaerfe und Rechteckigkeit beeinflussen nur den Ready-Status/Hinweis,
- * blockieren das Ausloesen aber nicht mehr.
+ * Auto-Capture: sobald ein Belegausschnitt erkannt ist. Hand-Shake (Motion)
+ * und leichte Unschaerfe duerfen das Ausloesen nicht mehr verhindern.
  */
-const AUTO_MIN_COVERAGE = 0.06;
-const AUTO_MAX_COVERAGE = 0.995;
-const AUTO_MIN_BRIGHTNESS = 22;
-const AUTO_MAX_BRIGHTNESS = 252;
-const AUTO_MAX_MOTION = 0.35;
+const AUTO_MIN_COVERAGE = 0.05;
+const AUTO_MAX_COVERAGE = 0.998;
+const AUTO_MIN_BRIGHTNESS = 18;
+const AUTO_MAX_BRIGHTNESS = 255;
 
 /** Toleranzbaender fuer "knapp daneben" (siehe nearReady). */
 const SLACK_COVERAGE = 0.05;
@@ -194,14 +192,13 @@ export function analyzeDocumentFrame(
     rectangularity,
   };
 
-  // Auto-Capture: Dokument erkannt + Abstand/Licht/Stabilitaet ok.
-  // Schaerfe/Rechteckigkeit sind bewusst keine Hard-Blocker mehr.
+  // Auto-Capture: Beleg erkannt + grob im Bild. Motion blockiert bewusst nicht
+  // (Handykamera wackelt immer) - der Countdown im UI braucht nur kurze Stabilitaet.
   const autoCaptureEligible =
     coverage >= AUTO_MIN_COVERAGE
     && coverage <= AUTO_MAX_COVERAGE
     && meanBrightness >= AUTO_MIN_BRIGHTNESS
-    && meanBrightness <= AUTO_MAX_BRIGHTNESS
-    && motion <= AUTO_MAX_MOTION;
+    && meanBrightness <= AUTO_MAX_BRIGHTNESS;
 
   if (failedChecks.length === 0) {
     return {
