@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { ReceiptForm } from "@/components/receipts/receipt-form";
 import { connection } from "next/server";
+import { getCompanyCardLastDigits } from "@/lib/organization";
 
 type Props = {
   searchParams: Promise<{ continued?: string; t?: string }>;
@@ -16,20 +17,19 @@ export default async function NewReceiptPage({ searchParams }: Props) {
   const params = await searchParams;
   const isContinued = params.continued === "1";
 
-  const [user, purposes, categories, countries, vehicles] = await Promise.all([
+  const [user, purposes, countries, vehicles, companyCardLastDigits] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },
       select: {
         defaultCountryId: true,
         defaultVehicleId: true,
         defaultPurposeId: true,
-        defaultCategoryId: true,
       },
     }),
     prisma.purpose.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
-    prisma.category.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     prisma.country.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     prisma.vehicle.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
+    getCompanyCardLastDigits(),
   ]);
 
   return (
@@ -55,7 +55,6 @@ export default async function NewReceiptPage({ searchParams }: Props) {
       <ReceiptForm
         key={`receipt-form-${params.t ?? "initial"}`}
         purposes={purposes.map((p) => ({ id: p.id, name: p.name, isHospitality: p.isHospitality }))}
-        categories={categories.map((c) => ({ id: c.id, name: c.name }))}
         countries={countries.map((c) => ({
           id: c.id,
           name: c.name,
@@ -68,8 +67,8 @@ export default async function NewReceiptPage({ searchParams }: Props) {
           defaultCountryId: user?.defaultCountryId ?? null,
           defaultVehicleId: user?.defaultVehicleId ?? null,
           defaultPurposeId: user?.defaultPurposeId ?? null,
-          defaultCategoryId: user?.defaultCategoryId ?? null,
         }}
+        companyCardLastDigits={companyCardLastDigits}
       />
     </div>
   );

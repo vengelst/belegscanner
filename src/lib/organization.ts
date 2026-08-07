@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { DEFAULT_COMPANY_CARD_LAST_DIGITS } from "@/lib/datev/belegtyp";
 
 export type OrganizationIdentity = {
   legalName: string;
@@ -12,6 +13,8 @@ export type OrganizationIdentity = {
 
 export type OrganizationProfileDto = OrganizationIdentity & {
   id: string;
+  /** Endziffern der Firmenkarten (2-4 Ziffern, keine vollstaendigen Kartennummern). */
+  companyCardLastDigits: string[];
   updatedAt: string | null;
 };
 
@@ -56,6 +59,7 @@ export async function getOrganizationProfileDto(): Promise<OrganizationProfileDt
     return {
       id: "default",
       ...EMPTY_IDENTITY,
+      companyCardLastDigits: [...DEFAULT_COMPANY_CARD_LAST_DIGITS],
       updatedAt: null,
     };
   }
@@ -69,8 +73,25 @@ export async function getOrganizationProfileDto(): Promise<OrganizationProfileDt
     zip: profile.zip,
     city: profile.city,
     countryCode: profile.countryCode,
+    companyCardLastDigits: profile.companyCardLastDigits,
     updatedAt: profile.updatedAt.toISOString(),
   };
+}
+
+/**
+ * Endziffern der Firmenkarten fuer die Belegtyp-Erkennung.
+ *
+ * Ohne angelegtes Firmenprofil greifen die Standard-Karten, damit eine frische
+ * Installation nicht ohne Kreditkarten-Erkennung dasteht.
+ */
+export async function getCompanyCardLastDigits(): Promise<string[]> {
+  const profile = await prisma.organizationProfile.findUnique({
+    where: { id: "default" },
+    select: { companyCardLastDigits: true },
+  });
+
+  if (!profile) return [...DEFAULT_COMPANY_CARD_LAST_DIGITS];
+  return profile.companyCardLastDigits;
 }
 
 export function normalizeCompanyName(value: string): string {

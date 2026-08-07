@@ -1,11 +1,12 @@
 import { PrismaClient } from "@prisma/client";
-import { seedAdminUser, seedMasterData } from "./seed-lib";
+import { seedAdminUser, seedMasterData, seedOrganizationProfile } from "./seed-lib";
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log("Seeding master data...");
   await seedMasterData(prisma);
+  await seedOrganizationProfile(prisma);
 
   const adminEmail = process.env.ADMIN_EMAIL;
   const adminPassword = process.env.ADMIN_PASSWORD;

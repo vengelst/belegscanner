@@ -51,30 +51,104 @@ export function datevBelegtypLabel(value: unknown): string | null {
   return isDatevBelegtyp(value) ? datevBelegtypLabels[value] : null;
 }
 
+// ============================================================
+// Firmenkarten
+// ============================================================
+
+/** Endziffern der Firmenkarten fuer eine frische Installation. */
+export const DEFAULT_COMPANY_CARD_LAST_DIGITS = ["2454", "2350"];
+
+/** Reduziert eine Kartenangabe auf reine Ziffern ("**** 2454" -> "2454"). */
+export function normalizeCardLastDigits(value: string | null | undefined): string {
+  return (value ?? "").replace(/\D/g, "");
+}
+
 /**
- * Fachliche Vorbelegung aus Belegrichtung und Kategorie.
+ * Prueft, ob eine per OCR erkannte Kartenendung zu einer hinterlegten
+ * Firmenkarte gehoert.
  *
- * | Bedingung              | Vorschlag          |
- * |------------------------|--------------------|
- * | partyRole = DEBTOR     | Rechnungsausgang   |
- * | Kategorie ~ /kasse/i   | Kasse              |
- * | Kategorie ~ /kreditkarte/i | Kreditkartenbelege |
- * | Kategorie ~ /reise/i   | Reisekosten        |
- * | sonst                  | Rechnungseingang   |
+ * Bevorzugt wird der exakte Vergleich (4 gegen 4). Ein Suffix-Vergleich greift
+ * nur, wenn beide Seiten mindestens 4 Ziffern haben - sonst waere z. B. "54"
+ * gegen "2454" ein Zufallstreffer.
+ */
+export function matchesCompanyCard(
+  cardLastDigits: string | null | undefined,
+  companyCardLastDigits: readonly string[] | null | undefined,
+): boolean {
+  const detected = normalizeCardLastDigits(cardLastDigits);
+  if (!detected) return false;
+
+  return (companyCardLastDigits ?? []).some((entry) => {
+    const known = normalizeCardLastDigits(entry);
+    if (!known) return false;
+    if (known === detected) return true;
+    if (known.length < 4 || detected.length < 4) return false;
+    return detected.endsWith(known) || known.endsWith(detected);
+  });
+}
+
+/** Zahlungsarten, die auf eine Kartenzahlung hindeuten. */
+const CARD_PAYMENT_METHODS = new Set(["credit_card", "debit_card", "visa", "mastercard"]);
+
+// ============================================================
+// Vorbelegung aus der Belegerkennung
+// ============================================================
+
+export type SuggestDatevBelegtypInput = {
+  partyRole?: "CREDITOR" | "DEBTOR" | null;
+  paymentMethod?: string | null;
+  cardLastDigits?: string | null;
+  documentType?: string | null;
+  /** Endziffern der Firmenkarten aus den Organisationseinstellungen. */
+  companyCardLastDigits?: readonly string[] | null;
+};
+
+/**
+ * Fachliche Vorbelegung des Belegtyps aus den Erkennungsdaten. Die Kategorie
+ * spielt keine Rolle mehr - der Nutzer pflegt nur noch den Belegtyp.
+ *
+ * Reihenfolge der Regeln:
+ *
+ * | Bedingung                                   | Vorschlag          |
+ * |---------------------------------------------|--------------------|
+ * | partyRole = DEBTOR (Ausgangsrechnung)       | Rechnungsausgang   |
+ * | Kartenzahlung mit Firmenkarten-Endziffern   | Kreditkartenbelege |
+ * | Kartenzahlung mit fremder/unbekannter Karte | Kasse              |
+ * | Barzahlung                                  | Kasse              |
+ * | Bewirtung                                   | Rechnungseingang   |
+ * | sonst (Eingangsbeleg)                       | Rechnungseingang   |
+ * | keinerlei belastbare Angaben                | Sonstige           |
+ *
+ * Fremde Karten landen bewusst in der Kasse: privat bezahlte Belege werden
+ * ueber die Barkasse erstattet.
  */
 export function suggestDatevBelegtyp({
   partyRole,
-  categoryName,
-}: {
-  partyRole?: "CREDITOR" | "DEBTOR" | null;
-  categoryName?: string | null;
-}): DatevBelegtyp {
+  paymentMethod,
+  cardLastDigits,
+  documentType,
+  companyCardLastDigits,
+}: SuggestDatevBelegtypInput): DatevBelegtyp {
   if (partyRole === "DEBTOR") return "RECHNUNGSAUSGANG";
 
-  const name = categoryName?.trim() ?? "";
-  if (/kasse/i.test(name)) return "KASSE";
-  if (/kreditkarte/i.test(name)) return "KREDITKARTENBELEGE";
-  if (/reise/i.test(name)) return "REISEKOSTEN";
+  const method = paymentMethod?.trim().toLowerCase() ?? "";
+  const digits = normalizeCardLastDigits(cardLastDigits);
+  const type = documentType?.trim().toLowerCase() ?? "";
+
+  if (CARD_PAYMENT_METHODS.has(method) || digits) {
+    return matchesCompanyCard(digits, companyCardLastDigits) ? "KREDITKARTENBELEGE" : "KASSE";
+  }
+
+  if (method === "cash") return "KASSE";
+
+  if (type === "hospitality" || type === "bewirtung") return "RECHNUNGSEINGANG";
+
+  const hasSignal = Boolean(
+    partyRole
+    || (method && method !== "unknown")
+    || (type && type !== "general"),
+  );
+  if (!hasSignal) return "SONSTIGE";
 
   return "RECHNUNGSEINGANG";
 }

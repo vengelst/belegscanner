@@ -12,7 +12,8 @@ const BASE_RULES = `Rules:
 - grossAmount is the final payable amount
 - netAmount is the amount before tax
 - taxAmount is the total tax amount
-- paymentMethod must detect cash, Visa, Mastercard, PayPal, SEPA direct debit, bank transfer or generic card when visible
+- paymentMethod must detect cash, Visa, Mastercard, PayPal, SEPA direct debit, bank transfer or generic card when visible; use "unknown" only when a payment happened but the method is unreadable
+- cardLastDigits: extract the masked card number suffix (e.g. "**** 2454" -> "2454"), preferably all 4 digits, digits only, null when no card was used
 - All dates must be YYYY-MM-DD when possible
 - Currency must be ISO 4217 like EUR or USD
 - documentType must be one of: general, fuel, hospitality, lodging, parking, toll

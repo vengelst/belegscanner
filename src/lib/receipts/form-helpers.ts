@@ -1,7 +1,6 @@
 import type { OcrResult } from "@/lib/document-analysis";
 
 export type Purpose = { id: string; name: string; isHospitality: boolean };
-export type Category = { id: string; name: string };
 export type Country = {
   id: string;
   name: string;
@@ -21,7 +20,6 @@ export type Vehicle = { id: string; plate: string; description: string | null };
 
 export type ReceiptSelectionState = {
   purposeId: string;
-  categoryId: string;
   countryId: string;
   vehicleId: string;
 };
@@ -34,12 +32,10 @@ export type UserDefaults = {
   defaultCountryId: string | null;
   defaultVehicleId: string | null;
   defaultPurposeId: string | null;
-  defaultCategoryId: string | null;
 };
 
 export type ValidIds = {
   purposes: Set<string>;
-  categories: Set<string>;
   countries: Set<string>;
   vehicles: Set<string>;
 };
@@ -60,7 +56,6 @@ export function resolveSelectionState({
 
   const selection: ReceiptSelectionState = {
     purposeId: pickValue(userDefaults.defaultPurposeId, validIds.purposes),
-    categoryId: pickValue(userDefaults.defaultCategoryId, validIds.categories),
     countryId: pickValue(userDefaults.defaultCountryId, validIds.countries),
     vehicleId: pickValue(userDefaults.defaultVehicleId, validIds.vehicles),
   };

@@ -60,7 +60,6 @@ describe("receiptSchema", () => {
     amount: 42.5,
     currency: "EUR",
     purposeId: "purpose-1",
-    categoryId: "category-1",
     datevBelegtyp: "RECHNUNGSEINGANG",
   };
 
@@ -136,10 +135,9 @@ describe("receiptSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("scheitert wenn categoryId fehlt", () => {
-    const { categoryId: _, ...withoutCategory } = validReceipt;
-    const result = receiptSchema.safeParse(withoutCategory);
-    expect(result.success).toBe(false);
+  it("akzeptiert einen Beleg ohne categoryId (Server setzt die Default-Kategorie)", () => {
+    const result = receiptSchema.safeParse(validReceipt);
+    expect(result.success).toBe(true);
   });
 
   it("scheitert bei negativem Betrag", () => {
@@ -208,7 +206,6 @@ describe("sendReadySchema", () => {
     currency: "EUR",
     countryId: "country-1",
     purposeId: "purpose-1",
-    categoryId: "category-1",
   };
 
   it("akzeptiert ein gültiges Versand-Objekt", () => {

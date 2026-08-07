@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ReceiptFilterBar } from "@/components/receipts/receipt-filter-bar";
 import { NewReceiptLink } from "@/components/receipts/new-receipt-link";
 import { getReviewStatusBadgeClass, getReviewStatusLabel } from "@/lib/receipts/review-status";
+import { datevBelegtypLabel, type DatevBelegtyp } from "@/lib/datev/belegtyp";
 
 // ============================================================
 // Types
@@ -28,7 +29,7 @@ type ReceiptRow = {
   purposeName: string;
   isHospitality: boolean;
   hasHospitality: boolean;
-  categoryName: string;
+  datevBelegtyp: DatevBelegtyp | null;
   countryName: string | null;
   vehiclePlate: string | null;
   hasFile: boolean;
@@ -50,7 +51,7 @@ type Filters = {
   sendStatus: string;
   reviewStatus: string;
   purposeId: string;
-  categoryId: string;
+  datevBelegtyp: string;
   countryId: string;
   vehicleId: string;
   userId: string;
@@ -62,7 +63,6 @@ type Filters = {
 
 type FilterOptions = {
   purposes: { id: string; name: string }[];
-  categories: { id: string; name: string }[];
   countries: { id: string; label: string }[];
   vehicles: { id: string; label: string }[];
   users: { id: string; label: string }[];
@@ -101,7 +101,7 @@ type ColumnKey =
   | "supplier"
   | "amount"
   | "purpose"
-  | "category"
+  | "datevBelegtyp"
   | "country"
   | "user"
   | "reviewStatus"
@@ -113,7 +113,7 @@ const DEFAULT_VISIBLE_COLUMNS: ColumnKey[] = [
   "supplier",
   "amount",
   "purpose",
-  "category",
+  "datevBelegtyp",
   "country",
   "user",
   "reviewStatus",
@@ -126,7 +126,7 @@ const COLUMN_OPTIONS: { key: ColumnKey; label: string }[] = [
   { key: "supplier", label: "Lieferant" },
   { key: "amount", label: "Betrag" },
   { key: "purpose", label: "Zweck" },
-  { key: "category", label: "Kategorie" },
+  { key: "datevBelegtyp", label: "DATEV-Belegtyp" },
   { key: "country", label: "Land" },
   { key: "user", label: "Benutzer" },
   { key: "reviewStatus", label: "Pruefung" },
@@ -140,7 +140,7 @@ const SORT_OPTIONS = [
   { value: "amount", label: "Betrag" },
   { value: "amountEur", label: "Betrag EUR" },
   { value: "purpose", label: "Zweck" },
-  { value: "category", label: "Kategorie" },
+  { value: "datevBelegtyp", label: "DATEV-Belegtyp" },
   { value: "country", label: "Land" },
   { value: "user", label: "Benutzer" },
   { value: "reviewStatus", label: "Pruefung" },
@@ -155,7 +155,7 @@ const COLUMN_SORT_MAP: Partial<Record<ColumnKey, string>> = {
   supplier: "supplier",
   amount: "amount",
   purpose: "purpose",
-  category: "category",
+  datevBelegtyp: "datevBelegtyp",
   country: "country",
   user: "user",
   reviewStatus: "reviewStatus",
@@ -207,7 +207,7 @@ export function ReceiptListPage({ receipts, pagination, filters, filterOptions, 
     router.push(`/receipts?${params.toString()}`);
   }, [router, searchParams]);
 
-  const hasActiveFilters = !!(filters.search || filters.sendStatus || filters.reviewStatus || filters.purposeId || filters.categoryId || filters.countryId || filters.vehicleId || filters.userId || filters.dateFrom || filters.dateTo);
+  const hasActiveFilters = !!(filters.search || filters.sendStatus || filters.reviewStatus || filters.purposeId || filters.datevBelegtyp || filters.countryId || filters.vehicleId || filters.userId || filters.dateFrom || filters.dateTo);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(COLUMN_STORAGE_KEY);
@@ -627,8 +627,8 @@ function ColumnCell({ receipt, columnKey }: { receipt: ReceiptRow; columnKey: Co
       );
     case "purpose":
       return <>{receipt.purposeName}</>;
-    case "category":
-      return <>{receipt.categoryName}</>;
+    case "datevBelegtyp":
+      return <span className="whitespace-nowrap">{datevBelegtypLabel(receipt.datevBelegtyp) ?? "—"}</span>;
     case "country":
       return <span className="text-muted-foreground">{receipt.countryName ?? "—"}</span>;
     case "user":

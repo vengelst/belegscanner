@@ -40,7 +40,6 @@ export default async function ReceiptDetailPage({ params }: Props) {
       country: { select: { name: true, code: true } },
       vehicle: { select: { plate: true, description: true } },
       purpose: { select: { name: true, isHospitality: true } },
-      category: { select: { name: true } },
       datevProfile: { select: { name: true } },
       reviewedBy: { select: { name: true } },
       hospitality: true,
@@ -132,7 +131,6 @@ export default async function ReceiptDetailPage({ params }: Props) {
     taxAmount: receipt.taxAmount ? Number(receipt.taxAmount) : null,
     countryId: receipt.countryId,
     purposeId: receipt.purposeId,
-    categoryId: receipt.categoryId,
     exchangeRate: receipt.exchangeRate ? Number(receipt.exchangeRate) : null,
     hasFile: receipt.files.length > 0,
     hasSmtp: !!smtpConfigured,
@@ -316,7 +314,6 @@ export default async function ReceiptDetailPage({ params }: Props) {
         exchangeRateDate={receipt.exchangeRateDate ? fmtDate(receipt.exchangeRateDate) : null}
         supplier={receipt.supplier}
         purposeName={receipt.purpose.name}
-        categoryName={receipt.category.name}
         countryDisplay={receipt.country ? `${receipt.country.name}${receipt.country.code ? ` (${receipt.country.code})` : ""}` : "—"}
         vehiclePlate={receipt.vehicle ? receipt.vehicle.plate : null}
         datevBelegtypLabel={datevBelegtypLabel(receipt.datevBelegtyp)}

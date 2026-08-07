@@ -22,7 +22,6 @@ const navGroups: NavGroup[] = [
       { href: "/admin/countries", label: "Laender" },
       { href: "/admin/vehicles", label: "Kfz-Kennzeichen" },
       { href: "/admin/purposes", label: "Zwecke" },
-      { href: "/admin/categories", label: "Kategorien" },
       { href: "/admin/send-status", label: "Versandstatus" },
     ],
   },

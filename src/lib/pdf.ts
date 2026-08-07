@@ -28,7 +28,7 @@ export type PdfReceiptData = {
   sendStatusUpdatedAt: string | null;
   userName: string;
   purposeName: string;
-  categoryName: string;
+  datevBelegtypLabel: string | null;
   countryName: string | null;
   vehiclePlate: string | null;
   remark: string | null;
@@ -216,7 +216,7 @@ function buildReceiptDocument(data: PdfReceiptData) {
         ]
       : [row("Rechnungsbetrag (EUR)", `${data.amountEur} EUR`)]),
     row("Zweck", data.purposeName),
-    row("Kategorie", data.categoryName),
+    row("DATEV-Belegtyp", data.datevBelegtypLabel ?? "\u2014"),
     row("Land", data.countryName ?? "\u2014"),
     row("Kfz", data.vehiclePlate ?? "\u2014"),
     row("Benutzer", data.userName),

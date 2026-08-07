@@ -11,7 +11,6 @@ const vollstaendigerBeleg = {
   taxAmount: 6.79,
   countryId: "country-1",
   purposeId: "purpose-1",
-  categoryId: "category-1",
   exchangeRate: null,
   hasFile: true,
   hasSmtp: true,

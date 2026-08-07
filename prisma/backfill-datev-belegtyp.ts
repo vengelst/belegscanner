@@ -9,14 +9,29 @@
  * Adressen an. Aufruf: npx tsx prisma/backfill-datev-belegtyp.ts
  */
 import { PrismaClient } from "@prisma/client";
-import { suggestDatevBelegtyp } from "../src/lib/datev/belegtyp";
+import { DEFAULT_COMPANY_CARD_LAST_DIGITS, suggestDatevBelegtyp } from "../src/lib/datev/belegtyp";
 
 const prisma = new PrismaClient();
 
+/** Liest ein Textfeld aus den gespeicherten KI-Daten (aiStructuredData.extracted). */
+function extractedString(structuredData: unknown, field: string): string | null {
+  if (!structuredData || typeof structuredData !== "object") return null;
+  const extracted = (structuredData as Record<string, unknown>).extracted;
+  if (!extracted || typeof extracted !== "object") return null;
+  const value = (extracted as Record<string, unknown>)[field];
+  return typeof value === "string" ? value : null;
+}
+
 async function main() {
+  const organization = await prisma.organizationProfile.findUnique({
+    where: { id: "default" },
+    select: { companyCardLastDigits: true },
+  });
+  const companyCardLastDigits = organization?.companyCardLastDigits ?? DEFAULT_COMPANY_CARD_LAST_DIGITS;
+
   const receipts = await prisma.receipt.findMany({
     where: { datevBelegtyp: null },
-    select: { id: true, partyRole: true, category: { select: { name: true } } },
+    select: { id: true, partyRole: true, aiDocumentType: true, aiStructuredData: true },
   });
 
   for (const receipt of receipts) {
@@ -25,7 +40,10 @@ async function main() {
       data: {
         datevBelegtyp: suggestDatevBelegtyp({
           partyRole: receipt.partyRole,
-          categoryName: receipt.category.name,
+          paymentMethod: extractedString(receipt.aiStructuredData, "paymentMethod"),
+          cardLastDigits: extractedString(receipt.aiStructuredData, "cardLastDigits"),
+          documentType: receipt.aiDocumentType,
+          companyCardLastDigits,
         }),
       },
     });

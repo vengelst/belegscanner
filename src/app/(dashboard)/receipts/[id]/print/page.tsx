@@ -1,3 +1,4 @@
+import { datevBelegtypLabel } from "@/lib/datev/belegtyp";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
@@ -22,7 +23,6 @@ export default async function PrintReceiptPage({ params }: Props) {
       country: { select: { name: true, code: true } },
       vehicle: { select: { plate: true } },
       purpose: { select: { name: true, isHospitality: true } },
-      category: { select: { name: true } },
       hospitality: true,
       files: { where: { type: "ORIGINAL" }, take: 1 },
     },
@@ -53,7 +53,7 @@ export default async function PrintReceiptPage({ params }: Props) {
         sendStatusUpdatedAt: receipt.sendStatusUpdatedAt?.toISOString() ?? null,
         userName: receipt.user.name,
         purposeName: receipt.purpose.name,
-        categoryName: receipt.category.name,
+        datevBelegtypLabel: datevBelegtypLabel(receipt.datevBelegtyp),
         countryName: receipt.country?.name ?? null,
         countryCode: receipt.country?.code ?? null,
         vehiclePlate: receipt.vehicle?.plate ?? null,

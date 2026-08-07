@@ -22,7 +22,6 @@ import {
   type CaptureSource,
   type CaptureTrigger,
   type Purpose,
-  type Category,
   type Country,
   type Vehicle,
   type UserDefaults,
@@ -59,13 +58,14 @@ const EMPTY_MANUAL_OVERRIDES: Record<OcrFieldKey, boolean> = {
 
 type Props = {
   purposes: Purpose[];
-  categories: Category[];
   countries: Country[];
   vehicles: Vehicle[];
   userDefaults: UserDefaults;
+  /** Endziffern der Firmenkarten aus den Organisationseinstellungen. */
+  companyCardLastDigits: string[];
 };
 
-export function ReceiptForm({ purposes, categories, countries, vehicles, userDefaults }: Props) {
+export function ReceiptForm({ purposes, countries, vehicles, userDefaults, companyCardLastDigits }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
@@ -98,7 +98,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
   const [occasion, setOccasion] = useState("");
   const [guests, setGuests] = useState("");
   const [hospitalityLocation, setHospitalityLocation] = useState("");
-  const [datevBelegtyp, setDatevBelegtyp] = useState<DatevBelegtyp>("RECHNUNGSEINGANG");
+  const [datevBelegtyp, setDatevBelegtyp] = useState<DatevBelegtyp>("SONSTIGE");
   const [datevBelegtypManuallyChanged, setDatevBelegtypManuallyChanged] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lineItemNotice, setLineItemNotice] = useState<string | null>(null);
@@ -107,18 +107,16 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
 
   const validIds = useMemo(() => ({
     purposes: new Set(purposes.map((purpose) => purpose.id)),
-    categories: new Set(categories.map((category) => category.id)),
     countries: new Set(countries.map((country) => country.id)),
     vehicles: new Set(vehicles.map((vehicle) => vehicle.id)),
-  }), [categories, countries, purposes, vehicles]);
+  }), [countries, purposes, vehicles]);
 
   const {
-    purposeId, categoryId, countryId, vehicleId, prefillSource,
-    setPurposeId, setCategoryId, setCountryId, setVehicleId, resetSelection,
+    purposeId, countryId, vehicleId, prefillSource,
+    setPurposeId, setCountryId, setVehicleId, resetSelection,
   } = useSelectionPrefill(userDefaults, validIds);
 
   const selectedPurpose = purposes.find((purpose) => purpose.id === purposeId);
-  const selectedCategoryName = categories.find((category) => category.id === categoryId)?.name ?? null;
   const isHospitality = selectedPurpose?.isHospitality ?? false;
   const requiresExchangeRate = currency.trim().toUpperCase() !== "EUR";
   const normalizedCurrency = currency.trim().toUpperCase() || "EUR";
@@ -209,13 +207,31 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
   }, []);
 
   /**
-   * DATEV-Belegtyp aus Belegrichtung und Kategorie vorbelegen. Sobald der Nutzer
-   * den Typ selbst gewaehlt hat, wird der Vorschlag nicht mehr angewendet.
+   * DATEV-Belegtyp aus Belegrichtung und Belegerkennung vorbelegen (Zahlungsart,
+   * Kartenendziffern, Belegart). Sobald der Nutzer den Typ selbst gewaehlt hat,
+   * wird der Vorschlag nicht mehr angewendet.
    */
   useEffect(() => {
     if (datevBelegtypManuallyChanged) return;
-    setDatevBelegtyp(suggestDatevBelegtyp({ partyRole, categoryName: selectedCategoryName }));
-  }, [partyRole, selectedCategoryName, datevBelegtypManuallyChanged]);
+    setDatevBelegtyp(suggestDatevBelegtyp({
+      // Die Belegrichtung zaehlt nur als Signal, wenn sie erkannt oder bewusst
+      // gesetzt wurde - der Formular-Startwert CREDITOR ist keine Aussage.
+      partyRole: partyRoleManuallyChanged ? partyRole : ocrResult?.extracted.partyRole ?? null,
+      paymentMethod: ocrResult?.extracted.paymentMethod ?? null,
+      cardLastDigits: ocrResult?.extracted.cardLastDigits ?? null,
+      documentType: ocrResult?.extracted.documentType ?? null,
+      companyCardLastDigits,
+    }));
+  }, [
+    partyRole,
+    partyRoleManuallyChanged,
+    ocrResult?.extracted.partyRole,
+    datevBelegtypManuallyChanged,
+    companyCardLastDigits,
+    ocrResult?.extracted.paymentMethod,
+    ocrResult?.extracted.cardLastDigits,
+    ocrResult?.extracted.documentType,
+  ]);
 
   function markManualOverride(field: OcrFieldKey) {
     setManualOverrides((current) => (current[field] ? current : { ...current, [field]: true }));
@@ -259,7 +275,7 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
     setGuests("");
     setHospitalityLocation("");
     setHospitalityLocationManual(false);
-    setDatevBelegtyp("RECHNUNGSEINGANG");
+    setDatevBelegtyp("SONSTIGE");
     setDatevBelegtypManuallyChanged(false);
     setManualOverrides(EMPTY_MANUAL_OVERRIDES);
     setError(null);
@@ -609,7 +625,6 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
       countryId: formData.get("countryId") || null,
       vehicleId: formData.get("vehicleId") || null,
       purposeId: formData.get("purposeId"),
-      categoryId: formData.get("categoryId"),
       datevBelegtyp: formData.get("datevBelegtyp") || datevBelegtyp,
       remark: formData.get("remark") || null,
       aiRawText: ocrResult?.rawText ?? null,
@@ -723,17 +738,14 @@ export function ReceiptForm({ purposes, categories, countries, vehicles, userDef
 
         <ReceiptFormAssignmentSection
           purposes={purposes}
-          categories={categories}
           countries={countries}
           vehicles={vehicles}
           purposeId={purposeId}
-          categoryId={categoryId}
           countryId={countryId}
           vehicleId={vehicleId}
           datevBelegtyp={datevBelegtyp}
           prefillSource={prefillSource}
           setPurposeId={setPurposeId}
-          setCategoryId={setCategoryId}
           setCountryId={changeCountry}
           setCountryManuallyChanged={setCountryManuallyChanged}
           setVehicleId={setVehicleId}

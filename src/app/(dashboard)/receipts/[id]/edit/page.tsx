@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ReceiptEditForm } from "@/components/receipts/receipt-edit-form";
 import { parseStructuredData } from "@/components/receipts/detail/parse-structured-data";
 import { connection } from "next/server";
+import { getCompanyCardLastDigits } from "@/lib/organization";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -31,11 +32,11 @@ export default async function EditReceiptPage({ params }: Props) {
     notFound();
   }
 
-  const [purposes, categories, countries, vehicles] = await Promise.all([
+  const [purposes, countries, vehicles, companyCardLastDigits] = await Promise.all([
     prisma.purpose.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
-    prisma.category.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     prisma.country.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     prisma.vehicle.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
+    getCompanyCardLastDigits(),
   ]);
 
   return (
@@ -66,8 +67,8 @@ export default async function EditReceiptPage({ params }: Props) {
           countryId: receipt.countryId,
           vehicleId: receipt.vehicleId,
           purposeId: receipt.purposeId,
-          categoryId: receipt.categoryId,
           datevBelegtyp: receipt.datevBelegtyp,
+          aiDocumentType: receipt.aiDocumentType,
           remark: receipt.remark,
           hospitality: receipt.hospitality ? {
             occasion: receipt.hospitality.occasion,
@@ -78,7 +79,6 @@ export default async function EditReceiptPage({ params }: Props) {
         structuredData={parseStructuredData(receipt.aiStructuredData)}
         hasOriginalFile={receipt.files.length > 0}
         purposes={purposes.map((p) => ({ id: p.id, name: p.name, isHospitality: p.isHospitality }))}
-        categories={categories.map((c) => ({ id: c.id, name: c.name }))}
         countries={countries.map((c) => ({
           id: c.id,
           name: c.name,
@@ -87,6 +87,7 @@ export default async function EditReceiptPage({ params }: Props) {
           vatRatePercent: c.vatRatePercent != null ? Number(c.vatRatePercent) : null,
         }))}
         vehicles={vehicles.map((v) => ({ id: v.id, plate: v.plate, description: v.description }))}
+        companyCardLastDigits={companyCardLastDigits}
       />
     </div>
   );

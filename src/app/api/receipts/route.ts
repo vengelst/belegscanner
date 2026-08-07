@@ -4,6 +4,8 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { receiptSchema } from "@/lib/validation";
 import { Prisma } from "@prisma/client";
 import { calculateAmountEur, fetchLatestExchangeRate } from "@/lib/exchange-rates";
+import { resolveDefaultCategoryId } from "@/lib/receipts/default-category";
+import { isDatevBelegtyp } from "@/lib/datev/belegtyp";
 
 export async function GET(request: NextRequest) {
   const { session, error } = await requireAuth();
@@ -49,8 +51,8 @@ export async function GET(request: NextRequest) {
   const purposeId = url.searchParams.get("purposeId");
   if (purposeId) where.purposeId = purposeId;
 
-  const categoryId = url.searchParams.get("categoryId");
-  if (categoryId) where.categoryId = categoryId;
+  const datevBelegtyp = url.searchParams.get("datevBelegtyp");
+  if (datevBelegtyp && isDatevBelegtyp(datevBelegtyp)) where.datevBelegtyp = datevBelegtyp;
 
   const countryId = url.searchParams.get("countryId");
   if (countryId) where.countryId = countryId;
@@ -146,6 +148,9 @@ export async function POST(request: NextRequest) {
 
   const amountEur = calculateAmountEur(d.amount, d.currency, exchangeRate);
 
+  // Die Kategorie ist nicht mehr Teil der Oberflaeche - still auf die Default-Kategorie mappen.
+  const categoryId = d.categoryId ?? await resolveDefaultCategoryId();
+
   // Auto-assign default DATEV profile so it's visible on the receipt immediately
   const defaultDatev = await prisma.datevProfile.findFirst({
     where: { active: true, isDefault: true },
@@ -176,7 +181,7 @@ export async function POST(request: NextRequest) {
       countryId: d.countryId ?? null,
       vehicleId: d.vehicleId ?? null,
       purposeId: d.purposeId,
-      categoryId: d.categoryId,
+      categoryId,
       datevProfileId: defaultDatev?.id ?? null,
       datevBelegtyp: d.datevBelegtyp,
       remark: d.remark ?? null,

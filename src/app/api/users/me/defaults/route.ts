@@ -33,12 +33,9 @@ export async function PUT(request: NextRequest) {
     defaults.defaultPurposeId
       ? prisma.purpose.findFirst({ where: { id: defaults.defaultPurposeId, active: true }, select: { id: true } })
       : Promise.resolve(null),
-    defaults.defaultCategoryId
-      ? prisma.category.findFirst({ where: { id: defaults.defaultCategoryId, active: true }, select: { id: true } })
-      : Promise.resolve(null),
   ] as const;
 
-  const [country, vehicle, purpose, category] = await Promise.all(checks);
+  const [country, vehicle, purpose] = await Promise.all(checks);
 
   if (defaults.defaultCountryId && !country) {
     return NextResponse.json({ error: "Standard-Land ist nicht gueltig oder nicht mehr aktiv." }, { status: 400 });
@@ -49,9 +46,6 @@ export async function PUT(request: NextRequest) {
   if (defaults.defaultPurposeId && !purpose) {
     return NextResponse.json({ error: "Standard-Zweck ist nicht gueltig oder nicht mehr aktiv." }, { status: 400 });
   }
-  if (defaults.defaultCategoryId && !category) {
-    return NextResponse.json({ error: "Standard-Kategorie ist nicht gueltig oder nicht mehr aktiv." }, { status: 400 });
-  }
 
   const user = await prisma.user.update({
     where: { id: session.userId },
@@ -59,13 +53,11 @@ export async function PUT(request: NextRequest) {
       defaultCountryId: defaults.defaultCountryId ?? null,
       defaultVehicleId: defaults.defaultVehicleId ?? null,
       defaultPurposeId: defaults.defaultPurposeId ?? null,
-      defaultCategoryId: defaults.defaultCategoryId ?? null,
     },
     select: {
       defaultCountryId: true,
       defaultVehicleId: true,
       defaultPurposeId: true,
-      defaultCategoryId: true,
     },
   });
 

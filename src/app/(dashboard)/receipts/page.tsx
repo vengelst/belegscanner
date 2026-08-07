@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ReceiptListPage } from "@/components/receipts/receipt-list-page";
 import { Prisma } from "@prisma/client";
 import { connection } from "next/server";
+import { isDatevBelegtyp } from "@/lib/datev/belegtyp";
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -25,7 +26,8 @@ export default async function ReceiptsPage({ searchParams }: Props) {
   const search = typeof sp.search === "string" ? sp.search.trim() : "";
   const sendStatus = typeof sp.sendStatus === "string" ? sp.sendStatus : "";
   const purposeId = typeof sp.purposeId === "string" ? sp.purposeId : "";
-  const categoryId = typeof sp.categoryId === "string" ? sp.categoryId : "";
+  const datevBelegtypParam = typeof sp.datevBelegtyp === "string" ? sp.datevBelegtyp : "";
+  const datevBelegtyp = isDatevBelegtyp(datevBelegtypParam) ? datevBelegtypParam : "";
   const countryId = typeof sp.countryId === "string" ? sp.countryId : "";
   const vehicleId = typeof sp.vehicleId === "string" ? sp.vehicleId : "";
   const userId = typeof sp.userId === "string" ? sp.userId : "";
@@ -63,7 +65,7 @@ export default async function ReceiptsPage({ searchParams }: Props) {
   }
 
   if (purposeId) where.purposeId = purposeId;
-  if (categoryId) where.categoryId = categoryId;
+  if (datevBelegtyp) where.datevBelegtyp = datevBelegtyp;
   if (countryId) where.countryId = countryId;
   if (vehicleId) where.vehicleId = vehicleId;
 
@@ -78,7 +80,7 @@ export default async function ReceiptsPage({ searchParams }: Props) {
       : sortBy === "amount" ? { amount: sortDir }
       : sortBy === "amountEur" ? { amountEur: sortDir }
       : sortBy === "purpose" ? { purpose: { name: sortDir } }
-      : sortBy === "category" ? { category: { name: sortDir } }
+      : sortBy === "datevBelegtyp" ? { datevBelegtyp: sortDir }
       : sortBy === "country" ? { country: { name: sortDir } }
       : sortBy === "user" ? { user: { name: sortDir } }
       : sortBy === "reviewStatus" ? { reviewStatus: sortDir }
@@ -92,7 +94,7 @@ export default async function ReceiptsPage({ searchParams }: Props) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(page, totalPages);
 
-  const [receipts, purposes, categories, countries, vehicles, users] = await Promise.all([
+  const [receipts, purposes, countries, vehicles, users] = await Promise.all([
     prisma.receipt.findMany({
       where,
       include: {
@@ -100,7 +102,6 @@ export default async function ReceiptsPage({ searchParams }: Props) {
         country: { select: { id: true, name: true, code: true } },
         vehicle: { select: { id: true, plate: true } },
         purpose: { select: { id: true, name: true, isHospitality: true } },
-        category: { select: { id: true, name: true } },
         hospitality: { select: { id: true } },
         files: { where: { type: "ORIGINAL" }, select: { id: true, mimeType: true }, take: 1 },
       },
@@ -110,7 +111,6 @@ export default async function ReceiptsPage({ searchParams }: Props) {
         : { skip: (safePage - 1) * pageSize, take: pageSize }),
     }),
     prisma.purpose.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" }, select: { id: true, name: true } }),
-    prisma.category.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" }, select: { id: true, name: true } }),
     prisma.country.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" }, select: { id: true, name: true, code: true } }),
     prisma.vehicle.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" }, select: { id: true, plate: true } }),
     isAdmin ? prisma.user.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }) : [],
@@ -131,7 +131,7 @@ export default async function ReceiptsPage({ searchParams }: Props) {
     purposeName: r.purpose.name,
     isHospitality: r.purpose.isHospitality,
     hasHospitality: !!r.hospitality,
-    categoryName: r.category.name,
+    datevBelegtyp: r.datevBelegtyp,
     countryName: r.country?.name ?? null,
     vehiclePlate: r.vehicle?.plate ?? null,
     hasFile: r.files.length > 0,
@@ -150,10 +150,9 @@ export default async function ReceiptsPage({ searchParams }: Props) {
         total,
         totalPages: pageSizeParam === "all" ? 1 : totalPages,
       }}
-      filters={{ search, sendStatus, reviewStatus, purposeId, categoryId, countryId, vehicleId, userId, dateFrom, dateTo, sortBy, sortDir }}
+      filters={{ search, sendStatus, reviewStatus, purposeId, datevBelegtyp, countryId, vehicleId, userId, dateFrom, dateTo, sortBy, sortDir }}
       filterOptions={{
         purposes: purposes,
-        categories: categories,
         countries: countries.map((c) => ({ id: c.id, label: `${c.name}${c.code ? ` (${c.code})` : ""}` })),
         vehicles: vehicles.map((v) => ({ id: v.id, label: v.plate })),
         users: users.map((u) => ({ id: u.id, label: u.name })),

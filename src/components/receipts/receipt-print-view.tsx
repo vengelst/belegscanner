@@ -19,7 +19,7 @@ type PrintReceipt = {
   sendStatusUpdatedAt: string | null;
   userName: string;
   purposeName: string;
-  categoryName: string;
+  datevBelegtypLabel: string | null;
   countryName: string | null;
   countryCode: string | null;
   vehiclePlate: string | null;
@@ -192,7 +192,7 @@ export function ReceiptPrintView({ receipt }: { receipt: PrintReceipt }) {
               <DataRow label="USt-Satz" value={`${receipt.vatRatePercent} %`} />
             ) : null}
             <DataRow label="Zweck" value={receipt.purposeName} />
-            <DataRow label="Kategorie" value={receipt.categoryName} />
+            <DataRow label="DATEV-Belegtyp" value={receipt.datevBelegtypLabel ?? "—"} />
             <DataRow label="Land" value={receipt.countryName ? `${receipt.countryName}${receipt.countryCode ? ` (${receipt.countryCode})` : ""}` : "—"} />
             <DataRow label="Kfz" value={receipt.vehiclePlate ?? "—"} />
             <DataRow label="Benutzer" value={receipt.userName} />

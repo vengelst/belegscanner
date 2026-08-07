@@ -6,6 +6,7 @@ import { validateFile, saveOriginalFile } from "@/lib/storage";
 import { calculateAmountEur, fetchLatestExchangeRate } from "@/lib/exchange-rates";
 import { Prisma } from "@prisma/client";
 import { validateForSend, sendReceipt } from "@/lib/mail";
+import { resolveDefaultCategoryId } from "@/lib/receipts/default-category";
 
 export async function POST(request: NextRequest) {
   const { session, error } = await requireAuth();
@@ -91,6 +92,9 @@ export async function POST(request: NextRequest) {
 
   const amountEur = calculateAmountEur(d.amount, d.currency, exchangeRate);
 
+  // Die Kategorie ist nicht mehr Teil der Oberflaeche - still auf die Default-Kategorie mappen.
+  const categoryId = d.categoryId ?? await resolveDefaultCategoryId();
+
   // Auto-assign default DATEV profile
   const defaultDatev = await prisma.datevProfile.findFirst({
     where: { active: true, isDefault: true },
@@ -126,7 +130,7 @@ export async function POST(request: NextRequest) {
         countryId: d.countryId ?? null,
         vehicleId: d.vehicleId ?? null,
         purposeId: d.purposeId,
-        categoryId: d.categoryId,
+        categoryId,
         datevProfileId: defaultDatev?.id ?? null,
         datevBelegtyp: d.datevBelegtyp,
         remark: d.remark ?? null,

@@ -17,7 +17,6 @@ type ReceiptCoreDataProps = {
   exchangeRateDate: string | null;
   supplier: string | null;
   purposeName: string;
-  categoryName: string;
   countryDisplay: string;
   vehiclePlate: string | null;
   datevBelegtypLabel: string | null;
@@ -41,7 +40,6 @@ export function ReceiptCoreData({
   exchangeRateDate,
   supplier,
   purposeName,
-  categoryName,
   countryDisplay,
   vehiclePlate,
   datevBelegtypLabel,
@@ -84,7 +82,6 @@ export function ReceiptCoreData({
         ) : null}
         <Field label={supplierLabel} value={supplier ?? "—"} />
         <Field label="Zweck" value={purposeName} />
-        <Field label="Kategorie" value={categoryName} />
         <Field label="Land" value={countryDisplay} />
         <Field label="Kfz" value={vehiclePlate ?? "—"} />
         <Field label="DATEV-Belegtyp" value={datevBelegtypLabel ?? "— (fehlt, Versand nicht moeglich)"} />

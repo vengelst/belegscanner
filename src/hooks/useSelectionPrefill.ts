@@ -19,7 +19,6 @@ export function useSelectionPrefill(userDefaults: UserDefaults, validIds: ValidI
   );
 
   const [purposeId, setPurposeId] = useState(resolved.selection.purposeId);
-  const [categoryId, setCategoryId] = useState(resolved.selection.categoryId);
   const [countryId, setCountryId] = useState(resolved.selection.countryId);
   const [vehicleId, setVehicleId] = useState(resolved.selection.vehicleId);
   const [prefillSource, setPrefillSource] = useState<PrefillSource>(resolved.source);
@@ -27,7 +26,6 @@ export function useSelectionPrefill(userDefaults: UserDefaults, validIds: ValidI
   const applyResolvedDefaults = useCallback(() => {
     const next = resolveSelectionState({ userDefaults, validIds });
     setPurposeId(next.selection.purposeId);
-    setCategoryId(next.selection.categoryId);
     setCountryId(next.selection.countryId);
     setVehicleId(next.selection.vehicleId);
     setPrefillSource(next.source);
@@ -39,12 +37,10 @@ export function useSelectionPrefill(userDefaults: UserDefaults, validIds: ValidI
 
   return {
     purposeId,
-    categoryId,
     countryId,
     vehicleId,
     prefillSource,
     setPurposeId,
-    setCategoryId,
     setCountryId,
     setVehicleId,
     setPrefillSource,

@@ -398,6 +398,10 @@ model OrganizationProfile {
   zip         String?
   city        String?
   countryCode String?
+  // Endziffern der Firmenkarten (2-4 Ziffern, nie vollstaendige Kartennummern).
+  // Trifft eine per OCR erkannte Kartenendung zu, wird der Beleg als
+  // Kreditkartenbeleg eingestuft, sonst als Kasse (privat verauslagt).
+  companyCardLastDigits String[] @default([])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

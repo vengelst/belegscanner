@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { getOrganizationProfileDto } from "@/lib/organization";
 import { OrganizationSettingsForm } from "@/components/admin/organization-settings-form";
+import { CompanyCardsForm } from "@/components/admin/company-cards-form";
 
 export default async function OrganizationPage() {
   await connection();
@@ -27,6 +28,7 @@ export default async function OrganizationPage() {
           updatedAt: profile.updatedAt,
         }}
       />
+      <CompanyCardsForm initial={profile.companyCardLastDigits} />
     </div>
   );
 }

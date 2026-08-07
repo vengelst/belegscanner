@@ -15,7 +15,7 @@ export default async function UserSettingsPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const [user, purposes, categories, countries, vehicles] = await Promise.all([
+  const [user, purposes, countries, vehicles] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },
       select: {
@@ -28,11 +28,9 @@ export default async function UserSettingsPage() {
         defaultCountryId: true,
         defaultVehicleId: true,
         defaultPurposeId: true,
-        defaultCategoryId: true,
       },
     }),
     prisma.purpose.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
-    prisma.category.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
     prisma.country.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }),
     prisma.vehicle.findMany({ where: { active: true }, orderBy: [{ sortOrder: "asc" }, { plate: "asc" }] }),
   ]);
@@ -71,10 +69,8 @@ export default async function UserSettingsPage() {
           defaultCountryId: user.defaultCountryId,
           defaultVehicleId: user.defaultVehicleId,
           defaultPurposeId: user.defaultPurposeId,
-          defaultCategoryId: user.defaultCategoryId,
         }}
         purposes={purposes.map((purpose) => ({ id: purpose.id, label: purpose.name }))}
-        categories={categories.map((category) => ({ id: category.id, label: category.name }))}
         countries={countries.map((country) => ({ id: country.id, label: country.code ? `${country.name} (${country.code})` : country.name }))}
         vehicles={vehicles.map((vehicle) => ({ id: vehicle.id, label: vehicle.description ? `${vehicle.plate} - ${vehicle.description}` : vehicle.plate }))}
       />

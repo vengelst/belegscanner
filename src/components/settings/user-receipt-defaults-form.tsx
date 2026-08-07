@@ -13,12 +13,10 @@ type Props = {
     defaultCountryId: string | null;
     defaultVehicleId: string | null;
     defaultPurposeId: string | null;
-    defaultCategoryId: string | null;
   };
   countries: Option[];
   vehicles: Option[];
   purposes: Option[];
-  categories: Option[];
 };
 
 export function UserReceiptDefaultsForm({
@@ -26,7 +24,6 @@ export function UserReceiptDefaultsForm({
   countries,
   vehicles,
   purposes,
-  categories,
 }: Props) {
   const [isPending, startTransition] = useTransition();
   const [success, setSuccess] = useState<string | null>(null);
@@ -34,7 +31,6 @@ export function UserReceiptDefaultsForm({
   const [defaultCountryId, setDefaultCountryId] = useState(initialDefaults.defaultCountryId ?? "");
   const [defaultVehicleId, setDefaultVehicleId] = useState(initialDefaults.defaultVehicleId ?? "");
   const [defaultPurposeId, setDefaultPurposeId] = useState(initialDefaults.defaultPurposeId ?? "");
-  const [defaultCategoryId, setDefaultCategoryId] = useState(initialDefaults.defaultCategoryId ?? "");
 
   function handleSubmit() {
     setSuccess(null);
@@ -48,7 +44,6 @@ export function UserReceiptDefaultsForm({
           defaultCountryId: defaultCountryId || null,
           defaultVehicleId: defaultVehicleId || null,
           defaultPurposeId: defaultPurposeId || null,
-          defaultCategoryId: defaultCategoryId || null,
         }),
       });
 
@@ -68,12 +63,11 @@ export function UserReceiptDefaultsForm({
       <p className="mt-1 text-sm text-muted-foreground">
         Diese Werte werden fuer neue Belege vorbelegt, wenn keine letzten Werte aus einer Folgeerfassung vorliegen.
       </p>
-      <form action={handleSubmit} className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <form action={handleSubmit} className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <SelectField label="Standard-Zweck" value={defaultPurposeId} onChange={setDefaultPurposeId} options={purposes} />
-        <SelectField label="Standard-Kategorie" value={defaultCategoryId} onChange={setDefaultCategoryId} options={categories} />
         <SelectField label="Standard-Land" value={defaultCountryId} onChange={setDefaultCountryId} options={countries} />
         <SelectField label="Standard-Kfz" value={defaultVehicleId} onChange={setDefaultVehicleId} options={vehicles} />
-        <div className="sm:col-span-2 lg:col-span-4 flex flex-wrap gap-3">
+        <div className="sm:col-span-2 lg:col-span-3 flex flex-wrap gap-3">
           <button
             type="submit"
             disabled={isPending}
@@ -88,7 +82,6 @@ export function UserReceiptDefaultsForm({
               setDefaultCountryId("");
               setDefaultVehicleId("");
               setDefaultPurposeId("");
-              setDefaultCategoryId("");
               setSuccess(null);
               setError(null);
             }}
@@ -97,8 +90,8 @@ export function UserReceiptDefaultsForm({
             Auswahl leeren
           </button>
         </div>
-        {error ? <p className="text-sm font-medium text-danger sm:col-span-2 lg:col-span-4">{error}</p> : null}
-        {success ? <p className="text-sm font-medium text-primary sm:col-span-2 lg:col-span-4">{success}</p> : null}
+        {error ? <p className="text-sm font-medium text-danger sm:col-span-2 lg:col-span-3">{error}</p> : null}
+        {success ? <p className="text-sm font-medium text-primary sm:col-span-2 lg:col-span-3">{success}</p> : null}
       </form>
     </Card>
   );

@@ -55,7 +55,6 @@ export const userReceiptDefaultsSchema = z.object({
   defaultCountryId: z.string().min(1).nullable().optional(),
   defaultVehicleId: z.string().min(1).nullable().optional(),
   defaultPurposeId: z.string().min(1).nullable().optional(),
-  defaultCategoryId: z.string().min(1).nullable().optional(),
 });
 
 export const userTemplateSchema = z.object({
@@ -397,7 +396,9 @@ const receiptSchemaBase = z.object({
   countryId: z.string().min(1).nullable().optional(),
   vehicleId: z.string().min(1).nullable().optional(),
   purposeId: z.string().min(1),
-  categoryId: z.string().min(1),
+  // Die Kategorie ist aus der Oberflaeche verschwunden. Fehlt sie im Request,
+  // setzt der Server still die Default-Kategorie (siehe resolveDefaultCategoryId).
+  categoryId: z.string().min(1).nullable().optional(),
   // Pflichtfeld: DATEV steuert den Belegtyp ueber die Upload-Mail-Zieladresse.
   datevBelegtyp: z.enum(DATEV_BELEGTYP_VALUES, {
     required_error: "DATEV-Belegtyp ist erforderlich.",
@@ -459,7 +460,6 @@ export const sendReadySchema = z
     countryId: z.string().min(1, "Land ist fuer den Versand erforderlich."),
     vehicleId: z.string().min(1).nullable().optional(),
     purposeId: z.string().min(1),
-    categoryId: z.string().min(1),
     remark: z.string().max(2000).nullable().optional(),
     hospitality: hospitalitySchema.nullable().optional(),
   })
@@ -490,7 +490,6 @@ export function checkSendReadiness(receipt: {
   taxAmount: number | null;
   countryId: string | null;
   purposeId: string | null;
-  categoryId: string | null;
   exchangeRate: number | null;
   hasFile?: boolean;
   hasSmtp?: boolean;
@@ -546,7 +545,6 @@ export function checkSendReadiness(receipt: {
   if (!receipt.date) issues.push({ field: "date", message: "Belegdatum fehlt.", severity: "warning" });
   if (!receipt.amount || receipt.amount <= 0) issues.push({ field: "amount", message: "Betrag fehlt oder ist ungueltig.", severity: "warning" });
   if (!receipt.purposeId) issues.push({ field: "purposeId", message: "Zweck fehlt.", severity: "warning" });
-  if (!receipt.categoryId) issues.push({ field: "categoryId", message: "Kategorie fehlt.", severity: "warning" });
   if (!receipt.countryId) issues.push({ field: "countryId", message: "Land fehlt.", severity: "warning" });
   if (!receipt.supplier) issues.push({ field: "supplier", message: "Lieferant fehlt.", severity: "warning" });
   if (!receipt.invoiceNumber) issues.push({ field: "invoiceNumber", message: "Rechnungsnummer fehlt.", severity: "warning" });

@@ -11,8 +11,8 @@ export default async function CategoriesPage() {
 
   return (
     <MasterDataManager
-      title="Kategorien"
-      description="Zahlungskategorien fuer Belege pflegen."
+      title="Kategorien (veraltet)"
+      description="Veraltet: Kategorien werden in der Erfassung nicht mehr abgefragt. Belege werden ueber den DATEV-Belegtyp gesteuert. Diese Seite bleibt nur fuer Altdaten erreichbar."
       apiPath="/api/master/categories"
       fields={fields}
       items={items}

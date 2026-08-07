@@ -4,13 +4,14 @@ import { useState, type ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { REVIEW_STATUS_OPTIONS } from "@/lib/receipts/review-status";
 import { NewReceiptLink } from "@/components/receipts/new-receipt-link";
+import { DATEV_BELEGTYP_VALUES, datevBelegtypLabels } from "@/lib/datev/belegtyp";
 
 type Filters = {
   search: string;
   sendStatus: string;
   reviewStatus: string;
   purposeId: string;
-  categoryId: string;
+  datevBelegtyp: string;
   countryId: string;
   vehicleId: string;
   userId: string;
@@ -22,7 +23,6 @@ type Filters = {
 
 type FilterOptions = {
   purposes: { id: string; name: string }[];
-  categories: { id: string; name: string }[];
   countries: { id: string; label: string }[];
   vehicles: { id: string; label: string }[];
   users: { id: string; label: string }[];
@@ -62,7 +62,7 @@ export function ReceiptFilterBar({
   const [expanded, setExpanded] = useState(false);
   const [searchValue, setSearchValue] = useState(filters.search);
 
-  const hasFilters = !!(filters.sendStatus || filters.reviewStatus || filters.purposeId || filters.categoryId || filters.countryId || filters.vehicleId || filters.userId || filters.dateFrom || filters.dateTo);
+  const hasFilters = !!(filters.sendStatus || filters.reviewStatus || filters.purposeId || filters.datevBelegtyp || filters.countryId || filters.vehicleId || filters.userId || filters.dateFrom || filters.dateTo);
 
   function handleSearchSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -76,7 +76,7 @@ export function ReceiptFilterBar({
       sendStatus: "",
       reviewStatus: "",
       purposeId: "",
-      categoryId: "",
+      datevBelegtyp: "",
       countryId: "",
       vehicleId: "",
       userId: "",
@@ -179,10 +179,10 @@ export function ReceiptFilterBar({
             options={filterOptions.purposes.map((p) => ({ value: p.id, label: p.name }))}
           />
           <FilterSelect
-            label="Kategorie"
-            value={filters.categoryId}
-            onChange={(v) => onFilterChange({ categoryId: v })}
-            options={filterOptions.categories.map((c) => ({ value: c.id, label: c.name }))}
+            label="DATEV-Belegtyp"
+            value={filters.datevBelegtyp}
+            onChange={(v) => onFilterChange({ datevBelegtyp: v })}
+            options={DATEV_BELEGTYP_VALUES.map((belegtyp) => ({ value: belegtyp, label: datevBelegtypLabels[belegtyp] }))}
           />
           <FilterSelect
             label="Land"

@@ -18,7 +18,6 @@ import type { StructuredData } from "@/components/receipts/detail/parse-structur
 import { useDuplicateCheck } from "@/hooks/useDuplicateCheck";
 
 type Purpose = { id: string; name: string; isHospitality: boolean };
-type Category = { id: string; name: string };
 type Country = { id: string; name: string; code: string | null; currencyCode: string | null; vatRatePercent: number | null };
 type Vehicle = { id: string; plate: string; description: string | null };
 
@@ -41,8 +40,9 @@ type ReceiptData = {
   countryId: string | null;
   vehicleId: string | null;
   purposeId: string;
-  categoryId: string;
   datevBelegtyp: DatevBelegtyp | null;
+  /** Erkannte Belegart (GENERAL, HOSPITALITY, ...) fuer die Belegtyp-Vorbelegung. */
+  aiDocumentType: string | null;
   remark: string | null;
   hospitality: { occasion: string; guests: string; location: string } | null;
 };
@@ -52,24 +52,27 @@ type Props = {
   structuredData: StructuredData | null;
   hasOriginalFile: boolean;
   purposes: Purpose[];
-  categories: Category[];
   countries: Country[];
   vehicles: Vehicle[];
+  /** Endziffern der Firmenkarten aus den Organisationseinstellungen. */
+  companyCardLastDigits: string[];
 };
 
-export function ReceiptEditForm({ receipt, structuredData, hasOriginalFile, purposes, categories, countries, vehicles }: Props) {
+export function ReceiptEditForm({ receipt, structuredData, hasOriginalFile, purposes, countries, vehicles, companyCardLastDigits }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [purposeId, setPurposeId] = useState(receipt.purposeId);
-  const [categoryId, setCategoryId] = useState(receipt.categoryId);
   const [partyRole, setPartyRole] = useState<"CREDITOR" | "DEBTOR">(receipt.partyRole);
-  // Belege ohne gespeicherten Belegtyp (Altbestand) bekommen einen Vorschlag,
-  // der bei Aenderung von Belegrichtung/Kategorie mitwandert.
+  // Belege ohne gespeicherten Belegtyp (Altbestand) bekommen einen Vorschlag aus
+  // Belegrichtung und Erkennungsdaten, der bei Aenderung der Richtung mitwandert.
   const [datevBelegtyp, setDatevBelegtyp] = useState<DatevBelegtyp>(
     receipt.datevBelegtyp
       ?? suggestDatevBelegtyp({
         partyRole: receipt.partyRole,
-        categoryName: categories.find((category) => category.id === receipt.categoryId)?.name ?? null,
+        paymentMethod: structuredData?.extracted.paymentMethod ?? null,
+        cardLastDigits: structuredData?.extracted.cardLastDigits ?? null,
+        documentType: receipt.aiDocumentType,
+        companyCardLastDigits,
       }),
   );
   const [datevBelegtypManuallyChanged, setDatevBelegtypManuallyChanged] = useState(
@@ -117,13 +120,19 @@ export function ReceiptEditForm({ receipt, structuredData, hasOriginalFile, purp
   );
 
   const selectedPurpose = purposes.find((p) => p.id === purposeId);
-  const selectedCategoryName = categories.find((c) => c.id === categoryId)?.name ?? null;
   const isHospitality = selectedPurpose?.isHospitality ?? false;
 
   useEffect(() => {
     if (datevBelegtypManuallyChanged) return;
-    setDatevBelegtyp(suggestDatevBelegtyp({ partyRole, categoryName: selectedCategoryName }));
-  }, [partyRole, selectedCategoryName, datevBelegtypManuallyChanged]);
+    setDatevBelegtyp(suggestDatevBelegtyp({
+      partyRole,
+      paymentMethod: structuredData?.extracted.paymentMethod ?? null,
+      cardLastDigits: structuredData?.extracted.cardLastDigits ?? null,
+      documentType: receipt.aiDocumentType,
+      companyCardLastDigits,
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partyRole, datevBelegtypManuallyChanged]);
   const requiresExchangeRate = currency.trim().toUpperCase() !== "EUR";
   const normalizedCurrency = currency.trim().toUpperCase() || "EUR";
   const currencyOptions = useMemo(() => buildCurrencyOptions(countries), [countries]);
@@ -359,7 +368,6 @@ export function ReceiptEditForm({ receipt, structuredData, hasOriginalFile, purp
       countryId: formData.get("countryId") || null,
       vehicleId: formData.get("vehicleId") || null,
       purposeId: formData.get("purposeId"),
-      categoryId: formData.get("categoryId"),
       datevBelegtyp: formData.get("datevBelegtyp") || datevBelegtyp,
       remark: formData.get("remark") || null,
     };
@@ -583,9 +591,6 @@ export function ReceiptEditForm({ receipt, structuredData, hasOriginalFile, purp
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <SelectField label="Zweck" name="purposeId" required value={purposeId} onChange={setPurposeId}>
             {purposes.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </SelectField>
-          <SelectField label="Kategorie" name="categoryId" required value={categoryId} onChange={setCategoryId}>
-            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </SelectField>
           <SelectField label="Land" name="countryId" value={countryId} onChange={(value) => {
             setTaxManuallyOverridden(false);

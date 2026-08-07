@@ -2,7 +2,7 @@
 
 import { Card } from "@/components/ui/card";
 import { SelectField } from "@/components/ui/select-field";
-import type { Purpose, Category, Country, Vehicle, PrefillSource } from "@/lib/receipts/form-helpers";
+import type { Purpose, Country, Vehicle, PrefillSource } from "@/lib/receipts/form-helpers";
 import {
   DATEV_BELEGTYP_VALUES,
   datevBelegtypHints,
@@ -12,17 +12,14 @@ import {
 
 type Props = {
   purposes: Purpose[];
-  categories: Category[];
   countries: Country[];
   vehicles: Vehicle[];
   purposeId: string;
-  categoryId: string;
   countryId: string;
   vehicleId: string;
   datevBelegtyp: DatevBelegtyp;
   prefillSource: PrefillSource;
   setPurposeId: (v: string) => void;
-  setCategoryId: (v: string) => void;
   setCountryId: (v: string) => void;
   setCountryManuallyChanged: (v: boolean) => void;
   setVehicleId: (v: string) => void;
@@ -31,17 +28,14 @@ type Props = {
 
 export function ReceiptFormAssignmentSection({
   purposes,
-  categories,
   countries,
   vehicles,
   purposeId,
-  categoryId,
   countryId,
   vehicleId,
   datevBelegtyp,
   prefillSource,
   setPurposeId,
-  setCategoryId,
   setCountryId,
   setCountryManuallyChanged,
   setVehicleId,
@@ -54,7 +48,7 @@ export function ReceiptFormAssignmentSection({
           <h2 className="text-lg font-semibold tracking-tight">Zuordnung</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Nur aus deinen Standardwerten (Einstellungen) vorbelegt – z. B. Firmenwagen.
-            Zweck/Kategorie/Land vom vorherigen Beleg werden nicht uebernommen.
+            Zweck und Land vom vorherigen Beleg werden nicht uebernommen.
           </p>
         </div>
         {prefillSource !== "none" ? (
@@ -68,12 +62,6 @@ export function ReceiptFormAssignmentSection({
           <option value="">-- Zweck waehlen --</option>
           {purposes.map((purpose) => (
             <option key={purpose.id} value={purpose.id}>{purpose.name}</option>
-          ))}
-        </SelectField>
-        <SelectField label="Kategorie" name="categoryId" required value={categoryId} onChange={setCategoryId}>
-          <option value="">-- Kategorie waehlen --</option>
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>{category.name}</option>
           ))}
         </SelectField>
         <SelectField label="Land" name="countryId" value={countryId} onChange={(value) => { setCountryManuallyChanged(true); setCountryId(value); }}>

@@ -3,15 +3,25 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth/require-auth";
 import { getOrganizationProfileDto } from "@/lib/organization";
+import { DEFAULT_COMPANY_CARD_LAST_DIGITS } from "@/lib/datev/belegtyp";
 
+/**
+ * Alle Felder sind optional: Firmenidentitaet und Firmenkarten werden in zwei
+ * getrennten Formularen gepflegt und duerfen sich gegenseitig nicht ueberschreiben.
+ */
 const organizationSchema = z.object({
-  legalName: z.string().max(255, "Firmenname zu lang."),
+  legalName: z.string().max(255, "Firmenname zu lang.").optional(),
   tradeName: z.string().max(255).optional().nullable(),
   vatId: z.string().max(40).optional().nullable(),
   street: z.string().max(255).optional().nullable(),
   zip: z.string().max(20).optional().nullable(),
   city: z.string().max(120).optional().nullable(),
   countryCode: z.string().max(2).optional().nullable(),
+  // Nur Endziffern - vollstaendige Kartennummern werden bewusst nicht gespeichert.
+  companyCardLastDigits: z
+    .array(z.string().regex(/^\d{2,4}$/, "Endziffern muessen aus 2 bis 4 Ziffern bestehen."))
+    .max(20, "Maximal 20 Firmenkarten.")
+    .optional(),
 });
 
 function emptyToNull(value: string | null | undefined): string | null {
@@ -47,34 +57,41 @@ export async function PUT(request: NextRequest) {
     );
   }
 
-  const legalName = parsed.data.legalName.trim();
-  const tradeName = emptyToNull(parsed.data.tradeName);
-  const vatId = emptyToNull(parsed.data.vatId);
-  const street = emptyToNull(parsed.data.street);
-  const zip = emptyToNull(parsed.data.zip);
-  const city = emptyToNull(parsed.data.city);
-  const countryCode = emptyToNull(parsed.data.countryCode)?.toUpperCase() ?? null;
+  // Nur uebermittelte Felder werden geschrieben - so laesst das Firmenkarten-Formular
+  // die Identitaetsfelder unangetastet und umgekehrt.
+  const identity = parsed.data.legalName !== undefined
+    ? {
+        legalName: parsed.data.legalName.trim(),
+        tradeName: emptyToNull(parsed.data.tradeName),
+        vatId: emptyToNull(parsed.data.vatId),
+        street: emptyToNull(parsed.data.street),
+        zip: emptyToNull(parsed.data.zip),
+        city: emptyToNull(parsed.data.city),
+        countryCode: emptyToNull(parsed.data.countryCode)?.toUpperCase() ?? null,
+      }
+    : null;
+
+  // Doppelte Endziffern zusammenfassen; ein fehlendes Feld laesst die Karten unveraendert.
+  const companyCardLastDigits = parsed.data.companyCardLastDigits
+    ? Array.from(new Set(parsed.data.companyCardLastDigits))
+    : undefined;
 
   const profile = await prisma.organizationProfile.upsert({
     where: { id: "default" },
     update: {
-      legalName,
-      tradeName,
-      vatId,
-      street,
-      zip,
-      city,
-      countryCode,
+      ...(identity ?? {}),
+      ...(companyCardLastDigits ? { companyCardLastDigits } : {}),
     },
     create: {
       id: "default",
-      legalName,
-      tradeName,
-      vatId,
-      street,
-      zip,
-      city,
-      countryCode,
+      legalName: identity?.legalName ?? "",
+      tradeName: identity?.tradeName ?? null,
+      vatId: identity?.vatId ?? null,
+      street: identity?.street ?? null,
+      zip: identity?.zip ?? null,
+      city: identity?.city ?? null,
+      countryCode: identity?.countryCode ?? null,
+      companyCardLastDigits: companyCardLastDigits ?? DEFAULT_COMPANY_CARD_LAST_DIGITS,
     },
   });
 
@@ -87,6 +104,7 @@ export async function PUT(request: NextRequest) {
     zip: profile.zip,
     city: profile.city,
     countryCode: profile.countryCode,
+    companyCardLastDigits: profile.companyCardLastDigits,
     updatedAt: profile.updatedAt.toISOString(),
   });
 }

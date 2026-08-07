@@ -98,7 +98,8 @@ export async function PUT(
   if (input.countryId !== undefined) data.countryId = input.countryId ?? null;
   if (input.vehicleId !== undefined) data.vehicleId = input.vehicleId ?? null;
   if (input.purposeId !== undefined) data.purposeId = input.purposeId;
-  if (input.categoryId !== undefined) data.categoryId = input.categoryId;
+  // Kategorie ist nicht mehr Teil der Oberflaeche; ein leerer Wert laesst sie unveraendert.
+  if (input.categoryId) data.categoryId = input.categoryId;
   if (input.datevBelegtyp !== undefined) data.datevBelegtyp = input.datevBelegtyp;
   if (input.remark !== undefined) data.remark = input.remark ?? null;
   if (input.aiRawText !== undefined) data.aiRawText = input.aiRawText ?? null;

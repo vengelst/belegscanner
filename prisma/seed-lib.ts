@@ -1,5 +1,6 @@
 import { PrismaClient, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { DEFAULT_COMPANY_CARD_LAST_DIGITS } from "../src/lib/datev/belegtyp";
 
 export const PURPOSES = [
   { name: "Buero", isHospitality: false },
@@ -84,6 +85,15 @@ export async function seedMasterData(prisma: PrismaClient): Promise<SeedMaps> {
   return { purposeMap, categoryMap, countryMap };
 }
 
+/** Firmenprofil-Zeile inkl. der bekannten Firmenkarten-Endziffern. */
+export async function seedOrganizationProfile(prisma: PrismaClient) {
+  return prisma.organizationProfile.upsert({
+    where: { id: "default" },
+    update: {},
+    create: { id: "default", companyCardLastDigits: DEFAULT_COMPANY_CARD_LAST_DIGITS },
+  });
+}
+
 export async function seedAdminUser(
   prisma: PrismaClient,
   { email, password, name }: { email: string; password: string; name: string },
@@ -126,7 +136,6 @@ Lieferant: {supplier}
 Betrag: {amount} {currency}
 Belegtyp: {belegtyp}
 Zweck: {purpose}
-Kategorie: {category}
 Benutzer: {user}
 
 {remark}

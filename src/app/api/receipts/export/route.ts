@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth/require-auth";
 import { Prisma } from "@prisma/client";
 import { getReviewStatusLabel } from "@/lib/receipts/review-status";
-import { datevBelegtypLabel } from "@/lib/datev/belegtyp";
+import { datevBelegtypLabel, isDatevBelegtyp } from "@/lib/datev/belegtyp";
 
 export async function GET(request: NextRequest) {
   const { error } = await requireAdmin();
@@ -32,8 +32,8 @@ export async function GET(request: NextRequest) {
   const purposeId = url.searchParams.get("purposeId");
   if (purposeId) where.purposeId = purposeId;
 
-  const categoryId = url.searchParams.get("categoryId");
-  if (categoryId) where.categoryId = categoryId;
+  const datevBelegtyp = url.searchParams.get("datevBelegtyp");
+  if (datevBelegtyp && isDatevBelegtyp(datevBelegtyp)) where.datevBelegtyp = datevBelegtyp;
 
   const countryId = url.searchParams.get("countryId");
   if (countryId) where.countryId = countryId;
@@ -59,7 +59,6 @@ export async function GET(request: NextRequest) {
       country: { select: { name: true, code: true } },
       vehicle: { select: { plate: true } },
       purpose: { select: { name: true } },
-      category: { select: { name: true } },
     },
     orderBy: { date: "desc" },
     take: 10000,
@@ -70,7 +69,7 @@ export async function GET(request: NextRequest) {
   const SEP = ";";
   const headers = [
     "Datum", "Lieferant", "Betrag", "Waehrung", "EUR-Betrag", "Wechselkurs",
-    "Zweck", "Kategorie", "Land", "Kfz", "DATEV-Belegtyp", "Benutzer", "Pruefstatus",
+    "Zweck", "Land", "Kfz", "DATEV-Belegtyp", "Benutzer", "Pruefstatus",
     "Versandstatus", "Bemerkung", "Erstellt",
   ];
 
@@ -91,7 +90,6 @@ export async function GET(request: NextRequest) {
     String(Number(r.amountEur)).replace(".", ","),
     r.exchangeRate ? String(Number(r.exchangeRate)).replace(".", ",") : "",
     esc(r.purpose.name),
-    esc(r.category.name),
     esc(r.country?.name ?? ""),
     esc(r.vehicle?.plate ?? ""),
     esc(datevBelegtypLabel(r.datevBelegtyp) ?? ""),

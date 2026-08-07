@@ -30,7 +30,7 @@ export type DatevPdfData = {
   exchangeRate: string | null;
   exchangeRateDate: string | null;
   purposeName: string;
-  categoryName: string;
+  datevBelegtypLabel: string | null;
   countryName: string | null;
   vehiclePlate: string | null;
   remark: string | null;
@@ -117,7 +117,7 @@ function buildDatevDocument(data: DatevPdfData) {
 
   if (data.supplier) cells.push({ label: "Lieferant", value: data.supplier });
   cells.push({ label: "Zweck", value: data.purposeName });
-  cells.push({ label: "Zahlungsart", value: data.categoryName });
+  if (data.datevBelegtypLabel) cells.push({ label: "DATEV-Belegtyp", value: data.datevBelegtypLabel });
   if (data.countryName) cells.push({ label: "Land", value: data.countryName });
   if (data.vehiclePlate) cells.push({ label: "Kfz", value: data.vehiclePlate });
   cells.push({ label: "Bearbeiter", value: `${data.processorName} (${data.processorEmail})` });

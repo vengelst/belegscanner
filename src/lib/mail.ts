@@ -318,7 +318,6 @@ async function loadReceiptForSend(receiptId: string) {
       country: { select: { name: true, code: true } },
       vehicle: { select: { plate: true } },
       purpose: { select: { name: true } },
-      category: { select: { name: true } },
       hospitality: true,
       files: { where: { type: "ORIGINAL" }, take: 1 },
     },
@@ -349,7 +348,8 @@ function renderTemplate(
     .replace(/\{amountEur\}/g, amountEurStr)
     .replace(/\{user\}/g, receipt.user.name)
     .replace(/\{purpose\}/g, receipt.purpose.name)
-    .replace(/\{category\}/g, receipt.category.name)
+    // {category} ist veraltet und wird durch den Belegtyp ersetzt.
+    .replace(/\{category\}/g, datevBelegtypLabel(receipt.datevBelegtyp) ?? "\u2014")
     .replace(/\{country\}/g, receipt.country?.name ?? "—")
     .replace(/\{vehicle\}/g, receipt.vehicle?.plate ?? "—")
     .replace(/\{remark\}/g, receipt.remark ?? "");
@@ -400,7 +400,7 @@ async function buildDatevAttachment(
     exchangeRate: sendExchangeRate ? String(sendExchangeRate) : null,
     exchangeRateDate: sendExchangeRateDate ? fmtDate(sendExchangeRateDate) : null,
     purposeName: receipt.purpose.name,
-    categoryName: receipt.category.name,
+    datevBelegtypLabel: datevBelegtypLabel(receipt.datevBelegtyp),
     countryName: receipt.country
       ? `${receipt.country.name}${receipt.country.code ? ` (${receipt.country.code})` : ""}`
       : null,

@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { readFile } from "@/lib/storage";
 import { appendReceiptMetadataToPdf, generateReceiptPdf } from "@/lib/pdf";
 import type { PdfReceiptData } from "@/lib/pdf";
+import { datevBelegtypLabel } from "@/lib/datev/belegtyp";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -31,7 +32,6 @@ export async function GET(
       country: { select: { name: true, code: true } },
       vehicle: { select: { plate: true } },
       purpose: { select: { name: true } },
-      category: { select: { name: true } },
       hospitality: true,
       files: { where: { type: "ORIGINAL" }, take: 1 },
     },
@@ -85,7 +85,7 @@ export async function GET(
     sendStatusUpdatedAt: receipt.sendStatusUpdatedAt ? fmtDateTime(receipt.sendStatusUpdatedAt) : null,
     userName: receipt.user.name,
     purposeName: receipt.purpose.name,
-    categoryName: receipt.category.name,
+    datevBelegtypLabel: datevBelegtypLabel(receipt.datevBelegtyp),
     countryName: receipt.country
       ? `${receipt.country.name}${receipt.country.code ? ` (${receipt.country.code})` : ""}`
       : null,
