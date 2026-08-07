@@ -7,6 +7,11 @@ import {
   type NormalizedDocumentBounds,
 } from "@/components/receipts/document-detector";
 import { CropEditor } from "@/components/receipts/crop-editor";
+import {
+  getAutoCaptureProfile,
+  readAutoCaptureSensitivity,
+  type AutoCaptureProfile,
+} from "@/lib/auto-capture-settings";
 
 type CapturePayload = {
   file: File;
@@ -23,13 +28,7 @@ type Props = {
 type CameraState = "camera" | "crop" | "review";
 
 const ANALYZE_INTERVAL_MS = 200;
-const AUTO_CAPTURE_HOLD_MS = 350;
-const AUTO_CAPTURE_COOLDOWN_MS = 2000;
-/**
- * Nach Start des Countdowns duerfen einzelne schlechte Frames den Timer nicht
- * sofort killen. Erst wenn laenger kein Beleg mehr erkannt wird, Reset.
- */
-const AUTO_CAPTURE_MISS_GRACE_MS = 900;
+const AUTO_CAPTURE_COOLDOWN_MS = 2500;
 const ANALYSIS_WIDTH = 400;
 
 export function CameraCapture({ open, onClose, onCapture }: Props) {
@@ -40,6 +39,8 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
   const readySinceRef = useRef<number | null>(null);
   const lastSeenDocumentAtRef = useRef<number>(0);
   const cooldownUntilRef = useRef<number>(0);
+  const cameraOpenedAtRef = useRef<number>(0);
+  const profileRef = useRef<AutoCaptureProfile>(getAutoCaptureProfile(readAutoCaptureSensitivity()));
   const latestDetectionRef = useRef<DocumentDetectionResult | null>(null);
   const cameraStateRef = useRef<CameraState>("camera");
   const capturingRef = useRef(false);
@@ -73,6 +74,8 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
     setDetection(null);
     resetAutoCaptureState();
     capturingRef.current = false;
+    profileRef.current = getAutoCaptureProfile(readAutoCaptureSensitivity());
+    cameraOpenedAtRef.current = Date.now();
     void startCamera();
 
     return () => {
@@ -192,15 +195,31 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
     latestDetectionRef.current = result;
     setDetection(result);
 
+    const profile = profileRef.current;
     const now = Date.now();
-    const documentSeen = Boolean(result.bounds) && result.autoCaptureEligible;
 
-    if (documentSeen) {
+    if (!profile.enabled) {
+      readySinceRef.current = null;
+      setAutoCaptureCountdownMs(null);
+      return;
+    }
+
+    if (now - cameraOpenedAtRef.current < profile.warmupMs) {
+      readySinceRef.current = null;
+      setAutoCaptureCountdownMs(null);
+      return;
+    }
+
+    const qualityOk = profile.requireReadyStatus
+      ? result.status === "ready" && result.autoCaptureEligible
+      : Boolean(result.bounds) && result.autoCaptureEligible;
+
+    if (qualityOk) {
       lastSeenDocumentAtRef.current = now;
       if (!readySinceRef.current) readySinceRef.current = now;
     } else if (
       readySinceRef.current !== null
-      && now - lastSeenDocumentAtRef.current > AUTO_CAPTURE_MISS_GRACE_MS
+      && now - lastSeenDocumentAtRef.current > profile.missGraceMs
     ) {
       readySinceRef.current = null;
     }
@@ -211,7 +230,7 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
     }
 
     const heldMs = now - readySinceRef.current;
-    if (now >= cooldownUntilRef.current && heldMs >= AUTO_CAPTURE_HOLD_MS) {
+    if (now >= cooldownUntilRef.current && heldMs >= profile.holdMs) {
       cooldownUntilRef.current = now + AUTO_CAPTURE_COOLDOWN_MS;
       readySinceRef.current = null;
       setAutoCaptureCountdownMs(null);
@@ -219,7 +238,7 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
       return;
     }
 
-    setAutoCaptureCountdownMs(Math.max(0, AUTO_CAPTURE_HOLD_MS - heldMs));
+    setAutoCaptureCountdownMs(Math.max(0, profile.holdMs - heldMs));
   };
 
   handleCaptureRef.current = async (
@@ -484,7 +503,7 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
 
           {state === "camera" && !error ? (
             <p className="text-center text-xs text-muted-foreground">
-              Tippen auf das Bild oder den Ausloeser nimmt sofort auf. Auto-Aufnahme startet, sobald der Beleg erkannt ist.
+              Tippen auf das Bild oder den Ausloeser nimmt sofort auf. Auto-Aufnahme: Empfindlichkeit unter Einstellungen (Standard: Langsam).
             </p>
           ) : null}
 

@@ -3,6 +3,7 @@ import type { OcrInvoiceLineItem, OcrResult } from "@/lib/document-analysis";
 import { getAiProvider, AiProviderError, normalizePartyRole } from "@/lib/ai";
 import type { ExtractionResult } from "@/lib/ai/types";
 import { nullishToNull } from "@/lib/ai/nullish-string";
+import { preferRetailLinesIfBetter } from "@/lib/ai/retail-line-parser";
 
 function mapPaymentMethod(raw: string | null): "cash" | "visa" | "mastercard" | "credit_card" | "debit_card" | "paypal" | "sepa" | "bank_transfer" | "unknown" | null {
   if (!raw) return null;
@@ -179,6 +180,25 @@ function mapExtractionToOcrResult(
   };
 }
 
+function applyRetailLineCorrection(data: ExtractionResult, ocrText?: string | null): ExtractionResult {
+  const merged = preferRetailLinesIfBetter(data.lineItems, ocrText ?? null, data.grossAmount);
+  if (!merged.usedRetail) return data;
+  const warnings = [...data.warnings];
+  if (merged.reason) warnings.push(merged.reason);
+  return {
+    ...data,
+    lineItems: merged.items.map((item) => ({
+      description: item.description,
+      quantity: item.quantity,
+      unit: item.unit,
+      unitPrice: item.unitPrice,
+      totalPrice: item.totalPrice,
+      taxHint: item.taxHint,
+    })),
+    warnings,
+  };
+}
+
 export async function analyzeWithOpenAITextMode(
   rawText: string,
   mimeType: string,
@@ -189,7 +209,7 @@ export async function analyzeWithOpenAITextMode(
   }
 
   try {
-    const data = await provider.analyzeText(rawText);
+    const data = applyRetailLineCorrection(await provider.analyzeText(rawText), rawText);
     return mapExtractionToOcrResult(data, mimeType);
   } catch (error) {
     if (error instanceof AiProviderError) {
@@ -210,7 +230,10 @@ export async function analyzeWithOpenAI(
   }
 
   try {
-    const data = await provider.analyzeDocument(buffer, mimeType, ocrText);
+    const data = applyRetailLineCorrection(
+      await provider.analyzeDocument(buffer, mimeType, ocrText),
+      ocrText,
+    );
     return mapExtractionToOcrResult(data, mimeType);
   } catch (error) {
     if (error instanceof AiProviderError) {

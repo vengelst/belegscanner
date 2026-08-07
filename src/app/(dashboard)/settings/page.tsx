@@ -7,6 +7,7 @@ import { NavigationDisplayForm } from "@/components/settings/navigation-display-
 import { UserReceiptDefaultsForm } from "@/components/settings/user-receipt-defaults-form";
 import { SettingsModeSwitch } from "@/components/settings/settings-mode-switch";
 import { TemplateSelector } from "@/components/settings/template-selector";
+import { AutoCaptureSensitivityForm } from "@/components/settings/auto-capture-sensitivity-form";
 import { connection } from "next/server";
 import type { UiTemplate } from "@/lib/validation";
 
@@ -63,6 +64,7 @@ export default async function UserSettingsPage() {
         </div>
         <TemplateSelector currentTemplate={user.uiTemplate as UiTemplate} />
       </div>
+      <AutoCaptureSensitivityForm />
       <NavigationDisplayForm />
       <UserReceiptDefaultsForm
         initialDefaults={{
