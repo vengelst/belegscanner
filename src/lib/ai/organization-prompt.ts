@@ -5,6 +5,7 @@ import {
   matchesOrganization,
 } from "@/lib/organization";
 import type { ExtractionResult } from "./types";
+import { sanitizeLineItems } from "./sanitize-line-items";
 
 export type ExtractedPartyRole = "CREDITOR" | "DEBTOR" | null;
 
@@ -25,6 +26,8 @@ Line items (lineItems):
 - Extract EVERY visible item/position row of the document, in the order they appear, as completely as possible
 - Small print, tightly spaced table rows and continuation pages still count - zoom in mentally and read them, do not skip a row because it is hard to read
 - One row per position; do not merge several rows into one entry
+- CRITICAL: description and prices of a row belong together - never assign the price from another row, and never put the invoice grand total onto a product/service row
+- For each row: totalPrice must be that row's line amount; if quantity and unitPrice are printed, totalPrice should match quantity × unitPrice
 - Do NOT create line items for summary rows: subtotal, total, net/gross sums, VAT/tax rows, tip, rounding, discounts on the whole invoice, payment/change rows, loyalty points
 - Keep the description as printed (may be shortened, but never invent text); quantity, unit, unitPrice and totalPrice stay null when they are not printed
 - If a row is only partially readable, still return it with the readable parts and add a warning
@@ -149,7 +152,11 @@ export function normalizeExtractionResult(
   organization?: OrganizationIdentity | null,
 ): ExtractionResult {
   const warnings = Array.isArray(raw.warnings) ? [...raw.warnings] : [];
-  const lineItems = Array.isArray(raw.lineItems) ? raw.lineItems : [];
+  const lineItems = sanitizeLineItems(
+    Array.isArray(raw.lineItems) ? raw.lineItems : [],
+    raw.grossAmount ?? null,
+    warnings,
+  );
   const issuerName = raw.issuerName?.trim() || null;
   const recipientName = raw.recipientName?.trim() || null;
   let supplier = raw.supplier?.trim() || null;

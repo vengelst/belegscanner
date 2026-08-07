@@ -11,9 +11,9 @@
  * Bewusst ohne Abhaengigkeiten, damit die Regel isoliert testbar bleibt.
  */
 
-export const TEXT_MODE_MIN_CONFIDENCE = 0.75;
-export const TEXT_MODE_MIN_TEXT_LENGTH = 400;
-export const TEXT_MODE_MIN_LINES = 12;
+export const TEXT_MODE_MIN_CONFIDENCE = 0.85;
+export const TEXT_MODE_MIN_TEXT_LENGTH = 600;
+export const TEXT_MODE_MIN_LINES = 16;
 
 /** Betragsmuster wie "1.234,56", "12,90 EUR" oder "€ 9.99". */
 const AMOUNT_PATTERN = /(?:€|EUR|CHF|USD)\s*-?\d|\d{1,3}(?:[.\s]\d{3})*[.,]\d{2}(?!\d)/i;
@@ -67,7 +67,9 @@ export function decideTextMode(ocrResult: TextModeInput | null): TextModeDecisio
       reason: `Confidence ${ocrResult.confidence.toFixed(2)} < ${TEXT_MODE_MIN_CONFIDENCE}`,
     };
   }
-  if (text.length < TEXT_MODE_MIN_TEXT_LENGTH && lineCount < TEXT_MODE_MIN_LINES) {
+  // Beides noetig: nur Zeichen ODER nur Zeilen reichen nicht fuer zuverlaessige
+  // Positions-Zuordnung (Text oft ohne Tabellenlayout).
+  if (text.length < TEXT_MODE_MIN_TEXT_LENGTH || lineCount < TEXT_MODE_MIN_LINES) {
     return {
       ...base,
       useTextMode: false,

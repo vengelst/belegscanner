@@ -316,6 +316,19 @@ export function ReceiptForm({
     }
 
     if (summary.activeSum === null) {
+      // Nach Abwahl darf der alte Beleg-Gesamtbetrag nicht stehen bleiben, wenn die
+      // uebrigen Positionen keinen Preis haben (haeufig bei vertauschten Text/Preis-Paaren).
+      if (summary.activeCount > 0 && summary.activeCount < summary.totalCount) {
+        setAmount(formatAmountInput(0));
+        setNetAmount(formatAmountInput(0));
+        setTaxAmount(formatAmountInput(0));
+        setVatRatePercent(null);
+        setManualOverrides((current) => ({ ...current, amount: true, grossAmount: true, netAmount: true, taxAmount: true }));
+        setLineItemNotice(
+          "Die noch aktiven Positionen haben keinen erkannten Betrag. Rechnungsbetrag wurde auf 0,00 gesetzt – bitte Betrag manuell pruefen/nachtragen.",
+        );
+        return;
+      }
       setLineItemNotice("Keine der aktiven Positionen hat einen erkannten Betrag. Der Rechnungsbetrag wurde nicht veraendert und muss manuell geprueft werden.");
       return;
     }

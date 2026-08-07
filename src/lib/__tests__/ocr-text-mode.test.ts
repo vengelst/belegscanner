@@ -18,11 +18,11 @@ function ocr(overrides: Partial<TextModeInput> = {}): TextModeInput {
 /** Beleg-aehnlicher Text mit genug Zeichen und Zeilen. */
 function longReceiptText(withAmounts = true) {
   const lines = ["Muster Handel GmbH", "Musterstrasse 1, 12345 Musterstadt", "Rechnung 2026-0815"];
-  for (let index = 1; index <= TEXT_MODE_MIN_LINES; index += 1) {
+  for (let index = 1; index <= TEXT_MODE_MIN_LINES + 2; index += 1) {
     lines.push(
       withAmounts
-        ? `${index} Artikelbezeichnung mit etwas laengerem Namen   ${index},50`
-        : `${index} Artikelbezeichnung mit etwas laengerem Namen   Stueck`,
+        ? `${index} Artikelbezeichnung mit etwas laengerem Namen fuer genug Zeichen   ${index},50 EUR`
+        : `${index} Artikelbezeichnung mit etwas laengerem Namen fuer genug Zeichen   Stueck`,
     );
   }
   return lines.join("\n");
@@ -35,6 +35,7 @@ describe("decideTextMode", () => {
     expect(decision.useTextMode).toBe(true);
     expect(decision.hasAmountPattern).toBe(true);
     expect(decision.textLength).toBeGreaterThanOrEqual(TEXT_MODE_MIN_TEXT_LENGTH);
+    expect(decision.lineCount).toBeGreaterThanOrEqual(TEXT_MODE_MIN_LINES);
   });
 
   it("faellt auf Vision zurueck, wenn kein OCR-Ergebnis vorliegt", () => {
@@ -61,20 +62,20 @@ describe("decideTextMode", () => {
     expect(decideTextMode(ocr({ text: longReceiptText(), confidence: 0.6 })).useTextMode).toBe(false);
   });
 
-  it("faellt auf Vision zurueck, wenn zu wenig Text und zu wenig Zeilen da sind", () => {
+  it("faellt auf Vision zurueck, wenn zu wenig Text da ist", () => {
     const decision = decideTextMode(ocr({ text: "Kasse\nSumme 12,90", confidence: 0.99 }));
 
     expect(decision.useTextMode).toBe(false);
     expect(decision.reason).toContain("Zu wenig Text");
   });
 
-  it("akzeptiert viele kurze Zeilen auch unter der Zeichengrenze", () => {
+  it("fordert Zeichen UND Zeilen - viele kurze Zeilen allein reichen nicht", () => {
     const lines = Array.from({ length: TEXT_MODE_MIN_LINES + 2 }, (_, index) => `Pos ${index} 1,00`);
     const decision = decideTextMode(ocr({ text: lines.join("\n"), confidence: 0.9 }));
 
     expect(decision.textLength).toBeLessThan(TEXT_MODE_MIN_TEXT_LENGTH);
     expect(decision.lineCount).toBeGreaterThanOrEqual(TEXT_MODE_MIN_LINES);
-    expect(decision.useTextMode).toBe(true);
+    expect(decision.useTextMode).toBe(false);
   });
 
   it("faellt auf Vision zurueck, wenn kein Betragsmuster erkennbar ist", () => {
@@ -88,7 +89,8 @@ describe("decideTextMode", () => {
   it("erkennt Betraege in verschiedenen Schreibweisen", () => {
     const variants = ["1.234,56", "12,90 EUR", "EUR 7,00", "€ 9.99", "9.99 USD"];
     for (const variant of variants) {
-      const text = [...Array.from({ length: TEXT_MODE_MIN_LINES }, () => "Position ohne Zahl"), variant].join("\n");
+      const padding = Array.from({ length: TEXT_MODE_MIN_LINES }, () => "Position mit laengerem Text ohne Zahl hier");
+      const text = [...padding, variant].join("\n");
       expect(decideTextMode(ocr({ text, confidence: 0.95 })).hasAmountPattern).toBe(true);
     }
   });
