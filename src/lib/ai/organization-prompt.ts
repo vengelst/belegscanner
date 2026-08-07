@@ -6,6 +6,7 @@ import {
 } from "@/lib/organization";
 import type { ExtractionResult } from "./types";
 import { sanitizeLineItems } from "./sanitize-line-items";
+import { nullishToNull, sanitizeCountryCode } from "./nullish-string";
 
 export type ExtractedPartyRole = "CREDITOR" | "DEBTOR" | null;
 
@@ -167,7 +168,7 @@ export function normalizeExtractionResult(
     if (!supplier && issuerName) {
       supplier = issuerName;
     }
-    return {
+    return sanitizeExtractionStrings({
       ...raw,
       lineItems,
       supplier,
@@ -177,7 +178,7 @@ export function normalizeExtractionResult(
       issuerVatId: raw.issuerVatId?.trim() || null,
       recipientVatId: raw.recipientVatId?.trim() || null,
       warnings,
-    };
+    });
   }
 
   const org = organization as OrganizationIdentity;
@@ -261,7 +262,7 @@ export function normalizeExtractionResult(
     supplier = issuerName;
   }
 
-  return {
+  return sanitizeExtractionStrings({
     ...raw,
     lineItems,
     supplier,
@@ -271,5 +272,28 @@ export function normalizeExtractionResult(
     issuerVatId,
     recipientVatId,
     warnings,
+  });
+}
+
+function sanitizeExtractionStrings(raw: ExtractionResult): ExtractionResult {
+  return {
+    ...raw,
+    supplier: nullishToNull(raw.supplier),
+    issuerName: nullishToNull(raw.issuerName),
+    recipientName: nullishToNull(raw.recipientName),
+    issuerVatId: nullishToNull(raw.issuerVatId),
+    recipientVatId: nullishToNull(raw.recipientVatId),
+    invoiceNumber: nullishToNull(raw.invoiceNumber),
+    invoiceDate: nullishToNull(raw.invoiceDate),
+    dueDate: nullishToNull(raw.dueDate),
+    serviceDate: nullishToNull(raw.serviceDate),
+    time: nullishToNull(raw.time),
+    currency: nullishToNull(raw.currency)?.toUpperCase() ?? null,
+    paymentMethod: nullishToNull(raw.paymentMethod) as ExtractionResult["paymentMethod"],
+    cardLastDigits: nullishToNull(raw.cardLastDigits),
+    location: nullishToNull(raw.location),
+    countryCode: sanitizeCountryCode(raw.countryCode),
+    countryName: nullishToNull(raw.countryName),
+    documentType: nullishToNull(raw.documentType) as ExtractionResult["documentType"],
   };
 }

@@ -288,11 +288,38 @@ export const aiStructuredDataSchema = z.object({
     issuerName: z.string().max(255).nullable().optional(),
     recipientName: z.string().max(255).nullable().optional(),
     invoiceNumber: z.string().max(40).nullable(),
-    location: z.string().max(255).nullable(),
+    countryCode: z.preprocess(
+      (value) => {
+        if (value == null) return null;
+        if (typeof value !== "string") return value;
+        const trimmed = value.trim();
+        if (!trimmed || /^(null|undefined|none|n\/a|na|nil|-)$/i.test(trimmed)) return null;
+        return trimmed.toUpperCase();
+      },
+      z.string().max(3).nullable(),
+    ),
+    countryName: z.preprocess(
+      (value) => {
+        if (value == null) return null;
+        if (typeof value !== "string") return value;
+        const trimmed = value.trim();
+        if (!trimmed || /^(null|undefined|none|n\/a|na|nil|-)$/i.test(trimmed)) return null;
+        return trimmed;
+      },
+      z.string().max(100).nullable(),
+    ),
+    location: z.preprocess(
+      (value) => {
+        if (value == null) return null;
+        if (typeof value !== "string") return value;
+        const trimmed = value.trim();
+        if (!trimmed || /^(null|undefined|none|n\/a|na|nil|-)$/i.test(trimmed)) return null;
+        return trimmed;
+      },
+      z.string().max(255).nullable(),
+    ),
     paymentMethod: paymentMethodSchema.nullable(),
     cardLastDigits: z.string().regex(/^\d{2,4}$/).nullable(),
-    countryCode: z.string().max(3).nullable(),
-    countryName: z.string().max(100).nullable(),
     documentType: aiDocumentTypeSchema.nullable(),
   }),
   fieldConfidence: z.object({

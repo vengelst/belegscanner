@@ -2,6 +2,7 @@ import type { OcrConfidenceLevel, OcrDocumentType } from "@/lib/ocr-suggestions"
 import type { OcrInvoiceLineItem, OcrResult } from "@/lib/document-analysis";
 import { getAiProvider, AiProviderError, normalizePartyRole } from "@/lib/ai";
 import type { ExtractionResult } from "@/lib/ai/types";
+import { nullishToNull } from "@/lib/ai/nullish-string";
 
 function mapPaymentMethod(raw: string | null): "cash" | "visa" | "mastercard" | "credit_card" | "debit_card" | "paypal" | "sepa" | "bank_transfer" | "unknown" | null {
   if (!raw) return null;
@@ -30,7 +31,9 @@ function mapPaymentMethod(raw: string | null): "cash" | "visa" | "mastercard" | 
 }
 
 function confidence(value: unknown): OcrConfidenceLevel {
-  if (value === null || value === undefined || value === "") return "none";
+  if (value === null || value === undefined) return "none";
+  if (typeof value === "string" && nullishToNull(value) === null) return "none";
+  if (value === "") return "none";
   return "high";
 }
 
