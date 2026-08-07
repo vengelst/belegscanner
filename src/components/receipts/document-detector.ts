@@ -33,26 +33,37 @@ export type DocumentDetectionResult = {
 };
 
 /** Anteil der Pixel, die als starke Kante erkannt sein muessen (aufloesungsunabhaengig). */
-const MIN_EDGE_PIXEL_RATIO = 0.0015;
-const MIN_EDGE_PIXELS_FLOOR = 120;
-const EDGE_THRESHOLD_MULTIPLIER = 1.6;
-const MIN_EDGE_THRESHOLD = 18;
-const MIN_COVERAGE = 0.12;
-const MAX_COVERAGE = 0.97;
-const MIN_RECTANGULARITY = 0.16;
-const MIN_CONTRAST = 14;
-const MIN_BRIGHTNESS = 38;
-const MAX_BRIGHTNESS = 242;
-const MIN_SHARPNESS = 18;
-const MAX_MOTION = 0.16;
+const MIN_EDGE_PIXEL_RATIO = 0.0012;
+const MIN_EDGE_PIXELS_FLOOR = 90;
+const EDGE_THRESHOLD_MULTIPLIER = 1.45;
+const MIN_EDGE_THRESHOLD = 16;
+const MIN_COVERAGE = 0.08;
+const MAX_COVERAGE = 0.99;
+const MIN_RECTANGULARITY = 0.10;
+const MIN_CONTRAST = 10;
+const MIN_BRIGHTNESS = 28;
+const MAX_BRIGHTNESS = 248;
+const MIN_SHARPNESS = 8;
+const MAX_MOTION = 0.28;
+
+/**
+ * Fuer Auto-Capture reichen "Dokument da + grob stabil/beleuchtet".
+ * Schaerfe und Rechteckigkeit beeinflussen nur den Ready-Status/Hinweis,
+ * blockieren das Ausloesen aber nicht mehr.
+ */
+const AUTO_MIN_COVERAGE = 0.06;
+const AUTO_MAX_COVERAGE = 0.995;
+const AUTO_MIN_BRIGHTNESS = 22;
+const AUTO_MAX_BRIGHTNESS = 252;
+const AUTO_MAX_MOTION = 0.35;
 
 /** Toleranzbaender fuer "knapp daneben" (siehe nearReady). */
-const SLACK_COVERAGE = 0.03;
-const SLACK_RECTANGULARITY = 0.04;
-const SLACK_CONTRAST = 3;
-const SLACK_BRIGHTNESS = 8;
-const SLACK_SHARPNESS = 6;
-const SLACK_MOTION = 0.06;
+const SLACK_COVERAGE = 0.05;
+const SLACK_RECTANGULARITY = 0.06;
+const SLACK_CONTRAST = 4;
+const SLACK_BRIGHTNESS = 10;
+const SLACK_SHARPNESS = 8;
+const SLACK_MOTION = 0.1;
 
 type MetricCheck = { ok: boolean; near: boolean };
 
@@ -183,6 +194,15 @@ export function analyzeDocumentFrame(
     rectangularity,
   };
 
+  // Auto-Capture: Dokument erkannt + Abstand/Licht/Stabilitaet ok.
+  // Schaerfe/Rechteckigkeit sind bewusst keine Hard-Blocker mehr.
+  const autoCaptureEligible =
+    coverage >= AUTO_MIN_COVERAGE
+    && coverage <= AUTO_MAX_COVERAGE
+    && meanBrightness >= AUTO_MIN_BRIGHTNESS
+    && meanBrightness <= AUTO_MAX_BRIGHTNESS
+    && motion <= AUTO_MAX_MOTION;
+
   if (failedChecks.length === 0) {
     return {
       status: "ready",
@@ -200,9 +220,11 @@ export function analyzeDocumentFrame(
     bounds: normalizedBounds,
     angleDeg,
     metrics,
-    hint: buildHint({ coverage, rectangularity, meanBrightness, contrast, sharpness, motion }),
-    autoCaptureEligible: false,
-    nearReady: failedChecks.length === 1 && failedChecks[0].near,
+    hint: autoCaptureEligible
+      ? "Beleg erkannt - Aufnahme folgt, bitte stillhalten"
+      : buildHint({ coverage, rectangularity, meanBrightness, contrast, sharpness, motion }),
+    autoCaptureEligible,
+    nearReady: autoCaptureEligible || (failedChecks.length === 1 && failedChecks[0].near),
   };
 }
 

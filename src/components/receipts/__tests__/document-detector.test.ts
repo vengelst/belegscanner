@@ -114,19 +114,25 @@ describe("analyzeDocumentFrame", () => {
     expect(Math.abs(small.metrics.coverage - large.metrics.coverage)).toBeLessThan(0.05);
   });
 
-  it("meldet zu starke Bewegung und markiert sie nicht als nearReady", () => {
+  it("meldet zu starke Bewegung und blockiert Auto-Capture", () => {
     const frame = buildDocumentFrame(160, 220);
     const stable = analyze(frame);
     const shifted = analyze(frame, {
-      x: stable.bounds!.x - 0.4,
+      x: stable.bounds!.x - 0.55,
       y: stable.bounds!.y,
       width: stable.bounds!.width,
       height: stable.bounds!.height,
     });
 
-    expect(shifted.metrics.motion).toBeGreaterThan(0.3);
+    expect(shifted.metrics.motion).toBeGreaterThan(0.35);
     expect(shifted.autoCaptureEligible).toBe(false);
-    expect(shifted.nearReady).toBe(false);
     expect(shifted.hint).toBe("Kamera ruhiger halten");
+  });
+
+  it("laesst Auto-Capture auch bei imperfectem Ready-Status zu", () => {
+    const result = analyze(buildDocumentFrame(160, 220));
+
+    expect(result.bounds).not.toBeNull();
+    expect(result.autoCaptureEligible).toBe(true);
   });
 });

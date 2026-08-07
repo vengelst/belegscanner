@@ -22,15 +22,15 @@ type Props = {
 
 type CameraState = "camera" | "crop" | "review";
 
-const ANALYZE_INTERVAL_MS = 280;
-const AUTO_CAPTURE_HOLD_MS = 550;
-const AUTO_CAPTURE_COOLDOWN_MS = 2500;
+const ANALYZE_INTERVAL_MS = 250;
+const AUTO_CAPTURE_HOLD_MS = 400;
+const AUTO_CAPTURE_COOLDOWN_MS = 2200;
 /**
  * Solange ein Frame nur knapp an den Schwellwerten scheitert, laeuft der
  * Auto-Capture-Timer weiter. Ohne diese Toleranz hat ein einzelner Wackler den
  * Countdown staendig zurueckgesetzt und der Auto-Scan loeste praktisch nie aus.
  */
-const AUTO_CAPTURE_GRACE_MS = 400;
+const AUTO_CAPTURE_GRACE_MS = 600;
 const ANALYSIS_WIDTH = 400;
 
 export function CameraCapture({ open, onClose, onCapture }: Props) {
@@ -414,7 +414,7 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
             {error ? <p className="text-sm font-medium text-danger">{error}</p> : null}
             {!error && state === "camera" ? (
               <p className="text-sm text-muted-foreground">
-                Auto-Capture loest nur aus, wenn Dokumentgroesse, Schaerfe, Helligkeit, Kontrast und Stabilitaet ausreichen. Manuelles Ausloesen und die native Handy-Kamera bleiben immer moeglich.
+                Auto-Capture loest aus, sobald ein Beleg erkannt ist und das Bild kurz stabil bleibt. Manuelles Ausloesen und die native Handy-Kamera bleiben immer moeglich.
               </p>
             ) : null}
 
@@ -479,7 +479,9 @@ function StatusBadge({ detection }: { detection: DocumentDetectionResult | null 
 
   const labels = {
     not_found: "Kein Dokument sicher erkannt",
-    uncertain: "Dokument erkannt, aber noch nicht capture-bereit",
+    uncertain: detection.autoCaptureEligible
+      ? "Dokument erkannt - Auto-Aufnahme startet"
+      : "Dokument erkannt, bitte etwas ruhiger ausrichten",
     ready: "Dokument bereit fuer Auto-Capture",
   } as const;
 
