@@ -113,7 +113,8 @@ Rules:
 Line items (lineItems):
 - Extract EVERY visible item/position row, in printed order, as completely as possible - including small print and tightly spaced table rows
 - CRITICAL: keep description and that row's prices together; never put the invoice grand total on a product row; totalPrice should match quantity × unitPrice when both are printed
-- Do NOT create line items for summary rows: subtotal, total, net/gross sums, VAT/tax rows, tip, rounding, invoice-level discounts, payment/change rows`;
+- Retail/Kassenbon lines (EAN + name + price + VAT letter A/B): one lineItem per product row; identical names with different EANs/prices stay separate; keep EAN in description
+- Do NOT create line items for summary rows: subtotal, Summe/total, net/gross sums, VAT/tax tables, tip, rounding, invoice-level discounts, payment/change rows, fiscal signature blocks`;
 
 export const EXTRACTION_JSON_SCHEMA = {
   type: "object" as const,

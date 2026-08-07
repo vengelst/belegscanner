@@ -29,9 +29,14 @@ Line items (lineItems):
 - One row per position; do not merge several rows into one entry
 - CRITICAL: description and prices of a row belong together - never assign the price from another row, and never put the invoice grand total onto a product/service row
 - For each row: totalPrice must be that row's line amount; if quantity and unitPrice are printed, totalPrice should match quantity × unitPrice
-- Do NOT create line items for summary rows: subtotal, total, net/gross sums, VAT/tax rows, tip, rounding, discounts on the whole invoice, payment/change rows, loyalty points
+- German retail / drugstore receipts (Rossmann, dm, REWE, …): each product line is usually "EAN/article code + short name + price + optional VAT letter (A/B)". Keep EACH such line as its own lineItem, even when two names look identical but prices or EANs differ
+- Prefer keeping the EAN/article code in the description (as printed) so identical names stay distinguishable
+- The price is the number before the VAT letter; ignore trailing letters like A/B and price markers like *
+- taxHint may hold the VAT letter or rate (e.g. "A", "19%") when printed on the row
+- Do NOT create line items for summary rows: subtotal, Summe/total, net/gross sums, VAT/tax tables (MWST Gruppe), tip, rounding, discounts on the whole invoice, payment/change rows (Mastercard/Visa/Bar/EC), loyalty points, fiscal signature blocks (Signatur, Signaturzaehler, Steuerreferenz)
 - Keep the description as printed (may be shortened, but never invent text); quantity, unit, unitPrice and totalPrice stay null when they are not printed
 - If a row is only partially readable, still return it with the readable parts and add a warning
+- After extraction, the sum of lineItems.totalPrice should approximately equal grossAmount when both are present; add a warning if not
 - Return an empty lineItems array when the document genuinely has no itemised positions`;
 
 const LEGACY_SUPPLIER_RULE = `- Extract the issuer/vendor as supplier, never the bill-to recipient

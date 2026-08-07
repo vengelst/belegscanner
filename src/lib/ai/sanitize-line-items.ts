@@ -14,7 +14,10 @@ export type SanitizableLineItem = {
 };
 
 const SUMMARY_DESCRIPTION =
-  /^(zwischensumme|zw\.?\s*summe|summe|gesamt(?:betrag)?|total|endbetrag|rechnungsbetrag|zu\s*zahlen|kassenbetrag|netto(?:betrag)?|brutto(?:betrag)?|mwst|ust|steuer|trinkgeld|tip|rundung|wechselgeld|gegeben|bar\s*gegeben|visa|mastercard|ec[\s-]?karte|kartenzahlung)(\b|:|$)/i;
+  /^(zwischensumme|zw\.?\s*summe|summe|gesamt(?:betrag)?|total|endbetrag|rechnungsbetrag|zu\s*zahlen|kassenbetrag|netto(?:betrag)?|brutto(?:betrag)?|mwst(?:\s*gruppe)?|ust|steuer(?:referenz)?|signatur(?:zaehler|zähler)?|trinkgeld|tip|rundung|wechselgeld|gegeben|bar\s*gegeben|visa|mastercard|ec[\s-]?karte|kartenzahlung|paypal)(\b|:|$)/i;
+
+/** Typische deutsche Kassenbon-Zeile: 8–14-stellige EAN + Kurzname. */
+const RETAIL_EAN_PREFIX = /^(\d{8,14})\s+(.+)$/;
 
 function nearlyEqual(a: number, b: number, tolerance = 0.03): boolean {
   return Math.abs(a - b) <= Math.max(tolerance, Math.abs(b) * 0.005);
@@ -22,6 +25,30 @@ function nearlyEqual(a: number, b: number, tolerance = 0.03): boolean {
 
 function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+function normalizeTaxHint(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const letter = trimmed.match(/^[*]?\s*([A-Z])\s*$/i);
+  if (letter) return letter[1].toUpperCase();
+  return trimmed.slice(0, 40);
+}
+
+/**
+ * Haelt EAN in der Beschreibung, damit gleich lautende Artikel (z.B. zwei
+ * "ISANA MEN PACE 6+" mit unterschiedlichen Preisen) unterscheidbar bleiben.
+ */
+export function preferRetailDescription(description: string): string {
+  const trimmed = description.trim().replace(/\s+/g, " ");
+  const match = trimmed.match(RETAIL_EAN_PREFIX);
+  if (!match) return trimmed.slice(0, 180);
+  const ean = match[1];
+  const name = match[2].trim();
+  // Name zuerst, EAN in Klammern – lesbarer in der UI, weiterhin eindeutig.
+  const formatted = `${name} (${ean})`;
+  return formatted.slice(0, 180);
 }
 
 export function sanitizeLineItems(
@@ -39,7 +66,11 @@ export function sanitizeLineItems(
       warnings.push(`Summen-/Zahlungszeile als Position verworfen: "${description.slice(0, 60)}"`);
       continue;
     }
-    withoutSummaries.push({ ...item, description });
+    withoutSummaries.push({
+      ...item,
+      description: preferRetailDescription(description),
+      taxHint: normalizeTaxHint(item.taxHint),
+    });
   }
 
   // Menge × Einzelpreis als Korrektur, wenn der Zeilenbetrag klar nicht passt.
@@ -71,7 +102,6 @@ export function sanitizeLineItems(
   );
 
   // Beleg-Gesamtbetrag darf nicht als Positionspreis stehen, wenn es weitere Positionen gibt.
-  // (Nach der Mengenkorrektur, damit quantity×unitPrice den Gesamtbetrag nicht wieder einsetzt.)
   if (grossAmount != null && grossAmount > 0 && priced.length >= 2) {
     cleaned = cleaned.map((item) => {
       if (item.totalPrice == null || !nearlyEqual(item.totalPrice, grossAmount)) return item;
@@ -93,16 +123,18 @@ export function sanitizeLineItems(
     .filter((value): value is number => value !== null && Number.isFinite(value))
     .reduce((acc, value) => acc + value, 0);
 
-  if (
-    grossAmount != null
-    && grossAmount > 0
-    && sum > 0
-    && cleaned.length >= 2
-    && (sum > grossAmount * 1.35 || sum < grossAmount * 0.45)
-  ) {
-    warnings.push(
-      `Positionssumme (${roundMoney(sum).toFixed(2)}) weicht stark vom Belegbetrag (${grossAmount.toFixed(2)}) ab – bitte Positionen und Preise pruefen.`,
-    );
+  if (grossAmount != null && grossAmount > 0 && sum > 0 && cleaned.length >= 1) {
+    if (!nearlyEqual(sum, grossAmount, 0.05)) {
+      if (sum > grossAmount * 1.35 || sum < grossAmount * 0.45) {
+        warnings.push(
+          `Positionssumme (${roundMoney(sum).toFixed(2)}) weicht stark vom Belegbetrag (${grossAmount.toFixed(2)}) ab – bitte Positionen und Preise pruefen.`,
+        );
+      } else {
+        warnings.push(
+          `Positionssumme (${roundMoney(sum).toFixed(2)}) weicht vom Belegbetrag (${grossAmount.toFixed(2)}) ab – bitte kurz pruefen.`,
+        );
+      }
+    }
   }
 
   return cleaned;
