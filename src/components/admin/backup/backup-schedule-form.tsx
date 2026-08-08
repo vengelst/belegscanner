@@ -1,12 +1,18 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/select-field";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  cronToFriendlySchedule,
+  describeBackupSchedule,
+  friendlyScheduleToCron,
+  type BackupFrequency,
+} from "@/lib/backup/schedule-format";
 
 type ScheduleConfig = {
   scheduleEnabled: boolean;
@@ -20,30 +26,22 @@ type ScheduleConfig = {
   };
 };
 
-type SchedulePreset = "custom" | "daily-2" | "daily-3" | "weekly-sun" | "weekly-sat";
-
-function cronToPreset(cron: string): SchedulePreset {
-  if (cron === "0 2 * * *") return "daily-2";
-  if (cron === "0 3 * * *") return "daily-3";
-  if (cron === "0 2 * * 0") return "weekly-sun";
-  if (cron === "0 2 * * 6") return "weekly-sat";
-  return "custom";
-}
-
-function presetToCron(preset: SchedulePreset): string {
-  switch (preset) {
-    case "daily-2": return "0 2 * * *";
-    case "daily-3": return "0 3 * * *";
-    case "weekly-sun": return "0 2 * * 0";
-    case "weekly-sat": return "0 2 * * 6";
-    default: return "0 2 * * *";
-  }
-}
+const WEEKDAYS: Array<{ value: string; label: string }> = [
+  { value: "1", label: "Montag" },
+  { value: "2", label: "Dienstag" },
+  { value: "3", label: "Mittwoch" },
+  { value: "4", label: "Donnerstag" },
+  { value: "5", label: "Freitag" },
+  { value: "6", label: "Samstag" },
+  { value: "0", label: "Sonntag" },
+];
 
 export function BackupScheduleForm({ config }: { config: ScheduleConfig }) {
+  const initial = useMemo(() => cronToFriendlySchedule(config.scheduleCron), [config.scheduleCron]);
   const [enabled, setEnabled] = useState(config.scheduleEnabled);
-  const [preset, setPreset] = useState<SchedulePreset>(cronToPreset(config.scheduleCron));
-  const [customCron, setCustomCron] = useState(config.scheduleCron);
+  const [frequency, setFrequency] = useState<BackupFrequency>(initial.frequency);
+  const [time, setTime] = useState(initial.time);
+  const [weekday, setWeekday] = useState(initial.weekday);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -53,10 +51,15 @@ export function BackupScheduleForm({ config }: { config: ScheduleConfig }) {
     setError(null);
     setSuccess(null);
 
-    const schedulePreset = formData.get("schedulePreset") as SchedulePreset;
-    const cronExpression = schedulePreset === "custom"
-      ? formData.get("customCron") as string
-      : presetToCron(schedulePreset);
+    const nextFrequency = (formData.get("frequency") as BackupFrequency) || frequency;
+    const nextTime = String(formData.get("time") || time);
+    const nextWeekday = String(formData.get("weekday") || weekday);
+    const cronExpression = friendlyScheduleToCron(nextFrequency, nextTime, nextWeekday);
+
+    if (!cronExpression) {
+      setError("Bitte eine gültige Uhrzeit im Format HH:MM eintragen.");
+      return;
+    }
 
     startTransition(async () => {
       const res = await fetch("/api/admin/backup/config", {
@@ -74,13 +77,13 @@ export function BackupScheduleForm({ config }: { config: ScheduleConfig }) {
         setError(data.error ?? "Fehler beim Speichern des Zeitplans.");
         return;
       }
-      setSuccess("Zeitplan wurde gespeichert.");
+      setSuccess(`Zeitplan gespeichert: ${describeBackupSchedule(nextFrequency, nextTime, nextWeekday)}.`);
       router.refresh();
     });
   }
 
   const nextRun = config.scheduler?.nextRun
-    ? config.scheduler.nextRun.toLocaleString("de-DE")
+    ? new Date(config.scheduler.nextRun).toLocaleString("de-DE")
     : null;
 
   return (
@@ -89,7 +92,7 @@ export function BackupScheduleForm({ config }: { config: ScheduleConfig }) {
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Automatische Backups</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Zeitplan fuer automatische Backups konfigurieren.
+            Einfach Rhythmus und Uhrzeit einstellen – ohne Cron-Ausdruck.
           </p>
         </div>
         {config.scheduler?.enabled ? (
@@ -113,29 +116,55 @@ export function BackupScheduleForm({ config }: { config: ScheduleConfig }) {
 
         {enabled && (
           <>
+            {initial.fromFallback ? (
+              <p className="rounded-xl border border-accent/40 bg-accent/10 px-3 py-2 text-xs text-muted-foreground">
+                Der bisherige Zeitplan war komplex hinterlegt und wurde hier auf täglich 02:00
+                zurückgesetzt. Bitte Uhrzeit und Rhythmus neu wählen und speichern.
+              </p>
+            ) : null}
+
             <SelectField
-              label="Zeitplan"
-              name="schedulePreset"
-              value={preset}
-              onChange={(value) => setPreset(value as SchedulePreset)}
+              label="Rhythmus"
+              name="frequency"
+              value={frequency}
+              onChange={(value) => setFrequency(value as BackupFrequency)}
             >
-              <option value="daily-2">Taeglich um 02:00 Uhr</option>
-              <option value="daily-3">Taeglich um 03:00 Uhr</option>
-              <option value="weekly-sun">Woechentlich (Sonntag 02:00 Uhr)</option>
-              <option value="weekly-sat">Woechentlich (Samstag 02:00 Uhr)</option>
-              <option value="custom">Benutzerdefiniert (Cron)</option>
+              <option value="daily">Täglich</option>
+              <option value="weekly">Wöchentlich</option>
             </SelectField>
 
-            {preset === "custom" && (
-              <Input
-                label="Cron-Ausdruck"
-                name="customCron"
-                required
-                placeholder="0 2 * * *"
-                value={customCron}
-                onChange={(e) => setCustomCron(e.target.value)}
-              />
+            {frequency === "weekly" ? (
+              <SelectField
+                label="Wochentag"
+                name="weekday"
+                value={weekday}
+                onChange={setWeekday}
+              >
+                {WEEKDAYS.map((day) => (
+                  <option key={day.value} value={day.value}>
+                    {day.label}
+                  </option>
+                ))}
+              </SelectField>
+            ) : (
+              <input type="hidden" name="weekday" value={weekday} />
             )}
+
+            <Input
+              label="Uhrzeit"
+              name="time"
+              type="time"
+              required
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+            />
+
+            <p className="text-sm text-muted-foreground">
+              Geplant:{" "}
+              <span className="font-medium text-foreground">
+                {describeBackupSchedule(frequency, time, weekday)}
+              </span>
+            </p>
 
             <Input
               label="Aufbewahrungsdauer (Tage)"
@@ -149,7 +178,7 @@ export function BackupScheduleForm({ config }: { config: ScheduleConfig }) {
 
             {nextRun && (
               <p className="text-sm text-muted-foreground">
-                Naechstes Backup: <span className="font-medium text-foreground">{nextRun}</span>
+                Nächstes Backup: <span className="font-medium text-foreground">{nextRun}</span>
               </p>
             )}
           </>
