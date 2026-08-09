@@ -1,15 +1,15 @@
 "use client";
 
 type Props = {
-  /** true während Bildvorbereitung oder KI-Auslese */
+  /** true nur während der KI-Auslese */
   active: boolean;
-  /** Optionaler Hinweistext unter der Sanduhr */
+  /** Optionaler Hinweistext unter dem Ring */
   message?: string;
 };
 
 /**
- * Vollflächige Sanduhr, solange die KI den Beleg erkennt.
- * Blockiert Interaktion und ist bewusst gross und zentral.
+ * Vollflächiger animierter Erkennungs-Ring (Option C),
+ * solange die KI den Beleg analysiert.
  */
 export function AiAnalysisOverlay({
   active,
@@ -19,20 +19,33 @@ export function AiAnalysisOverlay({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-background/85 backdrop-blur-sm"
       role="status"
       aria-live="polite"
       aria-busy="true"
     >
-      <div className="flex flex-col items-center gap-6 px-6 text-center">
-        <div className="hourglass" aria-hidden="true">
-          <div className="hourglass__frame">
-            <div className="hourglass__sand hourglass__sand--top" />
-            <div className="hourglass__sand hourglass__sand--bottom" />
+      <div className="flex flex-col items-center gap-8 px-6 text-center">
+        <div className="ai-ring" aria-hidden="true">
+          <div className="ai-ring__track" />
+          <div className="ai-ring__spinner" />
+          <div className="ai-ring__core">
+            <span className="ai-ring__grain" />
+            <span className="ai-ring__grain" />
+            <span className="ai-ring__grain" />
+            <span className="ai-ring__grain" />
+            <span className="ai-ring__grain" />
+            <span className="ai-ring__grain" />
+            <span className="ai-ring__grain" />
+            <span className="ai-ring__grain" />
+            <span className="ai-ring__grain" />
+            <span className="ai-ring__grain" />
+            <span className="ai-ring__grain" />
+            <span className="ai-ring__grain" />
+            <div className="ai-ring__pile" />
           </div>
         </div>
         <div className="space-y-2">
-          <p className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+          <p className="text-2xl font-semibold tracking-tight text-primary sm:text-3xl">
             {message}
           </p>
           <p className="text-sm text-muted-foreground sm:text-base">
