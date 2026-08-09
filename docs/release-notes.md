@@ -1,6 +1,16 @@
 # BelegBox - Release Notes
 
-> Hinweis: ZWISCHENSTAND: Historische Release-Notes eines frueheren Zwischenstands. Nicht als aktuelle Betriebs- oder Freigabebewertung verwenden.
+## 2026-08-09 – Erfassung, Liste, KI-Overlay
+
+Aktuelle Aenderungen sind in **`docs/aenderungen-2026-08-09.md`** dokumentiert:
+
+- Speichern vs. Speichern & Uebertragen (Schliessen nach erfolgreichem Versand)
+- Listenfilter merken, Reset, Mehrfach-Freigabe/Uebertragung
+- Animierter KI-Ring (Option C) waehrend der Erkennung
+
+---
+
+> Hinweis unten: ZWISCHENSTAND: Historische Release-Notes eines frueheren Zwischenstands. Nicht als aktuelle Betriebs- oder Freigabebewertung verwenden.
 
 
 ## Version 1.0.0 (Release Candidate)

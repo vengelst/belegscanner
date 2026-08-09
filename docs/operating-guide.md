@@ -195,11 +195,14 @@ Um die App nach einem Update oder Neustart schnell zu pruefen:
 
 1. Login als Admin
 2. Dashboard pruefen (Zaehler sichtbar?)
-3. Neuer Beleg -> JPG hochladen
-4. OCR-Ergebnisse pruefen (oder manuell ausfuellen)
-5. Speichern -> Detailseite korrekt?
-6. "Jetzt senden" -> Status SENT?
+3. Neuer Beleg -> Kamera oder JPG; nach Crop: animierter KI-Ring nur waehrend der Analyse
+4. OCR-/KI-Ergebnisse pruefen (oder manuell ausfuellen)
+5. **Speichern** -> Detailseite, Beleg bleibt offen/nacharbeitbar
+6. Optional **Speichern & Uebertragen** bzw. Detail „Jetzt uebertragen“ -> Status SENT und Review COMPLETED
 7. Druckansicht -> A4-Layout korrekt?
-8. Belegliste -> Beleg sichtbar, Filter funktionieren?
+8. Belegliste -> Filter setzen, Beleg oeffnen, Zurueck: Filter noch aktiv; Reset-Button pruefen
+9. Mehrere Belege markieren -> Freigeben / Uebertragen
 
-Dauer: ca. 3 Minuten.
+Dauer: ca. 5 Minuten.
+
+Ausfuehrliche Aenderungsdoku: `docs/aenderungen-2026-08-09.md`.

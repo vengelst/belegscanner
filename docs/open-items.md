@@ -8,6 +8,18 @@ Stand: 2026-04-03
 
 - Scan-PDF-Staging-Gate ist noch offen. Der Codepfad ist vorhanden, aber der belastbare Praxisnachweis mit echten Scan-PDFs fehlt weiterhin. Siehe `docs/pdf-scan-gate.md` und Finding `PDF-001` in `docs/pdf-analysis-audit.md`.
 
+## Erledigt / teilweise erledigt (2026-08-09)
+
+Siehe `docs/aenderungen-2026-08-09.md`:
+
+- Speichern vs. Speichern & Uebertragen inkl. Abschlussstatus nach Versand
+- Listenfilter-Persistenz, Filter-Reset, Mehrfach-Freigabe/Uebertragung in der Liste
+- Animiertes KI-Overlay (Ring) waehrend der Erkennung
+- Crop-Griffe vergroessert; Auto-Capture bei erkanntem Beleg gelockert
+- Manuelle Formularwerte (Betrag/Lieferant) zuverlaessig speichern
+
+Hinweis: „Batch-Versand“ unten meinte frueher einen eigenen Server-Batch; die Listen-Mehrfachaktion deckt Freigabe/Uebertragung bereits clientseitig ab.
+
 ## Weiterhin bewusst ausserhalb des aktuellen Umfangs
 
 - S3-kompatibler Storage (MinIO / AWS)

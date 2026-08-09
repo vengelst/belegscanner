@@ -7,11 +7,16 @@ BelegBox ist eine webbasierte Beleg-App auf Basis von Next.js, TypeScript, Tailw
 - Login mit E-Mail/Passwort und PIN
 - Benutzer- und Stammdatenverwaltung
 - Belegerfassung mit Originaldatei, OCR-Vorbelegung fuer Bilder und PDFs, Benutzer-Defaults, Folgeerfassung und mobiler Kameraaufnahme
+- **Speichern** (offen/nacharbeitbar) vs. **Speichern & Uebertragen** (DATEV, bei Erfolg geschlossen)
+- Belegliste: Filter bleiben beim Zurueckkehren erhalten, Filter-Reset, Mehrfach-Freigabe/Uebertragung
+- KI-Overlay: animierter Ring nur waehrend der KI-Erkennung (nicht bei Bildvorbereitung)
 - Review-, Versand- und Druck/PDF-Pfade
 - PDF-OCR: Text-PDFs direkt, Scan-PDFs ueber Seitenbild-OCR (erste Seiten)
-- Smart Capture Phase 5: mobile Kameraaufnahme, Auto-Capture, strukturierte OCR-Feldzuordnung, PDF-Analyse fuer Text- und Scan-PDFs, vertiefte Rechnungsfelder (Rechnungsnummer, Rechnungs-/Leistungsdatum, Netto/Steuer/Brutto) sowie Positionsvorschlaege fuer typische Rechnungszeilen, Laender-/Payment-Erkennung, typ-spezifische Spezialparser fuer Tanken, Bewirtung, Unterkunft, Parken und Maut sowie leichtgewichtiges Review-/Feldstatusmodell
+- Smart Capture: mobile Kameraaufnahme, Auto-Capture bei erkanntem Beleg, Crop-Nachbearbeitung, strukturierte OCR-Feldzuordnung
 - Reporting, CSV-Export und Admin-Bereiche
 - Komfortfunktionen: letzte Werte merken, Standard-Zuordnungen pro Benutzer, "Speichern & naechsten Beleg erfassen"
+
+Aktuelle Session-Doku: `docs/aenderungen-2026-08-09.md`
 
 ## Schnellstart
 
