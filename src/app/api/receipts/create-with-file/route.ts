@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { receiptSchema } from "@/lib/validation";
+import { receiptSchema, parseReceiptPayload } from "@/lib/validation";
 import { validateFile, saveOriginalFile } from "@/lib/storage";
 import { calculateAmountEur, fetchLatestExchangeRate } from "@/lib/exchange-rates";
 import { Prisma } from "@prisma/client";
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Belegdaten sind kein gueltiges JSON." }, { status: 400 });
   }
 
-  const parsed = receiptSchema.safeParse(body);
+  const parsed = parseReceiptPayload(receiptSchema, body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Validierungsfehler.", details: parsed.error.flatten().fieldErrors },

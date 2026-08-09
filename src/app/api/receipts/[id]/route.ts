@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { receiptUpdateSchema } from "@/lib/validation";
+import { receiptUpdateSchema, parseReceiptPayload } from "@/lib/validation";
 import { Prisma } from "@prisma/client";
 import { calculateAmountEur, fetchLatestExchangeRate } from "@/lib/exchange-rates";
 
@@ -68,7 +68,7 @@ export async function PUT(
     return NextResponse.json({ error: "Ungueltiger Request-Body." }, { status: 400 });
   }
 
-  const parsed = receiptUpdateSchema.safeParse(body);
+  const parsed = parseReceiptPayload(receiptUpdateSchema, body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Validierungsfehler.", details: parsed.error.flatten().fieldErrors },

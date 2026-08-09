@@ -468,6 +468,26 @@ export const receiptSchema = receiptSchemaBase;
 
 export const receiptUpdateSchema = receiptSchemaBase.partial();
 
+/**
+ * Validiert Belegdaten. Scheitert nur aiStructuredData (Scanner-Nebenprodukt),
+ * wird ohne diese Struktur erneut geprueft – manuelle Formularfelder bleiben speicherbar.
+ */
+export function parseReceiptPayload<T extends z.ZodTypeAny>(
+  schema: T,
+  body: unknown,
+): z.SafeParseReturnType<z.input<T>, z.output<T>> {
+  const parsed = schema.safeParse(body);
+  if (parsed.success) return parsed;
+
+  if (!body || typeof body !== "object" || !("aiStructuredData" in body)) {
+    return parsed;
+  }
+
+  const { aiStructuredData: _ignored, ...withoutAi } = body as Record<string, unknown>;
+  const retry = schema.safeParse(withoutAi);
+  return retry.success ? retry : parsed;
+}
+
 export const sendReadySchema = z
   .object({
     date: z.string().date(),

@@ -365,48 +365,77 @@ export function ReceiptEditForm({
       return;
     }
 
-    const amountValue = parseFloat((formData.get("amount") as string).replace(",", "."));
-    const currencyValue = (formData.get("currency") as string) || "EUR";
+    const amountValue = parseLocalizedNumber(amount);
+    if (amountValue === null || amountValue <= 0) {
+      setError("Bitte einen gueltigen Betrag groesser 0 eingeben.");
+      return;
+    }
 
-    let parsedExchangeRate: number | null = null;
-    const erVal = (formData.get("exchangeRate") as string) || exchangeRate;
-    if (erVal) parsedExchangeRate = parseFloat(erVal.replace(",", "."));
+    if (!purposeId) {
+      setError("Bitte einen Zweck waehlen.");
+      return;
+    }
 
-    const parsedNet = netAmount ? parseFloat(netAmount.replace(",", ".")) : null;
-    let parsedTax = taxAmount ? parseFloat(taxAmount.replace(",", ".")) : null;
+    const currencyValue = currency.trim().toUpperCase() || "EUR";
+    const parsedExchangeRate = parseLocalizedNumber(exchangeRate);
+    const parsedNet = parseLocalizedNumber(netAmount);
+    let parsedTax = parseLocalizedNumber(taxAmount);
     if (reverseCharge) parsedTax = 0;
 
+    if (requiresExchangeRate && (parsedExchangeRate === null || parsedExchangeRate <= 0)) {
+      setError("Wechselkurs ist bei Fremdwaehrung erforderlich.");
+      return;
+    }
+
     const body: Record<string, unknown> = {
-      date: formData.get("date"),
-      partyRole: formData.get("partyRole") || partyRole || "CREDITOR",
-      supplier: formData.get("supplier") || null,
-      invoiceNumber: formData.get("invoiceNumber") || null,
+      date: date || String(formData.get("date") || ""),
+      partyRole: partyRole || "CREDITOR",
+      supplier: supplier.trim() || null,
+      invoiceNumber: invoiceNumber.trim() || null,
       serviceDate: receipt.serviceDate,
       dueDate: receipt.dueDate,
-      amount: isNaN(amountValue) ? 0 : amountValue,
+      amount: amountValue,
       currency: currencyValue,
-      netAmount: parsedNet !== null && !isNaN(parsedNet) ? parsedNet : null,
-      taxAmount: parsedTax !== null && !isNaN(parsedTax) ? parsedTax : null,
+      netAmount: parsedNet,
+      taxAmount: parsedTax,
       reverseCharge,
       vatRatePercent: reverseCharge ? null : vatRatePercent,
       exchangeRate: parsedExchangeRate,
-      exchangeRateDate: formData.get("exchangeRateDate") || exchangeRateDate || null,
-      countryId: formData.get("countryId") || null,
+      exchangeRateDate: exchangeRateDate || null,
+      countryId: countryId || null,
+      // Kfz und Bewirtung bleiben unkontrolliert → FormData ist hier korrekt.
       vehicleId: formData.get("vehicleId") || null,
-      purposeId: formData.get("purposeId"),
-      datevBelegtyp: formData.get("datevBelegtyp") || datevBelegtyp,
+      purposeId,
+      datevBelegtyp,
       remark: formData.get("remark") || null,
     };
 
     // Positions-Flags nur mitschicken, wenn sie in diesem Formular geaendert wurden.
-    if (lineItemsDirty && lineItemData) body.aiStructuredData = lineItemData;
+    if (lineItemsDirty && lineItemData) {
+      body.aiStructuredData = {
+        ...lineItemData,
+        extracted: {
+          ...lineItemData.extracted,
+          amount: amountValue,
+          grossAmount: amountValue,
+          netAmount: parsedNet,
+          taxAmount: parsedTax,
+          currency: currencyValue,
+          supplier: supplier.trim() || null,
+          invoiceNumber: invoiceNumber.trim() ? invoiceNumber.trim().slice(0, 40) : null,
+        },
+      };
+    }
 
     if (isHospitality) {
-      body.hospitality = {
-        occasion: formData.get("occasion") || "",
-        guests: formData.get("guests") || "",
-        location: formData.get("location") || "",
-      };
+      const occasion = String(formData.get("occasion") || "").trim();
+      const guests = String(formData.get("guests") || "").trim();
+      const location = String(formData.get("location") || "").trim();
+      if (!occasion || !guests || !location) {
+        setError("Bewirtungsangaben (Anlass, Gaeste, Ort) sind Pflicht.");
+        return;
+      }
+      body.hospitality = { occasion, guests, location };
     } else {
       body.hospitality = null;
     }

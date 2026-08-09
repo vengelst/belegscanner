@@ -585,6 +585,8 @@ export function ReceiptForm({
     }
 
     const body = buildBody(formData);
+    if (!body) return;
+
     const action = (formData.get("_action") as string) || "save";
     const shouldContinue = action === "save_next";
 
@@ -621,48 +623,96 @@ export function ReceiptForm({
     });
   }
 
-  function buildBody(formData: FormData): Record<string, unknown> {
-    const amountValue = parseFloat((formData.get("amount") as string).replace(",", "."));
-    const selectedCurrency = (formData.get("currency") as string) || "EUR";
+  /**
+   * Baut den API-Body aus React-State (Source of Truth fuer controlled Felder).
+   * FormData nur als Fallback fuer unkontrollierte Felder (z. B. Bemerkung).
+   */
+  function buildBody(formData: FormData): Record<string, unknown> | null {
+    const amountValue = parseLocalizedNumber(amount);
+    if (amountValue === null || amountValue <= 0) {
+      setError("Bitte einen gueltigen Betrag groesser 0 eingeben.");
+      return null;
+    }
 
-    let parsedExchangeRate: number | null = null;
-    const exchangeRateValue = (formData.get("exchangeRate") as string) || exchangeRate;
-    if (exchangeRateValue) parsedExchangeRate = parseFloat(exchangeRateValue.replace(",", "."));
+    if (!purposeId) {
+      setError("Bitte einen Zweck waehlen.");
+      return null;
+    }
 
-    const parsedNet = netAmount ? parseFloat(netAmount.replace(",", ".")) : null;
-    let parsedTax = taxAmount ? parseFloat(taxAmount.replace(",", ".")) : null;
+    const selectedCurrency = (currency.trim().toUpperCase() || "EUR");
+    const supplierValue = supplier.trim() || null;
+    const invoiceNumberValue = invoiceNumber.trim() || null;
+    const dateValue = date || String(formData.get("date") || "");
+
+    const parsedExchangeRate = parseLocalizedNumber(exchangeRate);
+    const parsedNet = parseLocalizedNumber(netAmount);
+    let parsedTax = parseLocalizedNumber(taxAmount);
     if (reverseCharge) parsedTax = 0;
 
+    if (requiresExchangeRate && (parsedExchangeRate === null || parsedExchangeRate <= 0)) {
+      setError("Wechselkurs ist bei Fremdwaehrung erforderlich.");
+      return null;
+    }
+
+    const selectedCountryId = countryId || null;
+
     const body: Record<string, unknown> = {
-      date: formData.get("date"),
-      partyRole: formData.get("partyRole") || partyRole || "CREDITOR",
-      supplier: formData.get("supplier") || null,
-      invoiceNumber: formData.get("invoiceNumber") || null,
+      date: dateValue,
+      partyRole: partyRole || "CREDITOR",
+      supplier: supplierValue,
+      invoiceNumber: invoiceNumberValue,
       serviceDate: null,
       dueDate: null,
-      amount: isNaN(amountValue) ? 0 : amountValue,
+      amount: amountValue,
       currency: selectedCurrency,
-      netAmount: parsedNet !== null && !isNaN(parsedNet) ? parsedNet : null,
-      taxAmount: parsedTax !== null && !isNaN(parsedTax) ? parsedTax : null,
+      netAmount: parsedNet,
+      taxAmount: parsedTax,
       reverseCharge,
       vatRatePercent: reverseCharge ? null : vatRatePercent,
       exchangeRate: parsedExchangeRate,
-      exchangeRateDate: formData.get("exchangeRateDate") || exchangeRateDate || null,
-      countryId: formData.get("countryId") || null,
-      vehicleId: formData.get("vehicleId") || null,
-      purposeId: formData.get("purposeId"),
-      datevBelegtyp: formData.get("datevBelegtyp") || datevBelegtyp,
-      remark: formData.get("remark") || null,
+      exchangeRateDate: exchangeRateDate || null,
+      countryId: selectedCountryId,
+      vehicleId: vehicleId || null,
+      purposeId,
+      datevBelegtyp,
+      remark: (formData.get("remark") as string)?.trim() || null,
       aiRawText: ocrResult?.rawText ?? null,
       aiDocumentType: toReceiptDocumentType(ocrResult?.extracted.documentType),
-      aiStructuredData: ocrResult ? buildStructuredData(ocrResult, buildFieldReviewStates({ result: ocrResult, manualOverrides, countryManuallyChanged, hospitalityLocationManual, selectedCountryId: String(formData.get("countryId") || ""), suggestedCountryId: suggestedCountry?.id ?? null, submitted: true }), { dueDate }) : null,
+      aiStructuredData: ocrResult
+        ? buildStructuredData(
+          ocrResult,
+          buildFieldReviewStates({
+            result: ocrResult,
+            manualOverrides,
+            countryManuallyChanged,
+            hospitalityLocationManual,
+            selectedCountryId: selectedCountryId ?? "",
+            suggestedCountryId: suggestedCountry?.id ?? null,
+            submitted: true,
+          }),
+          {
+            date: dateValue,
+            dueDate,
+            amount: amountValue,
+            netAmount: parsedNet,
+            taxAmount: parsedTax,
+            currency: selectedCurrency,
+            supplier: supplierValue,
+            invoiceNumber: invoiceNumberValue,
+          },
+        )
+        : null,
     };
 
     if (isHospitality) {
+      if (!occasion.trim() || !guests.trim() || !hospitalityLocation.trim()) {
+        setError("Bewirtungsangaben (Anlass, Gaeste, Ort) sind Pflicht.");
+        return null;
+      }
       body.hospitality = {
-        occasion,
-        guests,
-        location: hospitalityLocation,
+        occasion: occasion.trim(),
+        guests: guests.trim(),
+        location: hospitalityLocation.trim(),
       };
     }
 

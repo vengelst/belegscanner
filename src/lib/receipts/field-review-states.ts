@@ -55,16 +55,47 @@ export function hasDetectedOcrValues(result: OcrResult) {
   );
 }
 
+export type StructuredDataFieldOverrides = {
+  date?: string;
+  dueDate?: string;
+  amount?: number | null;
+  netAmount?: number | null;
+  taxAmount?: number | null;
+  currency?: string | null;
+  supplier?: string | null;
+  /** Formular erlaubt bis 80 Zeichen; AI-Schema nur 40 – hier kuerzen. */
+  invoiceNumber?: string | null;
+};
+
+/**
+ * Baut die gespeicherte OCR-Struktur. Manuelle Formularwerte haben Vorrang
+ * vor Scanner-Daten, damit spaetere Anzeige/Validierung nicht den Scan
+ * wieder ueber die Nutzereingabe legt.
+ */
 export function buildStructuredData(
   result: OcrResult,
   fieldReviewStates: FieldReviewStateMap,
-  overrides?: { dueDate?: string },
+  overrides?: StructuredDataFieldOverrides,
 ) {
+  const invoiceNumber = overrides?.invoiceNumber !== undefined
+    ? (overrides.invoiceNumber ? overrides.invoiceNumber.slice(0, 40) : null)
+    : result.extracted.invoiceNumber;
+
   return {
     sourceType: result.sourceType,
     extracted: {
       ...result.extracted,
-      dueDate: overrides?.dueDate || null,
+      date: overrides?.date !== undefined ? (overrides.date || null) : result.extracted.date,
+      dueDate: overrides?.dueDate !== undefined ? (overrides.dueDate || null) : result.extracted.dueDate,
+      amount: overrides?.amount !== undefined ? overrides.amount : result.extracted.amount,
+      grossAmount: overrides?.amount !== undefined
+        ? overrides.amount
+        : result.extracted.grossAmount,
+      netAmount: overrides?.netAmount !== undefined ? overrides.netAmount : result.extracted.netAmount,
+      taxAmount: overrides?.taxAmount !== undefined ? overrides.taxAmount : result.extracted.taxAmount,
+      currency: overrides?.currency !== undefined ? overrides.currency : result.extracted.currency,
+      supplier: overrides?.supplier !== undefined ? overrides.supplier : result.extracted.supplier,
+      invoiceNumber,
     },
     fieldConfidence: result.fieldConfidence,
     fieldReviewStates,

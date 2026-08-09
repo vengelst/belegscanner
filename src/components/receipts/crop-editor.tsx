@@ -22,8 +22,10 @@ type Props = {
 
 const DEFAULT_BOUNDS: CropBounds = { x: 0.05, y: 0.05, width: 0.9, height: 0.9 };
 const MIN_SIZE = 0.08;
-const HANDLE_SIZE = 36;
-const HANDLE_HIT_SIZE = 48;
+/** Sichtbarer Griff – bewusst gross fuer Touch auf dem Handy. */
+const HANDLE_SIZE = 56;
+/** Touch-/Klickflaeche um den Griff herum. */
+const HANDLE_HIT_SIZE = 80;
 
 export function CropEditor({ imageUrl, initialBounds, onConfirm, onSkip, onRetake }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
