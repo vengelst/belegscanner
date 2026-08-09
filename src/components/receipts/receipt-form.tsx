@@ -766,10 +766,8 @@ export function ReceiptForm({
   return (
     <>
       <AiAnalysisOverlay
-        active={ocrRunning || isPreparingAsset}
-        message={isPreparingAsset && !ocrRunning
-          ? "Bild wird vorbereitet…"
-          : "KI erkennt den Beleg…"}
+        active={ocrRunning}
+        message="KI erkennt den Beleg…"
       />
       <form action={handleSubmit} className="space-y-6">
         <ReceiptFormFileSection
