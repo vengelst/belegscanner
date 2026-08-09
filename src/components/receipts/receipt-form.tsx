@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { OcrResult } from "@/lib/document-analysis";
+import { AiAnalysisOverlay } from "@/components/receipts/ai-analysis-overlay";
 import { CameraCapture } from "@/components/receipts/camera-capture";
 import { createReceiptWorkingImage, type ReceiptImageProcessingResult } from "@/lib/receipt-image-processing";
 import type { DocumentDetectionResult } from "@/components/receipts/document-detector";
@@ -601,13 +602,30 @@ export function ReceiptForm({
         body: formPayload,
       });
 
+      const data = await response.json().catch(() => null);
       if (!response.ok) {
-        const data = await response.json();
         setError(getApiErrorMessage(data, "Fehler beim Speichern."));
         return;
       }
 
-      const { receipt } = await response.json();
+      const receipt = data && typeof data === "object" && "receipt" in data
+        ? (data as { receipt: { id: string } }).receipt
+        : null;
+      if (!receipt?.id) {
+        setError("Speichern erfolgreich, aber keine Beleg-ID erhalten.");
+        return;
+      }
+
+      if (action === "send" && data && typeof data === "object" && "sendError" in data) {
+        const sendError = String((data as { sendError?: string }).sendError ?? "Uebertragung fehlgeschlagen.");
+        const details = "sendDetails" in data && Array.isArray((data as { sendDetails?: unknown }).sendDetails)
+          ? (data as { sendDetails: string[] }).sendDetails.join(" ")
+          : "";
+        setError(`${sendError}${details ? ` ${details}` : ""}`.trim());
+        router.push(`/receipts/${receipt.id}`);
+        router.refresh();
+        return;
+      }
 
       if (shouldContinue) {
         // Leeres Formular fuer den naechsten Beleg: State sofort leeren und
@@ -618,7 +636,12 @@ export function ReceiptForm({
         return;
       }
 
-      router.push(`/receipts/${receipt.id}`);
+      // Speichern → Detail (nacharbeitbar). Uebertragen → Liste (geschlossen).
+      if (action === "send") {
+        router.push("/receipts");
+      } else {
+        router.push(`/receipts/${receipt.id}`);
+      }
       router.refresh();
     });
   }
@@ -742,6 +765,12 @@ export function ReceiptForm({
 
   return (
     <>
+      <AiAnalysisOverlay
+        active={ocrRunning || isPreparingAsset}
+        message={isPreparingAsset && !ocrRunning
+          ? "Bild wird vorbereitet…"
+          : "KI erkennt den Beleg…"}
+      />
       <form action={handleSubmit} className="space-y-6">
         <ReceiptFormFileSection
           originalFile={originalFile}

@@ -41,7 +41,7 @@ export function ReceiptFormFileSection({
   captureTrigger,
   workingImageInfo,
   cameraSupported,
-  isPreparingAsset,
+  isPreparingAsset: _isPreparingAsset,
   ocrRunning,
   ocrResult,
   hasDetectedValues,
@@ -112,16 +112,10 @@ export function ReceiptFormFileSection({
         {previewUrl ? (
           <img src={previewUrl} alt="Vorschau" className="max-h-72 w-full rounded-xl object-contain" />
         ) : null}
-        {isPreparingAsset ? (
-          <p className="text-sm text-muted-foreground">Bild wird fuer Vorschau und KI-Auslese vorbereitet...</p>
-        ) : null}
-        {workingImageInfo ? (
+        {workingImageInfo && !ocrRunning ? (
           <div className="rounded-xl border border-border/80 bg-muted/40 p-3 text-xs text-muted-foreground">
             Arbeitskopie fuer KI-Auslese: {workingImageInfo.appliedSteps.join(", ")}
           </div>
-        ) : null}
-        {ocrRunning ? (
-          <p className="text-sm text-muted-foreground">ChatGPT analysiert den Beleg...</p>
         ) : null}
         {ocrResult ? (
           <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">

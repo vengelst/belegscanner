@@ -662,3 +662,87 @@ select.input-3d {
   box-shadow: none;
 }
 
+/* ----------------------------------------
+   KI-Erkennung: grosse Sanduhr
+   ---------------------------------------- */
+.hourglass {
+  width: min(42vw, 220px);
+  height: min(56vw, 300px);
+  display: grid;
+  place-items: center;
+}
+
+.hourglass__frame {
+  position: relative;
+  width: 70%;
+  height: 100%;
+  border: 6px solid color-mix(in oklab, var(--primary) 80%, #0f766e);
+  border-radius: 18% 18% 22% 22% / 12% 12% 18% 18%;
+  background:
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      transparent 46%,
+      color-mix(in oklab, var(--primary) 35%, transparent) 50%,
+      transparent 54%,
+      transparent 100%
+    );
+  box-shadow:
+    inset 0 0 0 3px color-mix(in oklab, white 35%, transparent),
+    0 18px 40px color-mix(in oklab, var(--primary) 25%, transparent);
+  overflow: hidden;
+  animation: hourglass-flip 2.4s ease-in-out infinite;
+}
+
+.hourglass__sand {
+  position: absolute;
+  left: 50%;
+  width: 42%;
+  translate: -50% 0;
+  background: color-mix(in oklab, var(--primary) 85%, #fbbf24);
+  border-radius: 40%;
+}
+
+.hourglass__sand--top {
+  top: 12%;
+  height: 28%;
+  clip-path: polygon(0 0, 100% 0, 58% 100%, 42% 100%);
+  animation: hourglass-drain 2.4s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.hourglass__sand--bottom {
+  bottom: 12%;
+  height: 10%;
+  clip-path: polygon(42% 0, 58% 0, 100% 100%, 0 100%);
+  animation: hourglass-fill 2.4s ease-in-out infinite;
+  transform-origin: top center;
+}
+
+@keyframes hourglass-drain {
+  0% { transform: scaleY(1); opacity: 1; }
+  45% { transform: scaleY(0.15); opacity: 0.85; }
+  50%, 100% { transform: scaleY(0.08); opacity: 0.7; }
+}
+
+@keyframes hourglass-fill {
+  0% { transform: scaleY(0.35); }
+  45% { transform: scaleY(1); }
+  50%, 100% { transform: scaleY(1.05); }
+}
+
+@keyframes hourglass-flip {
+  0%, 45% { transform: rotate(0deg); }
+  50%, 95% { transform: rotate(180deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hourglass__frame,
+  .hourglass__sand--top,
+  .hourglass__sand--bottom {
+    animation: none;
+  }
+}
+
+

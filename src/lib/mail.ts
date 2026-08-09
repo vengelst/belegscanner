@@ -248,12 +248,13 @@ export async function sendReceipt(
       },
     });
 
-    // Update status
+    // Update status: uebertragen = abgeschlossen
     await prisma.receipt.update({
       where: { id: receiptId },
       data: {
         sendStatus: "SENT",
         sendStatusUpdatedAt: new Date(),
+        reviewStatus: "COMPLETED",
       },
     });
 

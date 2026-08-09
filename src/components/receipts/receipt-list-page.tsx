@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ReceiptFilterBar } from "@/components/receipts/receipt-filter-bar";
 import { NewReceiptLink } from "@/components/receipts/new-receipt-link";
 import { getReviewStatusBadgeClass, getReviewStatusLabel } from "@/lib/receipts/review-status";
+import { persistReceiptListQuery } from "@/lib/receipts/list-query";
 import {
   DATEV_BELEGTYP_FIELD_LABEL,
   datevBelegtypLabel,
@@ -204,6 +205,10 @@ export function ReceiptListPage({
   const searchParams = useSearchParams();
   const [visibleColumns, setVisibleColumns] = useState<ColumnKey[]>(DEFAULT_VISIBLE_COLUMNS);
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkPending, setBulkPending] = useState(false);
 
   const setParams = useCallback((updates: Record<string, string>) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -218,8 +223,22 @@ export function ReceiptListPage({
     if (!("page" in updates)) {
       params.delete("page");
     }
-    router.push(`/receipts?${params.toString()}`);
+    const query = params.toString();
+    persistReceiptListQuery(query);
+    router.push(query ? `/receipts?${query}` : "/receipts");
   }, [router, searchParams]);
+
+  // Filter-Query merken, damit Zurueck vom Beleg dieselbe Ansicht oeffnet.
+  useEffect(() => {
+    persistReceiptListQuery(searchParams.toString());
+  }, [searchParams]);
+
+  // Auswahl leeren, wenn die Trefferliste wechselt.
+  useEffect(() => {
+    setSelectedIds(new Set());
+    setBulkMessage(null);
+    setBulkError(null);
+  }, [receipts]);
 
   const hasActiveFilters = !!(filters.search || filters.sendStatus || filters.reviewStatus || filters.purposeId || filters.datevBelegtyp || filters.countryId || filters.vehicleId || filters.userId || filters.dateFrom || filters.dateTo);
 
@@ -276,8 +295,92 @@ export function ReceiptListPage({
   }, [filters.sortBy, filters.sortDir, setParams]);
 
   const openReceipt = useCallback((id: string) => {
+    persistReceiptListQuery(searchParams.toString());
     router.push(`/receipts/${id}`);
-  }, [router]);
+  }, [router, searchParams]);
+
+  const allVisibleSelected = receipts.length > 0 && receipts.every((r) => selectedIds.has(r.id));
+  const selectedCount = selectedIds.size;
+
+  function toggleSelect(id: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllVisible() {
+    setSelectedIds((current) => {
+      if (receipts.every((r) => current.has(r.id))) {
+        const next = new Set(current);
+        for (const r of receipts) next.delete(r.id);
+        return next;
+      }
+      const next = new Set(current);
+      for (const r of receipts) next.add(r.id);
+      return next;
+    });
+  }
+
+  async function runBulkAction(kind: "approve" | "send") {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    setBulkPending(true);
+    setBulkMessage(null);
+    setBulkError(null);
+
+    let ok = 0;
+    const failures: string[] = [];
+
+    for (const id of ids) {
+      try {
+        if (kind === "approve") {
+          const res = await fetch(`/api/receipts/${id}/review`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "approve" }),
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => null);
+            failures.push(`${id.slice(0, 8)}: ${data?.error ?? "Freigabe fehlgeschlagen"}`);
+            continue;
+          }
+          ok += 1;
+        } else {
+          const res = await fetch(`/api/receipts/${id}/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => null);
+            failures.push(`${id.slice(0, 8)}: ${data?.error ?? "Uebertragung fehlgeschlagen"}`);
+            continue;
+          }
+          ok += 1;
+        }
+      } catch {
+        failures.push(`${id.slice(0, 8)}: Netzwerkfehler`);
+      }
+    }
+
+    setBulkPending(false);
+    setSelectedIds(new Set());
+    if (ok > 0) {
+      setBulkMessage(
+        kind === "approve"
+          ? `${ok} Beleg(e) freigegeben.`
+          : `${ok} Beleg(e) uebertragen und geschlossen.`,
+      );
+    }
+    if (failures.length > 0) {
+      setBulkError(`${failures.length} Fehler: ${failures.slice(0, 3).join(" · ")}${failures.length > 3 ? " …" : ""}`);
+    }
+    router.refresh();
+  }
 
   return (
     <div className="space-y-4">
@@ -379,7 +482,10 @@ export function ReceiptListPage({
             </p>
           </div>
           {hasActiveFilters ? (
-            <Button variant="secondary" size="lg" onClick={() => router.push("/receipts")}>
+            <Button variant="secondary" size="lg" onClick={() => {
+              persistReceiptListQuery("");
+              router.push("/receipts");
+            }}>
               Filter zuruecksetzen
             </Button>
           ) : (
@@ -390,6 +496,48 @@ export function ReceiptListPage({
         </Card>
       ) : (
         <>
+          {selectedCount > 0 ? (
+            <div className="bb-card flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 shadow-soft">
+              <p className="text-sm font-medium text-foreground">
+                {selectedCount} Beleg{selectedCount === 1 ? "" : "e"} ausgewaehlt
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {isAdmin ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={bulkPending}
+                    onClick={() => void runBulkAction("approve")}
+                  >
+                    {bulkPending ? "Bitte warten…" : "Freigeben"}
+                  </Button>
+                ) : null}
+                <Button
+                  size="sm"
+                  disabled={bulkPending}
+                  onClick={() => void runBulkAction("send")}
+                >
+                  {bulkPending ? "Bitte warten…" : "Uebertragen"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={bulkPending}
+                  onClick={() => setSelectedIds(new Set())}
+                >
+                  Auswahl aufheben
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {bulkMessage ? (
+            <p className="text-sm font-medium text-primary">{bulkMessage}</p>
+          ) : null}
+          {bulkError ? (
+            <p className="text-sm font-medium text-danger">{bulkError}</p>
+          ) : null}
+
           <ListToolbar
             pagination={pagination}
             onPageChange={(nextPage) => setParams({ page: String(nextPage) })}
@@ -399,12 +547,18 @@ export function ReceiptListPage({
           {/* Mobile: eine kompakte Zeile pro Beleg */}
           <div className="space-y-1.5 lg:hidden">
             {receipts.map((r) => (
-              <Link
+              <div
                 key={r.id}
-                href={`/receipts/${r.id}`}
                 className={`bb-card receipt-row flex items-center gap-2 rounded-xl border border-border/80 px-3 py-1.5 text-card-foreground shadow-soft transition ${receiptRowToneClass(r.sendStatus)}`}
               >
-                <div className="min-w-0 flex-1">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(r.id)}
+                  onChange={() => toggleSelect(r.id)}
+                  className="h-4 w-4 shrink-0 rounded border-border"
+                  aria-label={`Beleg ${r.supplier ?? r.id} auswaehlen`}
+                />
+                <Link href={`/receipts/${r.id}`} className="min-w-0 flex-1" onClick={() => persistReceiptListQuery(searchParams.toString())}>
                   <p className="truncate text-sm font-medium">
                     {r.supplier ?? "Beleg"}
                   </p>
@@ -413,9 +567,9 @@ export function ReceiptListPage({
                     {!r.hasFile ? " · Datei fehlt" : ""}
                     {r.sendStatus === "FAILED" ? " · Fehler" : ""}
                   </p>
-                </div>
+                </Link>
                 <StatusBadge status={r.sendStatus} />
-              </Link>
+              </div>
             ))}
           </div>
 
@@ -424,6 +578,15 @@ export function ReceiptListPage({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-muted-foreground">
+                  <th className="px-3 py-1">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleSelectAllVisible}
+                      className="h-4 w-4 rounded border-border"
+                      aria-label="Alle sichtbaren Belege auswaehlen"
+                    />
+                  </th>
                   {visibleColumns.map((columnKey, index) => (
                     <ColumnHeader
                       key={`${columnKey}-${index}`}
@@ -452,6 +615,19 @@ export function ReceiptListPage({
                     }}
                     className={`cursor-pointer border-b border-border/50 transition ${receiptRowToneClass(r.sendStatus)}`}
                   >
+                    <td
+                      className="px-3 py-1"
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => event.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(r.id)}
+                        onChange={() => toggleSelect(r.id)}
+                        className="h-4 w-4 rounded border-border"
+                        aria-label={`Beleg ${r.supplier ?? r.id} auswaehlen`}
+                      />
+                    </td>
                     {visibleColumns.map((columnKey, index) => (
                       <td key={`${r.id}-${columnKey}-${index}`} className="px-4 py-1">
                         <ColumnCell receipt={r} columnKey={columnKey} datevBelegtypLabels={datevBelegtypLabels} />

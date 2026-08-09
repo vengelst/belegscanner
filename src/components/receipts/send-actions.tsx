@@ -210,7 +210,7 @@ export function SendActions({ receiptId, sendStatus, reviewStatus, isAdmin, canS
                   : undefined}
             className="rounded-2xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isPending ? "Wird gesendet..." : "Jetzt senden"}
+            {isPending ? "Wird uebertragen..." : "Jetzt uebertragen"}
           </button>
         ) : null}
         {canRetry ? (
@@ -220,7 +220,7 @@ export function SendActions({ receiptId, sendStatus, reviewStatus, isAdmin, canS
             disabled={isPending}
             className="bb-chip-button rounded-2xl px-5 py-2.5 text-sm disabled:opacity-50"
           >
-            {isPending ? "Wird gesendet..." : "Erneut senden"}
+            {isPending ? "Wird uebertragen..." : "Erneut uebertragen"}
           </button>
         ) : null}
       </div>

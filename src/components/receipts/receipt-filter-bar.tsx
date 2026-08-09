@@ -70,7 +70,18 @@ export function ReceiptFilterBar({
   const [expanded, setExpanded] = useState(false);
   const [searchValue, setSearchValue] = useState(filters.search);
 
-  const hasFilters = !!(filters.sendStatus || filters.reviewStatus || filters.purposeId || filters.datevBelegtyp || filters.countryId || filters.vehicleId || filters.userId || filters.dateFrom || filters.dateTo);
+  const hasFilters = !!(
+    filters.search
+    || filters.sendStatus
+    || filters.reviewStatus
+    || filters.purposeId
+    || filters.datevBelegtyp
+    || filters.countryId
+    || filters.vehicleId
+    || filters.userId
+    || filters.dateFrom
+    || filters.dateTo
+  );
 
   function handleSearchSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -150,8 +161,8 @@ export function ReceiptFilterBar({
         {footerContent ? <div className="flex flex-wrap items-center gap-2">{footerContent}</div> : null}
       </div>
 
-      {/* Status quick-filter chips */}
-      <div className="flex flex-wrap gap-1.5">
+      {/* Status quick-filter chips + Reset */}
+      <div className="flex flex-wrap items-center gap-1.5">
         {SEND_STATUSES.map((s) => {
           const active = filters.sendStatus === s.value;
           return (
@@ -169,6 +180,15 @@ export function ReceiptFilterBar({
             </button>
           );
         })}
+        {hasFilters || filters.search ? (
+          <button
+            type="button"
+            onClick={handleReset}
+            className="ml-1 rounded-full border border-danger/30 bg-danger/5 px-3 py-1 text-xs font-semibold text-danger transition hover:bg-danger/10"
+          >
+            Filter zuruecksetzen
+          </button>
+        ) : null}
       </div>
 
       {/* Expanded filter panel */}
