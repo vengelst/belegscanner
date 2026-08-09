@@ -1,7 +1,8 @@
 export type AutoCaptureSensitivity = "off" | "slow" | "normal" | "fast";
 
 export const AUTO_CAPTURE_STORAGE_KEY = "belegscanner.autoCaptureSensitivity";
-export const AUTO_CAPTURE_DEFAULT: AutoCaptureSensitivity = "slow";
+/** Normal: Beleg erkannt → nach kurzem Hold auslösen (ohne perfekten Ready-Status). */
+export const AUTO_CAPTURE_DEFAULT: AutoCaptureSensitivity = "normal";
 
 export type AutoCaptureProfile = {
   enabled: boolean;
@@ -11,7 +12,10 @@ export type AutoCaptureProfile = {
   warmupMs: number;
   /** Toleranz für kurzzeitig verlorene Erkennung während des Countdowns. */
   missGraceMs: number;
-  /** Nur bei status === "ready" auslösen (strengere Qualitätsprüfung). */
+  /**
+   * Nur bei status === "ready" auslösen.
+   * Standardmaessig aus: sobald Bounds/Beleg erkannt sind, reicht das.
+   */
   requireReadyStatus: boolean;
 };
 
@@ -25,23 +29,24 @@ const PROFILES: Record<AutoCaptureSensitivity, AutoCaptureProfile> = {
   },
   slow: {
     enabled: true,
-    holdMs: 1600,
-    warmupMs: 2500,
-    missGraceMs: 450,
-    requireReadyStatus: true,
+    holdMs: 1400,
+    warmupMs: 1200,
+    missGraceMs: 800,
+    // Langsam = laengerer Hold, nicht strengere Qualitaet.
+    requireReadyStatus: false,
   },
   normal: {
     enabled: true,
-    holdMs: 900,
-    warmupMs: 1500,
-    missGraceMs: 700,
+    holdMs: 700,
+    warmupMs: 800,
+    missGraceMs: 900,
     requireReadyStatus: false,
   },
   fast: {
     enabled: true,
-    holdMs: 400,
-    warmupMs: 500,
-    missGraceMs: 900,
+    holdMs: 350,
+    warmupMs: 400,
+    missGraceMs: 1000,
     requireReadyStatus: false,
   },
 };
@@ -82,17 +87,17 @@ export const AUTO_CAPTURE_OPTIONS: Array<{
   },
   {
     id: "slow",
-    label: "Langsam (empfohlen)",
-    description: "Wartet länger, bis der Beleg ruhig und vollständig im Bild ist.",
+    label: "Langsam",
+    description: "Wartet länger nach der Erkennung, bevor automatisch ausgelöst wird.",
   },
   {
     id: "normal",
-    label: "Normal",
-    description: "Ausgewogene Erkennung – schneller als Langsam, aber nicht sofort.",
+    label: "Normal (empfohlen)",
+    description: "Sobald der Beleg erkannt ist, kurze Pause – dann Auto-Aufnahme.",
   },
   {
     id: "fast",
     label: "Schnell",
-    description: "Löscht früh aus – nur wenn du den Beleg sehr ruhig halten kannst.",
+    description: "Löst früh aus, sobald der Beleg im Bild erkannt wird.",
   },
 ];

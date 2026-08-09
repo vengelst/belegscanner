@@ -210,9 +210,11 @@ export function CameraCapture({ open, onClose, onCapture }: Props) {
       return;
     }
 
+    // Sobald der Belegrahmen erkannt ist, zählt der Hold-Countdown.
+    // requireReadyStatus (nur noch fuer Sonderfaelle) verlangt zusaetzlich status "ready".
     const qualityOk = profile.requireReadyStatus
-      ? result.status === "ready" && result.autoCaptureEligible
-      : Boolean(result.bounds) && result.autoCaptureEligible;
+      ? result.status === "ready"
+      : Boolean(result.bounds);
 
     if (qualityOk) {
       lastSeenDocumentAtRef.current = now;
@@ -552,9 +554,11 @@ function StatusBadge({
   if (detection.status === "ready") {
     label = countdownActive ? "Auto-Aufnahme laeuft..." : "Dokument bereit fuer Auto-Capture";
   } else if (detection.status === "uncertain") {
-    label = detection.autoCaptureEligible
+    label = detection.bounds
       ? (countdownActive ? "Auto-Aufnahme laeuft..." : "Dokument erkannt - Auto startet")
       : "Dokument erkannt, bitte etwas ruhiger ausrichten";
+  } else if (detection.bounds) {
+    label = countdownActive ? "Auto-Aufnahme laeuft..." : "Dokument erkannt - Auto startet";
   }
 
   return (

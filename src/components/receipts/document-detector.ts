@@ -47,12 +47,13 @@ const MIN_SHARPNESS = 8;
 const MAX_MOTION = 0.28;
 
 /**
- * Auto-Capture: sobald ein Belegausschnitt erkannt ist. Hand-Shake (Motion)
- * und leichte Unschaerfe duerfen das Ausloesen nicht mehr verhindern.
+ * Auto-Capture: sobald ein Belegausschnitt erkannt ist.
+ * Schaerfe/Rechteckigkeit/Motion beeinflussen nur den Ready-Hinweis,
+ * blockieren das Ausloesen nicht.
  */
-const AUTO_MIN_COVERAGE = 0.05;
-const AUTO_MAX_COVERAGE = 0.998;
-const AUTO_MIN_BRIGHTNESS = 18;
+const AUTO_MIN_COVERAGE = 0.04;
+const AUTO_MAX_COVERAGE = 0.999;
+const AUTO_MIN_BRIGHTNESS = 12;
 const AUTO_MAX_BRIGHTNESS = 255;
 
 /** Toleranzbaender fuer "knapp daneben" (siehe nearReady). */
@@ -192,8 +193,7 @@ export function analyzeDocumentFrame(
     rectangularity,
   };
 
-  // Auto-Capture: Beleg erkannt + grob im Bild. Motion blockiert bewusst nicht
-  // (Handykamera wackelt immer) - der Countdown im UI braucht nur kurze Stabilitaet.
+  // Auto-Capture: Bounds erkannt = Beleg da. Qualitaetsmetriken nur fuer Status/Hinweis.
   const autoCaptureEligible =
     coverage >= AUTO_MIN_COVERAGE
     && coverage <= AUTO_MAX_COVERAGE
